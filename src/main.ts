@@ -13,8 +13,8 @@ import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizz
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
 import { countries, countryAt, drawInspection, inspectedTotals, type Inspection } from './inspection'
 import { getRegions } from './regions'
-import { eventUnlocked, legacyRecord, nextEvent, recordRun, saveSettings, settings, stormRecord } from './profile'
-import { campaign, difficulties, earnedStars, isCampaignEvent, type CampaignEvent } from './campaign'
+import { difficultyUnlocked, eventUnlocked, legacyRecord, nextEvent, recordRun, saveSettings, settings, stormRecord } from './profile'
+import { campaign, difficulties, difficultyLabel, earnedStars, isCampaignEvent, type CampaignEvent } from './campaign'
 import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
@@ -144,9 +144,9 @@ const basicWeather = {
   Blizzard: { icon: 'blizzard', description: 'Bank snowpack and spend it on a whiteout.' },
 } as const
 const weatherCards = { ...basicWeather, ...hazards }
-function stars(count: number, label = '') {
+function stars(count: number, level: Difficulty, label = '') {
   const star = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.09 6.26 6.91 1-5 4.88 1.18 6.89L12 17.78l-6.18 3.25L7 14.14 2 9.26l6.91-1Z"/></svg>'
-  return `<span class="rating" role="img" aria-label="${label}${count} of 5 stars">${Array.from({ length: 5 }, (_, i) => `<span class="${i < count ? 'earned' : ''}">${star}</span>`).join('')}</span>`
+  return `<span class="rating rating-${level.toLowerCase()}" role="img" aria-label="${label}${count} of 5 stars">${Array.from({ length: 5 }, (_, i) => `<span class="${i < count ? 'earned' : ''}">${star}</span>`).join('')}</span>`
 }
 const thunderstormLabel = (type: ThunderstormType) => type === 'Thunderstorm' ? 'Tornadic Thunderstorm' : type
 
@@ -200,7 +200,7 @@ function menuSection(screen: keyof typeof menuSections) {
           return `<li><h2 style="--choice-color:${stormColor(kind)}">${icon(weatherCards[kind].icon)} ${kind}</h2>
             <ul class="rank-list">${difficulties.map(level => {
               const record = stormRecord(kind, level)
-              return `<li class="rank-row"><strong>${level}</strong>${stars(record?.stars ?? 0, `${level}: `)}
+              return `<li class="rank-row"><strong>${difficultyLabel(level)}</strong>${stars(record?.stars ?? 0, level, `${difficultyLabel(level)}: `)}
                 ${record ? `<dl><div><dt>Best damage</dt><dd>${formatDamage(record.damage)}</dd></div>
                   <div><dt>Most deaths</dt><dd>${num.format(record.deaths)}</dd></div></dl>` : '<span>Unplayed</span>'}</li>`
             }).join('')}</ul>
@@ -234,7 +234,7 @@ function weatherPicker() {
           .sort((a, b) => b.score - a.score || difficulties.indexOf(b.level) - difficulties.indexOf(a.level))[0]
         return `<button class="event-choice" data-action="choose-weather" data-value="${kind}" data-key="weather-${kind}" aria-label="${kind}" aria-describedby="event-detail-${index}" style="--choice-color:${stormColor(kind)}" ${locked ? 'disabled' : ''}>
           <span class="event-emblem">${icon(card.icon)}${locked ? `<span class="event-lock">${icon('lock')}</span>` : ''}</span>
-          <strong>${kind}</strong><span class="event-description" id="event-detail-${index}">${description}${locked ? `<span class="unlock-requirement">Earn 1 star in ${campaign[index - 1]}</span>` : best.score ? `<span class="event-best">${best.level} ${stars(best.score)}</span>` : ''}</span>
+          <strong>${kind}</strong><span class="event-description" id="event-detail-${index}">${description}${locked ? `<span class="unlock-requirement">Earn 1 star in ${campaign[index - 1]}</span>` : best.score ? `<span class="event-best">${difficultyLabel(best.level)} ${stars(best.score, best.level)}</span>` : ''}</span>
         </button>`
       }).join('')}
     </div>
@@ -255,9 +255,13 @@ function menuContent() {
 
   if (screen === 'guide' || screen === 'records' || screen === 'settings') return menuSection(screen)
   if (screen === 'weather') return weatherPicker()
-  const choices = difficulties.map(level => `<button class="menu-option difficulty-option" data-action="choose-difficulty" data-value="${level}" data-key="difficulty-${level}" aria-pressed="${difficulty === level}">
-        <span><strong>${level}</strong><small>${difficultyRules[level].description}</small></span><span class="difficulty-mark">${stars(isCampaignEvent(storm) ? stormRecord(storm, level)?.stars ?? 0 : 0)}<span class="selection-mark">${difficulty === level ? icon('check') : ''}</span></span>
-      </button>`).join('')
+  const event = isCampaignEvent(storm) ? storm : null
+  const choices = difficulties.map(level => {
+    const locked = !event || !difficultyUnlocked(event, level)
+    return `<button class="menu-option difficulty-option" data-action="choose-difficulty" data-value="${level}" data-key="difficulty-${level}" aria-pressed="${difficulty === level}" ${locked ? 'disabled' : ''}>
+        <span><strong>${difficultyLabel(level)}</strong><small>${locked ? 'Earn 3 stars on Hard to unlock' : difficultyRules[level].description}</small></span><span class="difficulty-mark">${stars(event ? stormRecord(event, level)?.stars ?? 0 : 0, level)}<span class="selection-mark">${difficulty === level ? icon('check') : ''}</span></span>
+      </button>`
+  }).join('')
   return `<section class="setup-screen" aria-labelledby="menu-title">
     <header class="setup-header">${button('menu-back', `${icon('back')} Back`, 'weather', 'menu-back')}<h1 id="menu-title" tabindex="-1">Choose difficulty</h1></header>
     <p class="chosen-weather" style="--choice-color:${stormColor(storm)}">${icon(weatherCards[storm].icon)} ${storm}</p>
@@ -373,7 +377,7 @@ function results(state: Run) {
   if (!isCampaignEvent(kind)) return ''
   const rating = earnedStars(kind, state.difficulty, total.damage, true)
   const upcoming = nextEvent(kind)
-  return `<div class="report-heading"><strong>${state.name || kind} · ${state.difficulty}</strong>${stars(rating)}</div>
+  return `<div class="report-heading"><strong>${state.name || kind} · ${difficultyLabel(state.difficulty)}</strong>${stars(rating, state.difficulty)}</div>
     <p class="report-summary">${state.end} ${formatDamage(total.damage)} in property lost.</p>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
     <div class="orders">${state.cyclone ? button('history', 'Track history', undefined, 'order') : ''}${upcoming && eventUnlocked(upcoming) ? button('next-event', `Next: ${upcoming}`, upcoming, 'order hot') : ''}
@@ -406,8 +410,8 @@ function tornadoResults(state: Run) {
   const rating = earnedStars('Tornado', state.difficulty, totals(state).damage, true)
   const places = [...state.tornado!.places]
   return `<section class="forecast-results" aria-labelledby="menu-title">
-    <header><p>Tornado · ${state.difficulty} · ${tornadoDate(state.tornado!.startedAt)}</p><h1 id="menu-title" tabindex="-1">Forecast complete</h1>
-      <p class="result-name">${state.name}</p>${stars(rating)}</header>
+    <header><p>Tornado · ${difficultyLabel(state.difficulty)} · ${tornadoDate(state.tornado!.startedAt)}</p><h1 id="menu-title" tabindex="-1">Forecast complete</h1>
+      <p class="result-name">${state.name}</p>${stars(rating, state.difficulty)}</header>
     <dl class="forecast-stat-sheet">${tornadoReportStats(state).map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
     <div class="forecast-places"><strong>Cities and towns affected</strong><p>${places.length ? places.join(' · ') : 'None reported'}</p></div>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
@@ -478,7 +482,7 @@ function renderPanel() {
           upgradeNode(state, item, selected.id, (state.front && !state.cyclone ? index : index % 3) && choices[index - 1]?.id === item.requires ? 'linked' : '')).join('')}</div>`)
         + upgradeDetails(state, selected.id)
       : tornado ? tornadoOverview(state) : `<div class="evolve-tree"><div class="node"><div class="hex installed">${icon('storm')}</div><span>${name}</span></div></div>
-        <div class="upgrade-detail"><h3>${name}</h3><p>${run.theater.name} · ${run.difficulty}</p><dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
+        <div class="upgrade-detail"><h3>${name}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p><dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
     content = `<nav class="evolution-tabs ${state.thunderstormType ? 'convection-tabs' : ''}" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${tab}</button>`).join('')}</nav>
       <div class="evolution ${tornado ? 'tornado-evolution' : ''}">${pane}</div>
       <div class="panel-status"><strong>${run.momentum} Momentum</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
@@ -538,7 +542,7 @@ function tornadoOverview(state: Run) {
   const weather = conditions(state, state.at)
   const limits = tornadoLimits(state)
   return `<section class="tornado-overview">
-    <div class="tornado-profile"><div class="hex installed">${icon('wind')}</div><div><h3>${state.name}</h3><p>${state.front!.locality.name} · ${state.difficulty}</p></div></div>
+    <div class="tornado-profile"><div class="hex installed">${icon('wind')}</div><div><h3>${state.name}</h3><p>${state.front!.locality.name} · ${difficultyLabel(state.difficulty)}</p></div></div>
     <p>Wind and width increase through Damage upgrades. Inflow and local conditions determine how long the circulation holds together.</p>
     <dl class="region-stats"><div><dt>Intensity</dt><dd>${stats.category}</dd></div><div><dt>Peak winds</dt><dd>${windSpeed(stats.windMph)}</dd></div>
     <div><dt>Damage path width</dt><dd>${formatDistance(stats.widthKm)}</dd></div><div><dt>Forward speed</dt><dd>${windSpeed(frontSpeed(state) * 3600 / tornadoTickSeconds / 1.609344)}</dd></div>
@@ -688,7 +692,7 @@ function render() {
       : state && !opening && !state.end ? `<span class="clock" aria-label="Elapsed time">${clock(state.time)}</span>` : ''
     replace(transport, state && !opening && (!state.end || state.tornado)
       ? clockFace + (state.end ? '' : `<button class="icon-button" data-key="pause" data-action="pause" aria-label="Pause" aria-haspopup="dialog">${icon('pause')}</button><button class="speed" data-key="speed" data-action="speed" aria-label="Speed ${speed}×">${speed}×</button>`)
-      : `<span class="run-settings">${storm} · ${difficulty}</span>${!state ? button('main-menu', 'Main menu', undefined, 'speed') : ''}`)
+      : `<span class="run-settings">${storm} · ${difficultyLabel(difficulty)}</span>${!state ? button('main-menu', 'Main menu', undefined, 'speed') : ''}`)
     if (!camera.interacting) {
       const worldView = !state || opening || overview
       const targeting = mapOrder === 'drop' || mapOrder === 'burst' ? mapOrder : null
@@ -905,8 +909,11 @@ document.addEventListener('click', event => {
       run = null
       storm = value as Storm
       return showScreen('difficulty')
-    case 'choose-difficulty': difficulty = value as Difficulty; break
-    case 'start-game': if (difficulty && isCampaignEvent(storm) && eventUnlocked(storm)) return void openForecast(); break
+    case 'choose-difficulty':
+      if (!isCampaignEvent(storm) || !difficulties.includes(value as Difficulty) || !difficultyUnlocked(storm, value as Difficulty)) return
+      difficulty = value as Difficulty
+      break
+    case 'start-game': if (difficulty && isCampaignEvent(storm) && eventUnlocked(storm) && difficultyUnlocked(storm, difficulty)) return void openForecast(); break
     case 'main-menu':
       if (panel === 'pause') closePause()
       run = null

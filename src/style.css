@@ -672,7 +672,11 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .rating { display: inline-flex; align-items: center; gap: 3px; color: #ae929f; white-space: nowrap; }
 .rating span { display: flex; }
 .rating svg { width: 14px; height: 14px; fill: transparent; stroke: currentColor; stroke-width: 1.6; }
-.rating .earned { color: #ffd295; }
+.rating-easy { --star-color: #df9b68; }
+.rating-normal { --star-color: #c5cdd8; }
+.rating-hard { --star-color: #ffcc52; }
+.rating-expert { --star-color: #e6fbff; }
+.rating .earned { color: var(--star-color); }
 .rating .earned svg { fill: currentColor; }
 .unlock-requirement, .event-best { display: block; margin-top: 6px; }
 .event-best { display: flex; align-items: center; justify-content: center; gap: 5px; }
@@ -681,7 +685,7 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .difficulty-mark .rating { color: #d2aeb9; }
 .rank-list { list-style: none; margin: 0; padding: 0; }
 .record-list .rank-row {
-  display: grid; grid-template-columns: 47px 82px 1fr; align-items: start; gap: 7px;
+  display: grid; grid-template-columns: 55px 82px 1fr; align-items: start; gap: 7px;
   padding: 7px 0; border: 0; border-top: 1px solid #6f4a59; background: none;
 }
 .rank-row > span:last-child { color: #efdbe0; font-size: 12px; }

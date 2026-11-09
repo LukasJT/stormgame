@@ -67,6 +67,10 @@ export function stormRecord(storm: CampaignEvent, difficulty: Difficulty) {
     && validRecord(record)) return record
 }
 
+export function difficultyUnlocked(storm: CampaignEvent, difficulty: Difficulty) {
+  return difficulty !== 'Expert' || (stormRecord(storm, 'Hard')?.stars ?? 0) >= 3
+}
+
 function hasCompletion(storm: CampaignEvent) {
   return difficulties.some(difficulty => stormRecord(storm, difficulty)) || !!legacyRecord(storm)
 }

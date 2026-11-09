@@ -3,10 +3,12 @@ import type { Storm } from './world'
 
 export const campaign = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire', 'Flooding', 'Dust Storm', 'Heat Dome'] as const
 export type CampaignEvent = typeof campaign[number]
-export const difficulties: Difficulty[] = ['Easy', 'Normal', 'Hard']
+export const difficulties: Difficulty[] = ['Easy', 'Normal', 'Hard', 'Expert']
+
+export const difficultyLabel = (difficulty: Difficulty) => difficulty === 'Normal' ? 'Medium' : difficulty
 
 // Damage benchmarks for stars two through five, in millions of dollars.
-const targets: Record<CampaignEvent, Record<Difficulty, readonly [number, number, number, number]>> = {
+const targets: Record<CampaignEvent, Record<Exclude<Difficulty, 'Expert'>, readonly [number, number, number, number]>> = {
   Tornado: {
     Easy: [160, 480, 1050, 1750], Normal: [120, 400, 850, 1400], Hard: [90, 300, 675, 1200],
   },
@@ -34,7 +36,7 @@ const targets: Record<CampaignEvent, Record<Difficulty, readonly [number, number
 }
 
 export function damageTargets(storm: CampaignEvent, difficulty: Difficulty) {
-  return targets[storm][difficulty].map(target => Math.round(target * 1_000_000))
+  return targets[storm][difficulty === 'Expert' ? 'Hard' : difficulty].map(target => Math.round(target * 1_000_000))
 }
 
 export function earnedStars(storm: CampaignEvent, difficulty: Difficulty, damage: number, completed: boolean) {

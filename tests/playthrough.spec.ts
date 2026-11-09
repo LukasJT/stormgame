@@ -7,7 +7,7 @@ async function completeStarterFixture(page: Page) {
   })
 }
 
-async function openMap(page: Page, weather = 'Hurricane', difficulty = 'Normal') {
+async function openMap(page: Page, weather = 'Hurricane', difficulty = 'Medium') {
   if (weather !== 'Tornado') await completeStarterFixture(page)
   await page.getByRole('button', { name: 'Play', exact: true }).click()
   await page.getByRole('button', { name: weather, exact: true }).click()
@@ -53,6 +53,47 @@ test('starts at the main menu and requires weather and difficulty before showing
   await expect(atlas).toBeHidden()
 })
 
+test('colors difficulty ratings and unlocks Expert at three Hard stars for the selected event', async ({ page }) => {
+  await page.addInitScript(() => {
+    const key = 'stormwake.rankings'
+    if (localStorage.getItem(key)) return
+    const record = { damage: 299_000_000, deaths: 0 }
+    localStorage.setItem(key, JSON.stringify({
+      Tornado: {
+        Easy: { ...record, stars: 2 },
+        Normal: { ...record, stars: 2 },
+        Hard: { ...record, stars: 2 },
+      },
+      Hurricane: { Hard: { ...record, stars: 3 } },
+    }))
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Play', exact: true }).click()
+  await page.getByRole('button', { name: 'Tornado', exact: true }).click()
+  const expert = page.getByRole('button', { name: /^Expert / })
+  await expect(expert).toBeDisabled()
+  await expect(expert).toContainText('Earn 3 stars on Hard to unlock')
+  for (const [name, color] of [['Easy', 'rgb(223, 155, 104)'], ['Medium', 'rgb(197, 205, 216)'], ['Hard', 'rgb(255, 204, 82)']]) {
+    await expect(page.getByRole('button', { name: new RegExp(`^${name} `) }).locator('.earned').first()).toHaveCSS('color', color)
+  }
+
+  await page.evaluate(() => {
+    const key = 'stormwake.rankings'
+    const rankings = JSON.parse(localStorage.getItem(key)!)
+    rankings.Tornado.Hard = { damage: 300_000_000, deaths: 0, stars: 3 }
+    rankings.Tornado.Expert = { damage: 0, deaths: 0, stars: 1 }
+    localStorage.setItem(key, JSON.stringify(rankings))
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Play', exact: true }).click()
+  await page.getByRole('button', { name: 'Tornado', exact: true }).click()
+  await expect(expert).toBeEnabled()
+  await expect(expert.locator('.earned').first()).toHaveCSS('color', 'rgb(230, 251, 255)')
+  await expert.click()
+  await page.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(page.getByText('Tornado · Expert', { exact: true })).toBeVisible()
+})
+
 test('awards a Hard completion star and unlocks only the next weather event', async ({ page }) => {
   test.setTimeout(120000)
   await page.clock.install({ time: new Date(2026, 10, 9, 12) })
@@ -79,7 +120,7 @@ test('awards a Hard completion star and unlocks only the next weather event', as
   await page.getByRole('button', { name: 'Play', exact: true }).click()
   await page.getByRole('button', { name: 'Hurricane', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Choose difficulty' })).toBeVisible()
-  await page.getByRole('button', { name: /^Normal / }).click()
+  await page.getByRole('button', { name: /^Medium / }).click()
   await page.getByRole('button', { name: 'Play', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Gulf of Mexico starting region' })).toBeVisible()
   await page.reload()
@@ -185,7 +226,7 @@ test('world map loads, launches a Gulf hurricane, upgrades and replays', async (
   await expect(page.getByRole('group', { name: 'World satellite map' })).toBeVisible()
   await page.getByRole('button', { name: 'Storm view' }).click()
   await page.clock.runFor(460000)
-  await expect(page.locator('.report-heading')).toContainText('Hazel · Normal')
+  await expect(page.locator('.report-heading')).toContainText('Hazel · Medium')
   await page.getByRole('button', { name: 'Track history' }).click()
   const history = page.getByRole('dialog', { name: 'Hazel · Track history' })
   await expect(history).toContainText('Landfall')

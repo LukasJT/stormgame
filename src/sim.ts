@@ -13,13 +13,14 @@ import { markSwath, tornadoStrips, type Swath } from './swath'
 import { tornadoClimate } from './tornado-climate'
 import { tornadoStartDate, type TornadoRecord } from './tornado-report'
 export type { ZoneId } from './world'
-export type Difficulty = 'Easy' | 'Normal' | 'Hard'
+export type Difficulty = 'Easy' | 'Normal' | 'Hard' | 'Expert'
 export type Origin = 0 | 1
 
 export const difficultyRules = {
   Easy: { shelter: 0, good: 0.65, hostile: 0.1, description: 'Favorable weather · low initial sheltering' },
   Normal: { shelter: 0.5, good: 0.45, hostile: 0.2, description: 'Mixed weather · 50% baseline sheltering' },
   Hard: { shelter: 0.9, good: 0.25, hostile: 0.35, description: 'Fewer favorable conditions · 90% baseline sheltering' },
+  Expert: { shelter: 0.98, good: 0.12, hostile: 0.48, description: 'Harsh weather · 98% baseline sheltering' },
 }
 export const leg = 70
 export const defaultSeed = 80417
