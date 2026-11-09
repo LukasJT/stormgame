@@ -107,9 +107,8 @@ let alternateOpening = false
 let showWeather = true
 let hurricaneName = ''
 let inspected: ZoneId | null = null
-let paused = false
 let speed = 1
-let panel: 'evolve' | 'region' | 'news' | 'history' | 'clipping' | null = null
+let panel: 'pause' | 'pause-settings' | 'evolve' | 'region' | 'news' | 'history' | 'clipping' | null = null
 let evolutionTab: Branch | 'Storm' | 'Tornado' = 'Formation'
 let selectedUpgrade: string | null = null
 let inspectMode = false
@@ -156,6 +155,29 @@ const menuSections = {
   settings: 'Settings',
 } as const
 
+function settingsContent() {
+  return `<div class="menu-setting">
+          <label for="starting-speed">Starting speed</label>
+          <select id="starting-speed" aria-describedby="speed-help">
+            <option value="1" ${settings.startingSpeed === 1 ? 'selected' : ''}>1×</option>
+            <option value="2" ${settings.startingSpeed === 2 ? 'selected' : ''}>2×</option>
+          </select>
+          <p id="speed-help">You can still change the speed during a run.</p>
+        </div>
+        <div class="menu-setting">
+          <label for="units-setting">Measurement units</label>
+          <select id="units-setting">
+            <option value="imperial" ${settings.units === 'imperial' ? 'selected' : ''}>Imperial (miles)</option>
+            <option value="metric" ${settings.units === 'metric' ? 'selected' : ''}>Metric (kilometers)</option>
+          </select>
+        </div>
+        <div class="menu-setting">
+          <label for="breaking-news-setting">Breaking news popups</label>
+          <input id="breaking-news-setting" type="checkbox" aria-describedby="news-help" ${settings.breakingNews ? 'checked' : ''}>
+          <p id="news-help">Headlines always appear in the news ticker.</p>
+        </div>`
+}
+
 function menuSection(screen: keyof typeof menuSections) {
   let content: string
   switch (screen) {
@@ -185,26 +207,7 @@ function menuSection(screen: keyof typeof menuSections) {
         }).join('')}</ul>`
       break
     case 'settings':
-      content = `<div class="menu-setting">
-          <label for="starting-speed">Starting speed</label>
-          <select id="starting-speed" aria-describedby="speed-help">
-            <option value="1" ${settings.startingSpeed === 1 ? 'selected' : ''}>1×</option>
-            <option value="2" ${settings.startingSpeed === 2 ? 'selected' : ''}>2×</option>
-          </select>
-          <p id="speed-help">You can still change the speed during a run.</p>
-        </div>
-        <div class="menu-setting">
-          <label for="units-setting">Measurement units</label>
-          <select id="units-setting">
-            <option value="imperial" ${settings.units === 'imperial' ? 'selected' : ''}>Imperial (miles)</option>
-            <option value="metric" ${settings.units === 'metric' ? 'selected' : ''}>Metric (kilometers)</option>
-          </select>
-        </div>
-        <div class="menu-setting">
-          <label for="breaking-news-setting">Breaking news popups</label>
-          <input id="breaking-news-setting" type="checkbox" aria-describedby="news-help" ${settings.breakingNews ? 'checked' : ''}>
-          <p id="news-help">Headlines always appear in the news ticker.</p>
-        </div>`
+      content = settingsContent()
       break
   }
   return `<section class="setup-screen" aria-labelledby="menu-title">
@@ -436,7 +439,18 @@ function renderPanel() {
   if (!panel || !run) return
   let content: string
   let title: string
-  if (panel === 'clipping' && run.tornado) {
+  if (panel === 'pause') {
+    title = 'Paused'
+    content = `<div class="pause-options">
+      ${button('close-panel', 'Resume', undefined, 'order hot')}
+      ${button('restart', 'Restart', undefined, 'order')}
+      ${button('pause-settings', 'Settings', undefined, 'order')}
+      ${button('main-menu', 'Main menu', undefined, 'order')}
+    </div>`
+  } else if (panel === 'pause-settings') {
+    title = 'Settings'
+    content = `<div class="pause-settings">${settingsContent()}${button('pause-back', 'Back to pause menu', undefined, 'order')}</div>`
+  } else if (panel === 'clipping' && run.tornado) {
     title = 'Final storm report'
     content = tornadoClipping(run)
   } else if (panel === 'evolve' && needsThunderstormType(run) && !run.end) {
@@ -490,7 +504,7 @@ function renderPanel() {
   dialog.dataset.view = panel
   const oldTree = dialog.querySelector<HTMLElement>('.tornado-tree')
   const treeScroll = oldTree?.dataset.branch === evolutionTab ? { left: oldTree.scrollLeft, top: oldTree.scrollTop } : null
-  replace(dialog, `<header class="panel-header"><h2 id="panel-title" tabindex="-1">${title}</h2><button class="icon-button" data-key="close-panel" data-action="close-panel" aria-label="Close">${icon('close')}</button></header>${content}`)
+  replace(dialog, `<header class="panel-header"><h2 id="panel-title" tabindex="-1">${title}</h2><button class="icon-button" data-key="close-panel" data-action="close-panel" aria-label="${panel === 'pause-settings' ? 'Back' : 'Close'}">${icon('close')}</button></header>${content}`)
   if (treeScroll) dialog.querySelector<HTMLElement>('.tornado-tree')?.scrollTo(treeScroll)
 }
 
@@ -672,7 +686,7 @@ function render() {
     const clockFace = timestamp ? `<span class="clock storm-calendar" aria-label="Storm date and time"><small>${timestamp.date}</small><span>${timestamp.time}</span></span>`
       : state && !opening && !state.end ? `<span class="clock" aria-label="Elapsed time">${clock(state.time)}</span>` : ''
     replace(transport, state && !opening && (!state.end || state.tornado)
-      ? clockFace + (state.end ? '' : `<button class="icon-button" data-key="pause" data-action="pause" aria-label="${paused ? 'Resume' : 'Pause'}">${icon(paused ? 'play' : 'pause')}</button><button class="speed" data-key="speed" data-action="speed" aria-label="Speed ${speed}×">${speed}×</button>`)
+      ? clockFace + (state.end ? '' : `<button class="icon-button" data-key="pause" data-action="pause" aria-label="Pause" aria-haspopup="dialog">${icon('pause')}</button><button class="speed" data-key="speed" data-action="speed" aria-label="Speed ${speed}×">${speed}×</button>`)
       : `<span class="run-settings">${storm} · ${difficulty}</span>${!state ? button('main-menu', 'Main menu', undefined, 'speed') : ''}`)
     if (!camera.interacting) {
       const worldView = !state || opening || overview
@@ -723,7 +737,6 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
   mapOrder = null
   selectedFunnel = null
   mapFeedback = ''
-  paused = false
   speed = settings.startingSpeed
   inspected = null
   inspectMode = false
@@ -756,7 +769,9 @@ function showPanel(kind: NonNullable<typeof panel>, trigger: HTMLElement) {
   renderPanel()
   dialog.showModal()
   const choosingType = kind === 'evolve' && run && needsThunderstormType(run) && !run.end
-  dialog.querySelector<HTMLElement>(choosingType ? '#panel-title' : '[data-action="close-panel"]')?.focus()
+  const focus = kind === 'pause' ? '.pause-options [data-action="close-panel"]'
+    : choosingType ? '#panel-title' : '[data-action="close-panel"]'
+  dialog.querySelector<HTMLElement>(focus)?.focus()
 }
 
 function selectMap(id: ZoneId) {
@@ -885,6 +900,8 @@ document.addEventListener('click', event => {
     case 'choose-difficulty': difficulty = value as Difficulty; break
     case 'start-game': if (difficulty && isCampaignEvent(storm) && eventUnlocked(storm)) return void openForecast(); break
     case 'main-menu':
+      if (panel === 'pause') closePause()
+      run = null
       difficulty = null
       return showScreen('home')
     case 'view-results':
@@ -894,6 +911,14 @@ document.addEventListener('click', event => {
     case 'opening-move': alternateOpening = value === 'alternate'; break
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
     case 'launch': return launch()
+    case 'restart': {
+      if (!run || panel !== 'pause') return
+      const openingMove = alternateOpening
+      closePause()
+      chooseOrigin(run.theater, run.origin, run.blizzardPattern)
+      alternateOpening = openingMove
+      return launch()
+    }
     case 'retry':
       if (!run) return
       closeClipping()
@@ -924,14 +949,23 @@ document.addEventListener('click', event => {
       break
     case 'storm-course': return prepareMapOrder('storm')
     case 'cancel-map-order': mapOrder = null; mapFeedback = ''; break
-    case 'pause': paused = !paused; break
+    case 'pause': return showPanel('pause', target)
+    case 'pause-settings':
+      panel = 'pause-settings'
+      renderPanel()
+      dialog.querySelector<HTMLElement>('#panel-title')?.focus()
+      return
+    case 'pause-back': return backToPause()
     case 'speed': speed = speed === 1 ? 2 : 1; break
     case 'evolve':
     case 'region':
     case 'history':
     case 'clipping':
     case 'news': return showPanel(action, target)
-    case 'close-panel': return dialog.close()
+    case 'close-panel':
+      if (panel === 'pause-settings') return backToPause()
+      if (panel === 'pause') return closePause()
+      return dialog.close()
     case 'thunderstorm-type':
       if (run && panel === 'evolve' && chooseThunderstormType(run, value as ThunderstormType)) {
         render()
@@ -953,7 +987,7 @@ document.addEventListener('click', event => {
   if (action === 'change-origin') prompt.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true })
 })
 
-menu.addEventListener('change', ({ target }) => {
+function updateSettings({ target }: Event) {
   if (target instanceof HTMLSelectElement && target.id === 'units-setting') {
     settings.units = target.value === 'metric' ? 'metric' : 'imperial'
   } else if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
@@ -962,7 +996,10 @@ menu.addEventListener('change', ({ target }) => {
     settings.breakingNews = target.checked
   } else return
   saveSettings()
-})
+  if (panel === 'pause-settings') render()
+}
+menu.addEventListener('change', updateSettings)
+dialog.addEventListener('change', updateSettings)
 
 inspector.addEventListener('change', event => {
   if (!(event.target instanceof HTMLSelectElement)) return
@@ -1009,19 +1046,48 @@ function closeClipping() {
 }
 
 dialog.addEventListener('close', () => {
+  if (dialog.open || !panel) return
+  clearPanel()
+})
+
+function clearPanel() {
   panel = null
   panelTrigger?.focus({ preventScroll: true })
   panelTrigger = null
   lastFrame = performance.now()
+}
+
+function closePause() {
+  dialog.close()
+  clearPanel()
+}
+
+function backToPause() {
+  panel = 'pause'
+  renderPanel()
+  dialog.querySelector<HTMLElement>('[data-action="pause-settings"]')?.focus()
+}
+
+dialog.addEventListener('cancel', event => {
+  if (panel === 'pause-settings') {
+    event.preventDefault()
+    backToPause()
+  } else if (panel === 'pause') {
+    event.preventDefault()
+    closePause()
+  }
+})
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || panel ||
+    screen !== 'map' || !run || opening || run.end) return
+  const pauseButton = transport.querySelector<HTMLElement>('[data-action="pause"]')
+  if (!pauseButton) return
+  event.preventDefault()
+  showPanel('pause', pauseButton)
 })
 
 map.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && mapOrder) {
-    mapOrder = null
-    mapFeedback = ''
-    render()
-    return
-  }
   if (event.key !== 'Enter' && event.key !== ' ') return
   const { zone, theater, funnel } = (event.target as SVGElement).dataset
   if (event.target === map && mapOrder) {
@@ -1055,7 +1121,7 @@ document.addEventListener('visibilitychange', () => { lastFrame = performance.no
 function frame(now: number) {
   const elapsed = Math.min(100, Math.max(0, now - lastFrame))
   lastFrame = now
-  if (run && !opening && !paused && !panel && !run.end && !document.hidden) {
+  if (run && !opening && !panel && !run.end && !document.hidden) {
     run.realTime += elapsed
     accumulator += elapsed * speed
     while (accumulator >= 1000 && !run.end) {
