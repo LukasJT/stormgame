@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#103245">
+    <meta name="description" content="Play the storm. Steer a hurricane across a fictional coastal region and see the impact of every decision.">
+    <title>Stormwake</title>
+  </head>
+  <body>
+    <main id="menu" class="front-end" aria-label="Stormwake menu"></main>
+    <main class="game" hidden>
+      <header class="topbar">
+        <div class="brand"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M32 7C22 2 9 8 9 19c0 7 8 9 12 4 4-5-1-10-5-7m-12 13c10 5 23-1 23-12 0-7-8-9-12-4-4 5 1 10 5 7"/></svg><span>STORMWAKE</span></div>
+        <div id="bulletins" class="bulletins" aria-label="Storm news"></div>
+        <div id="transport" class="transport" aria-label="Time and difficulty"></div>
+      </header>
+      <section class="chart" id="chart" aria-label="Storm map">
+        <div class="map-caption-bar"><span id="map-title">World satellite map</span><span id="forecast-id"></span></div>
+        <div id="map" tabindex="0" aria-label="Map navigation. Use arrow keys to pan, plus and minus to zoom, and zero to reset."></div>
+        <div id="prompt" class="map-prompt"></div>
+        <div id="map-tools" class="map-tools" role="group" aria-label="Map controls">
+          <button type="button" data-camera="in" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+          <button type="button" data-camera="out" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+          <button type="button" data-camera="reset" aria-label="Reset map view" title="Reset map view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></svg></button>
+          <button type="button" id="weather-toggle" data-action="weather-layer" aria-label="Weather overlay" aria-pressed="true" title="Weather overlay" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16a9 9 0 0 1 18 0M6 16a6 6 0 0 1 12 0M9 16a3 3 0 0 1 6 0m-3 3h.01m0-3 5-6"/></svg></button>
+        </div>
+        <a class="map-credit" href="https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/" target="_blank" rel="noopener">NASA Blue Marble</a>
+        <span id="weather-credit" class="weather-credit"></span>
+        <div id="map-status" class="map-status" aria-label="Storm indicators"></div>
+        <dl id="storm-stats" class="storm-stats" aria-label="Live storm stats"></dl>
+        <aside id="inspection" class="inspection" aria-label="Country and region statistics"></aside>
+        <div id="weather-pickup" class="weather-pickup"></div>
+        <div id="breaking-news" class="breaking-news"></div>
+      </section>
+      <section id="controls" class="controls" aria-label="Storm controls"></section>
+      <section id="summary" class="summary" aria-label="Storm status and totals"></section>
+      <dialog id="panel" aria-labelledby="panel-title"></dialog>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

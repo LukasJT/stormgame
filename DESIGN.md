@@ -1,0 +1,9 @@
+# Stormwake interface
+
+The title screen centers the Stormwake emblem and a silver Play button on a crimson satellite chart. How to Play, Storm Records, and Settings sit below Play. The event picker lays out eight spaced emblems with descriptions underneath. Tornado comes first. Each lock badge names the previous event that opens it. Difficulty has its own screen with separate star records. The second Play opens the map with the chosen settings.
+
+The satellite map is the game board. The pale blue news ticker and dark clock frame its top edge. The bottom status bar uses silver Evolve and Region controls around dark Damage score, World and Total deaths tiles. Momentum and detection sit at the lower corners of the map. Weather bubbles appear briefly on the map. Course choices sit between the map and status bar. Amber stars carry through setup, the report and records. The same layout fits desktop and phone.
+
+Tap an origin on the world chart to place a temporary marker at the current zoom. Begin starts time on the world map. The world map labels major cities and reveals smaller places as you zoom. Storm view opens regional detail. Thunderstorms follow a continuous blue track, with separate red tornado tracks and a shaded touchdown area. Blue route rings and settlement pins guide other events. Evolve, Region and News pause the run while open.
+
+The map uses NASA Blue Marble satellite imagery at world and regional scales. Starting areas pair the event color with a marked, labeled region. Hurricanes use cyan, tornadoes use amber and blizzards use lavender. Red impact marks show damage during a run. The evolution screen uses a crimson board, a connected hexagon diagram, silver tabs and a separate upgrade detail area. Barlow Condensed anchors labels and totals. DM Sans carries supporting copy.
