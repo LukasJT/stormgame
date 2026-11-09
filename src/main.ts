@@ -6,7 +6,7 @@ import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadLocalities, makeDrop } from './free-drop'
-import { abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
 import { stormColor, stormRules, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards, thunderstormTypes, type ThunderstormType } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
@@ -19,7 +19,8 @@ import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
-import { tornadoClock, tornadoDate, tornadoDistance, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
+import { measurementText, temperature, waterDepth, windSpeed, formatDistance } from './units'
+import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
 
 const menu = document.querySelector<HTMLElement>('#menu')!
 const game = document.querySelector<HTMLElement>('.game')!
@@ -162,10 +163,11 @@ function menuSection(screen: keyof typeof menuSections) {
       content = `<ol class="guide-steps">
         <li><strong>Start a hazard</strong><p>Begin with Tornado. Finish any forecast to earn at least one star and unlock the next event. Choose a difficulty, place a marker on the map, then press Begin.</p></li>
         <li><strong>Track and evolve</strong><p>Name your hurricane and choose its origin. Its course follows atmospheric flow. Open Storm view for a closer look, Track history for hurricane classifications, or Evolve to spend Momentum and specialize a thunderstorm.</p></li>
-        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes can unlock a capstone in each tree. Other forecasts can unlock one capstone per run.</p></li>
+        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes also earn Momentum from damage, with larger rewards in populated areas. A wide funnel draws attention, and rain can buy time before people take shelter. Each tornado tree has its own capstone. Other forecasts can unlock one capstone per run.</p></li>
         <li><strong>Watch for warnings</strong><p>Large storms and storms near cities are easier to detect. On higher difficulties, conditions are tougher and more people follow shelter warnings. Track damage score and total deaths in the bottom bar.</p></li>
         <li><strong>Chase five stars</strong><p>Stars two through five come from property damage. Each event and difficulty has its own targets and personal best. Deaths are tallied separately.</p></li>
       </ol>
+      <p>Stormwake is affiliated with <a class="population-source" href="https://www.tornadosimulator.net/" target="_blank" rel="noopener">Tornado Simulator (tornadosimulator.net)</a>. Stormwake uses population and density data from Tornado Simulator and adapts its property damage, shelter, and casualty models for gameplay.</p>
       <p>City labels use <a class="population-source" href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> and <a class="population-source" href="https://www.geonames.org/export/" target="_blank" rel="noopener">GeoNames (CC BY 4.0)</a>.</p>`
       break
     case 'records':
@@ -190,6 +192,13 @@ function menuSection(screen: keyof typeof menuSections) {
             <option value="2" ${settings.startingSpeed === 2 ? 'selected' : ''}>2×</option>
           </select>
           <p id="speed-help">You can still change the speed during a run.</p>
+        </div>
+        <div class="menu-setting">
+          <label for="units-setting">Measurement units</label>
+          <select id="units-setting">
+            <option value="imperial" ${settings.units === 'imperial' ? 'selected' : ''}>Imperial (miles)</option>
+            <option value="metric" ${settings.units === 'metric' ? 'selected' : ''}>Metric (kilometers)</option>
+          </select>
         </div>
         <div class="menu-setting">
           <label for="breaking-news-setting">Breaking news popups</label>
@@ -316,11 +325,15 @@ function routeOrders(state: Run) {
     : state.theater.storm === 'Blizzard'
       ? `<button class="route-choice ability" data-key="ability" data-action="ability" ${state.whiteout || state.charge < 25 ? 'disabled' : ''}><strong>${state.whiteout ? 'Whiteout active' : 'Trigger whiteout'}</strong><small>${Math.floor(state.charge)} snowpack</small></button>`
       : ''
+  const cooldown = satelliteCooldown(state)
+  const satellite = state.effects.satelliteTrigger
+    ? `<button class="route-choice ability" data-key="satellite" data-action="satellite" ${cooldown || state.overWater ? 'disabled' : ''}><strong>Spawn satellite tornado</strong><small>${cooldown ? `${cooldown}s to recharge` : state.overWater ? 'Available over land' : 'Ready'}</small></button>`
+    : ''
   if (state.front) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.name} · Drifting ${directionName(state.front.heading)}</strong>
     <span>${mapFeedback || (mapOrder ? 'Tap the map to set a preferred heading' : 'Follow the projected tornado track')}</span></div>
     <div class="orders">${mapOrder ? button('cancel-map-order', 'Cancel', undefined, 'route-choice')
-      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${ability}`}</div></div>`
+      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${satellite}${ability}`}</div></div>`
   return `<div class="route-status">
     <div class="course-caption"><strong>Moving toward ${zones[state.to].name}</strong>
     <span>${inTransit ? `Next: ${zones[selected].name} · ` : ''}${Math.ceil((leg - state.progress) / travelRate(state))}s · ${routeHint}</span></div>
@@ -337,7 +350,7 @@ function frontOrders(state: Run) {
     : mapOrder === 'burst' ? 'Choose a target on land inside the highlighted range'
     : mapOrder === 'storm' || mapOrder === 'funnel' ? 'Tap the map to set a preferred heading'
     : choosing ? 'Open Evolve to choose a storm type'
-    : funnel ? `${funnel.width.toFixed(2)} km wide · ${funnel.start + funnel.life - state.time}s left · ${state.effects.tornadoSteering ? 'Select again to set heading' : 'Guided Funnels unlocks steering'}`
+    : funnel ? `${formatDistance(funnel.width)} wide · ${funnel.start + funnel.life - state.time}s left · ${state.effects.tornadoSteering ? 'Select again to set heading' : 'Guided Funnels unlocks steering'}`
     : ability.tornado ? (state.effects.precisionDrop ? 'Precision Touchdown available' : 'Touchdown and heading are random')
     : state.effects.targetedBurst ? 'Activate your ability to select a target' : 'Follow the projected storm track')
   const controls = mapOrder
@@ -380,7 +393,7 @@ function tornadoReportStats(state: Run) {
   return [
     ['Damage score', formatDamage(total.damage)], ['Deaths', num.format(total.deaths)], ['Injured', num.format(total.injured)],
     ['Lifetime', tornadoDuration(state.time)], ['Time on ground', tornadoDuration(record.groundTicks)],
-    ['Path length', tornadoDistance(record.lengthKm)], ['Peak width', tornadoDistance(record.maxWidthKm)],
+    ['Path length', formatDistance(record.lengthKm)], ['Peak width', formatDistance(record.maxWidthKm)],
     ['Peak rating', record.peakEf === null ? 'Waterspout' : `EF${record.peakEf}`],
   ]
 }
@@ -412,8 +425,8 @@ function tornadoClipping(state: Run) {
     <div class="clipping-masthead"><strong>The Stormwake Dispatch</strong><span>${tornadoDate(record.startedAt)} · Simulation report</span></div>
     <h3>${headline}</h3>
     <p class="clipping-byline">Final storm survey · ${timing.time} to ${ending.time}</p>
-    <p>The ${tornadoDate(record.startedAt)} ${state.name} lasted ${tornadoDuration(state.time)}. It ${record.peakEf === null
-      ? 'remained over water' : `reached EF${record.peakEf} and cut a ${tornadoDistance(record.lengthKm)} path on land`}.${record.maxWidthKm ? ` At its widest, it measured ${tornadoDistance(record.maxWidthKm)} across.` : ''}</p>
+    <p>${state.name} formed on ${tornadoDate(record.startedAt)} and lasted ${tornadoDuration(state.time)}. It ${record.peakEf === null
+      ? 'remained over water' : `reached EF${record.peakEf} and cut a ${formatDistance(record.lengthKm)} path on land`}.${record.maxWidthKm ? ` At its widest, it measured ${formatDistance(record.maxWidthKm)} across.` : ''}</p>
     <p>${where} The storm caused ${num.format(total.deaths)} deaths and ${num.format(total.injured)} injuries, with property losses estimated at ${formatDamage(total.damage)}.</p>
     <footer>${button('retry', 'Retry', undefined, 'order')}${button('view-results', 'Next', undefined, 'order hot')}</footer>
   </article>`
@@ -458,8 +471,8 @@ function renderPanel() {
     title = `${run.name} · Track history`
     const history = run.cyclone.history
     const peak = run.cyclone.peakWind
-    content = `<p>Peak intensity ${hurricaneCategory(peak)} · ${peak} mph sustained wind.</p>
-      <ol class="cyclone-history">${history.map(stage => `<li><time>${clock(stage.time)}</time><div><strong>${stage.category}</strong><span>${stage.wind} mph · ${stage.location}</span><small>${stage.reason}</small></div></li>`).join('')}</ol>`
+    content = `<p>Peak intensity ${hurricaneCategory(peak)} · ${windSpeed(peak)} sustained wind.</p>
+      <ol class="cyclone-history">${history.map(stage => `<li><time>${clock(stage.time)}</time><div><strong>${stage.category}</strong><span>${windSpeed(stage.wind)} · ${stage.location}</span><small>${stage.reason}</small></div></li>`).join('')}</ol>`
   } else if (panel === 'news') {
     title = 'Storm news'
     const record = run.tornado
@@ -508,12 +521,14 @@ function tornadoUpgradeBoard(state: Run, choices: Upgrade[], selected: string) {
 function tornadoOverview(state: Run) {
   const stats = stormStats(state)
   const weather = conditions(state, state.at)
+  const limits = tornadoLimits(state)
   return `<section class="tornado-overview">
     <div class="tornado-profile"><div class="hex installed">${icon('wind')}</div><div><h3>${state.name}</h3><p>${state.front!.locality.name} · ${state.difficulty}</p></div></div>
     <p>Wind and width increase through Damage upgrades. Inflow and local conditions determine how long the circulation holds together.</p>
-    <dl class="region-stats"><div><dt>Intensity</dt><dd>${stats.category}</dd></div><div><dt>Peak winds</dt><dd>${stats.windMph} mph</dd></div>
-    <div><dt>Damage path width</dt><dd>${tornadoDistance(stats.widthKm)}</dd></div><div><dt>Forward speed</dt><dd>${Math.round(frontSpeed(state) * 3600 / tornadoTickSeconds / 1.609344)} mph</dd></div>
-    <div><dt>Path length</dt><dd>${tornadoDistance(state.tornado!.lengthKm)}</dd></div><div><dt>Time on ground</dt><dd>${tornadoDuration(state.tornado!.groundTicks)}</dd></div>
+    <dl class="region-stats"><div><dt>Intensity</dt><dd>${stats.category}</dd></div><div><dt>Peak winds</dt><dd>${windSpeed(stats.windMph)}</dd></div>
+    <div><dt>Damage path width</dt><dd>${formatDistance(stats.widthKm)}</dd></div><div><dt>Forward speed</dt><dd>${windSpeed(frontSpeed(state) * 3600 / tornadoTickSeconds / 1.609344)}</dd></div>
+    <div><dt>Path length</dt><dd>${formatDistance(state.tornado!.lengthKm)}</dd></div>
+    <div><dt>Travel limit</dt><dd>${formatDistance(limits.km)}</dd></div><div><dt>Lifetime limit</dt><dd>${tornadoDuration(limits.ticks)}</dd></div><div><dt>Time on ground</dt><dd>${tornadoDuration(state.tornado!.groundTicks)}</dd></div>
     <div><dt>Local conditions</dt><dd>${weather.name}</dd></div><div><dt>Detection</dt><dd>${state.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div>
     <div><dt>Visibility</dt><dd>${state.effects.rainWrap ? 'Rain-wrapped' : 'Visible funnel'}</dd></div><div><dt>Track guidance</dt><dd>${state.effects.courseControl ? 'Available' : 'Locked'}</dd></div></dl>
   </section>`
@@ -528,7 +543,7 @@ function upgradeDetails(state: Run, id: string) {
   const chosenCapstone = item.capstone && !item.requiresAny && tree.find(entry => entry.capstone && entry.id !== id && state.upgrades.includes(entry.id))
   const prerequisites = item.requiresAny?.map(id => tree.find(entry => entry.id === id)!.name)
   const cost = installed ? 'Installed' : locked ? 'Locked' : state.momentum < item.cost ? `Need ${item.cost - state.momentum} more Momentum` : `Buy for ${item.cost} Momentum`
-  return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${item.description}</p>
+  return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${measurementText(item.description)}</p>
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
     ${prerequisites ? `<p class="requirement">Requires one of these upgrades</p><ul class="capstone-requirements">${prerequisites.map(name => `<li>${name}</li>`).join('')}</ul>` : ''}
     ${item.capstone && !item.requiresAny ? `<p class="requirement">${chosenCapstone ? `Capstone chosen: ${chosenCapstone.name}` : 'You can install one capstone per forecast.'}</p>` : ''}
@@ -602,12 +617,12 @@ function liveReadings(state: Run) {
   const reading = stormStats(state)
   const hazard = hazardFor(activeStorm(state))
   const mainReading = state.theater.storm === 'Wildfire' ? ['Spread rate', state.zones[state.at].sea ? 'No fuel' : `${Math.round(travelRate(state) * 100 / hazards.Wildfire.speed)}%`]
-    : state.theater.storm === 'Flooding' ? ['Water depth', `${(state.strength * .045).toFixed(1)} m`]
-    : state.theater.storm === 'Dust Storm' ? ['Visibility', `${num.format(Math.round(2000 * (1 - state.strength / 100) ** 2 + 20))} m`]
-    : state.theater.storm === 'Heat Dome' ? ['Temperature', `${Math.round(29 + state.strength * .28)} °C`]
-    : ['Wind speed', `${reading.windMph} mph`]
+    : state.theater.storm === 'Flooding' ? ['Water depth', `${waterDepth(state.strength * .045)}`]
+    : state.theater.storm === 'Dust Storm' ? ['Visibility', `${formatDistance(2 * (1 - state.strength / 100) ** 2 + .02)}`]
+    : state.theater.storm === 'Heat Dome' ? ['Temperature', `${temperature(29 + state.strength * .28)}`]
+    : ['Wind speed', `${windSpeed(reading.windMph)}`]
   const items = [
-    ['Width', reading.widthKm < 1 ? `${num.format(Math.round(reading.widthKm * 1000))} m` : `${num.format(reading.widthKm)} km`],
+    ['Width', formatDistance(reading.widthKm)],
     mainReading,
     [hazard ? 'Conditions' : state.theater.storm === 'Hurricane' ? 'Category' : 'Status', reading.category],
   ]
@@ -615,7 +630,10 @@ function liveReadings(state: Run) {
   if (state.name) items.unshift(['Name', state.name])
   if (state.tornado) {
     if (opening) items.push(['Start support', tornadoSupportLabel(tornadoSupportAt(state.front!.point) * (state.overWater ? .68 : 1))])
-    else items.push(['Path length', tornadoDistance(state.tornado.lengthKm)])
+    else {
+      items.push(['Path length', formatDistance(state.tornado.lengthKm)])
+      items.push(['Public awareness', `${Math.round(state.tornado.awareness * 100)}%`])
+    }
   }
   if (state.thunderstormType) items.unshift(['Type', thunderstormLabel(state.thunderstormType)])
   if (hazard?.ability.tornado && !needsThunderstormType(state)) items.push(['Active tornadoes', String(state.end ? 0 : state.front?.funnels.filter(funnel => isActive(funnel, state.time)).length ?? 0)])
@@ -686,7 +704,9 @@ function render() {
       ? `<h1>${state.zones[state.origin].name}</h1><p>${coordinates(state.theater.places[0][1], state.theater.places[0][2])} · ${conditions(state, state.origin).name}${storm === 'Tornado' ? '' : conditions(state, state.origin).trend > 0 ? ' · Gains strength' : ' · Weakens here'}</p>`
       : `<h1>${state.zones[state.origin].name}</h1><p>Starting point marked. Press Begin when ready.</p>`
     : '')
+  const gain = state?.momentumGain
   replace(mapStatus, state && !opening ? `<div class="hud-chip momentum"><span>${icon('storm')} Momentum</span><strong>${state.momentum}</strong></div>
+    ${gain && state.realTime - gain.at < 3200 ? `<output class="momentum-gain">+${gain.points} ${gain.points === 1 ? 'point' : 'points'}</output>` : ''}
     <div class="hud-chip detection ${state.detectedAt !== null && !state.end ? 'tracked' : ''}"><span>${status}</span><strong>${Math.round(storm === 'Tornado' ? state.support : state.strength)}<small>% ${storm === 'Tornado' ? 'inflow' : 'strength'}</small></strong></div>` : '')
   replace(stats, state ? liveReadings(state) : '')
   if (!interactionInProgress) replace(bulletins, `<button class="news-button" data-key="news" data-action="news" ${!state || opening ? 'disabled' : ''}><strong>News</strong><span>${state && !opening ? state.events[0]?.text : 'No headlines yet'}</span></button>`)
@@ -891,6 +911,7 @@ document.addEventListener('click', event => {
       if (!overview) { inspectMode = false; inspection = null }
       break
     case 'inspect-close': inspectMode = false; inspection = null; break
+    case 'satellite': if (run) triggerSatellite(run); break
     case 'dismiss-news': dismissedHeadline = latestHeadline(); break
     case 'ability':
       if (run?.effects.targetedBurst) return prepareMapOrder('burst')
@@ -933,7 +954,9 @@ document.addEventListener('click', event => {
 })
 
 menu.addEventListener('change', ({ target }) => {
-  if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
+  if (target instanceof HTMLSelectElement && target.id === 'units-setting') {
+    settings.units = target.value === 'metric' ? 'metric' : 'imperial'
+  } else if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
     settings.startingSpeed = target.value === '2' ? 2 : 1
   } else if (target instanceof HTMLInputElement && target.id === 'breaking-news-setting') {
     settings.breakingNews = target.checked
@@ -1033,6 +1056,7 @@ function frame(now: number) {
   const elapsed = Math.min(100, Math.max(0, now - lastFrame))
   lastFrame = now
   if (run && !opening && !paused && !panel && !run.end && !document.hidden) {
+    run.realTime += elapsed
     accumulator += elapsed * speed
     while (accumulator >= 1000 && !run.end) {
       accumulator -= 1000

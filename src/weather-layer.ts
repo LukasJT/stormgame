@@ -31,7 +31,7 @@ const stormEchoes: Partial<Record<ReturnType<typeof activeStorm>, Echo>> = {
 }
 
 function image(echo: Echo) {
-  return `<image href="/weather/${echo.file}.png" x="-.5" y="${-echo.ratio / 2}" width="1" height="${echo.ratio}" preserveAspectRatio="none"/>`
+  return `<image href="${import.meta.env.BASE_URL}weather/${echo.file}.png" x="-.5" y="${-echo.ratio / 2}" width="1" height="${echo.ratio}" preserveAspectRatio="none"/>`
 }
 
 const modeled = {

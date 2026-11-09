@@ -16,6 +16,7 @@ export const baseEffects = {
   tornadoEfficiency: 0, tornadoSteering: 0, precisionDrop: 0, floodPower: 0, floodLife: 0, endurance: 0,
   targetedBurst: 0, tornadoSpeed: 0, rainWrap: 0, hail: 0, hailRadius: 0,
   coldTolerance: 0, heatTolerance: 0, shelterBreach: 0,
+  tornadoRange: 0, tornadoLifetime: 0, satelliteChance: 0, satelliteTrigger: 0,
 }
 export type Effects = typeof baseEffects
 
@@ -30,7 +31,7 @@ function tornadoTree(branch: TornadoBranch, lanes: Record<string, TornadoNode[]>
   const [id, name, description, effects] = capstone
   return [
     ...Object.entries(lanes).flatMap(([lane, nodes]) => nodes.map(([id, name, description, effects], index) => ({
-      id, name, description, effects, branch, lane, cost: [4, 7, 11][index], requires: nodes[index - 1]?.[0],
+      id, name, description, effects, branch, lane, cost: 4 + index * 3 + Math.max(0, index - 1), requires: nodes[index - 1]?.[0],
     }))),
     { id, name, description, effects, branch, cost, capstone: true, requiresAny: Object.values(lanes).map(nodes => nodes.at(-1)![0]) },
   ]
@@ -43,10 +44,28 @@ const tornadoUpgrades = [
       ['tornado-jet', 'Jet Streak Coupling', 'Couple the storm to stronger winds aloft for another 18% of base travel speed.', { tornadoSpeed: .18 }],
       ['tornado-transport', 'Momentum Transport', 'Sustain faster propagation. Add another 22% of base travel speed.', { tornadoSpeed: .22 }],
     ],
+    'Travel limit': [
+      ['tornado-track-feed', 'Track Inflow', 'Extend the maximum distance the tornado can travel.', { tornadoRange: 35 }],
+      ['tornado-track-corridor', 'Inflow Corridor', 'Keep rotation organized over a longer path.', { tornadoRange: 45 }],
+      ['tornado-track-chain', 'Continuous Feed', 'Raise the travel limit through sustained inflow.', { tornadoRange: 60 }],
+      ['tornado-track-long', 'Long-Track Circulation', 'Raise the travel limit to its maximum. Sustain the forward speed needed to use it.', { tornadoRange: 80 }],
+    ],
+    'Lifetime limit': [
+      ['tornado-life-feed', 'Sustained Updraft', 'Increase maximum lifetime by 15 simulated minutes.', { tornadoLifetime: 60, endurance: .32 }],
+      ['tornado-life-balance', 'Steady Inflow', 'Increase maximum lifetime by another 20 simulated minutes.', { tornadoLifetime: 80, endurance: .40 }],
+      ['tornado-life-recycle', 'Updraft Recycling', 'Increase maximum lifetime by another 25 simulated minutes.', { tornadoLifetime: 100, endurance: .55 }],
+      ['tornado-life-anchor', 'Anchored Mesocyclone', 'Raise maximum lifetime to four simulated hours and preserve inflow on long tracks.', { tornadoLifetime: 120, endurance: .75 }],
+    ],
     Persistence: [
       ['inflow', 'Inflow Continuity', 'Keep the low-level feed open and draw down the inflow reserve more slowly.', { endurance: .18 }],
       ['tornado-occlusion', 'Occlusion Resistance', 'Maintain the feed as rain-cooled air wraps in. Slow weakening and preserve more inflow.', { endurance: .22, hazardBuffer: .12 }],
       ['ground-coupling', 'Persistent Mesocyclone', 'Maintain organized rotation and extend the inflow reserve further.', { endurance: .30, hazardBuffer: .18 }],
+    ],
+    'Terrain resistance': [
+      ['tornado-surface-feed', 'Surface Inflow', 'Reduce weakening over difficult terrain.', { hazardBuffer: .05 }],
+      ['tornado-rough-flow', 'Roughness Recovery', 'Maintain rotation through changes in surface roughness.', { hazardBuffer: .07 }],
+      ['tornado-inflow-pulse', 'Inflow Pulses', 'Carry a small reserve through rough patches.', { endurance: .18 }],
+      ['tornado-flow-bridge', 'Inflow Bridge', 'Reduce further weakening between favorable areas.', { hazardBuffer: .09 }],
     ],
     'Track stability': [
       ['tornado-thermal', 'Vorticity Alignment', 'Align low-level rotation with the updraft to reduce track wobble.', { trackStability: .22 }],
@@ -56,14 +75,26 @@ const tornadoUpgrades = [
   }, ['tornado-course', 'Mesocyclone Track Control', 'Select a point on the map to set a preferred heading. The tornado turns gradually as it travels.', { courseControl: 1 }], 18),
   ...tornadoTree('Damage', {
     'Wind speed': [
-      ['vortex', 'Vortex Contraction', 'Concentrate the circulation and add 25 mph to peak winds.', { wind: 25 }],
-      ['rear-flank', 'Rear-Flank Momentum Surge', 'Bring faster air down into the circulation. Add 36 mph to peak winds.', { wind: 36 }],
-      ['tornado-vortex-breakdown', 'Corner-Flow Intensification', 'Accelerate winds near the ground. Add 48 mph to peak winds.', { wind: 48 }],
+      ['vortex', 'Vortex Contraction', 'Concentrate the circulation and add 24 mph to peak winds.', { wind: 24 }],
+      ['rear-flank', 'Rear-Flank Momentum Surge', 'Bring faster air down into the circulation. Add 31 mph to peak winds.', { wind: 31 }],
+      ['tornado-vortex-breakdown', 'Corner-Flow Intensification', 'Accelerate winds near the ground. Add 38 mph to peak winds.', { wind: 38 }],
+      ['tornado-inner-core', 'Inner-Core Acceleration', 'Add 44 mph to peak winds. Complete this branch to sustain EF5 at full strength.', { wind: 44 }],
     ],
     'Path width': [
       ['wide-funnel', 'Broad Inflow Layer', 'Spread the near-surface circulation. Add up to 160 m of damage width.', { width: .16 }],
       ['satellite', 'Expanded Vorticity Field', 'Widen the swath by up to another 360 m.', { width: .36 }],
       ['wedge', 'Wedge Circulation', 'Sustain a broader circulation. Add up to another 700 m of damage width.', { width: .70 }],
+    ],
+    'Satellite tornadoes': [
+      ['tornado-satellite-seed', 'Satellite Rotation', 'Occasionally shed a weaker tornado in a random direction.', { satelliteChance: .24 }],
+      ['tornado-satellite-lobes', 'Unstable Rotation Lobes', 'Increase the chance of shedding a satellite tornado.', { satelliteChance: .20 }],
+      ['tornado-satellite-shear', 'Outer Vortex Shear', 'Further increase the chance of shedding a satellite tornado.', { satelliteChance: .20 }],
+      ['tornado-satellite-split', 'Vortex Split', 'Unlock a manual satellite tornado every 60 real seconds of active play.', { satelliteTrigger: 1 }],
+    ],
+    'Near-ground winds': [
+      ['tornado-low-jet', 'Near-Ground Jet', 'Increase wind damage to buildings.', { gust: .12 }],
+      ['tornado-corner-debris', 'Corner Flow', 'Concentrate debris near ground level.', { gust: .15 }],
+      ['tornado-ground-jet', 'Ground-Level Surge', 'Raise property damage across the wind swath.', { gust: .20 }],
     ],
     Rainfall: [
       ['rain-wrapped', 'Precipitation Curtain', 'Rain hides the funnel from spotters and adds 12 seconds to local warning delays.', { warningDelay: 12, rainWrap: 1 }],
@@ -75,12 +106,17 @@ const tornadoUpgrades = [
       ['tornado-hail-growth', 'Wet Growth Regime', 'Grow larger hailstones for heavier property damage across a wider footprint.', { hail: .45, hailRadius: 2 }],
       ['tornado-hail-swath', 'Giant Hail Swath', 'Spread damaging hail farther around the vortex.', { hail: .65, hailRadius: 3 }],
     ],
+    'Rain concealment': [
+      ['tornado-rain-veil', 'Low Rain Veil', 'Delay local detection with a curtain of rain.', { rainWrap: .4 }],
+      ['tornado-rain-screen', 'Dense Rain Screen', 'Further reduce how quickly the funnel draws attention.', { rainWrap: .4 }],
+      ['tornado-rain-shroud', 'Deep Precipitation Shroud', 'Mask a larger circulation and delay local warnings.', { rainWrap: .4, warningDelay: 8 }],
+    ],
     Debris: [
       ['tornado-debris', 'Debris Entrainment', 'Lift debris into the circulation. Raise tornado wind damage to property by 20% of base damage.', { gust: .20 }],
       ['tornado-debris-load', 'High Debris Loading', 'Larger windborne fragments add another 30% of base property damage.', { gust: .30 }],
       ['tornado-debris-barrage', 'Ballistic Debris Field', 'Dense debris adds another 45% of base property damage and weakens shelter protection in severe winds.', { gust: .45, shelterBreach: .10 }],
     ],
-  }, ['multi-vortex', 'Violent Multivortex Core', 'Intense subvortices add 51 mph to peak winds and up to 500 m to the swath. Complete the wind branch as well to reach EF5.', { wind: 51, width: .5 }], 26),
+  }, ['multi-vortex', 'Violent Multivortex Core', 'Strengthen the core and widen the swath. Greater size makes the tornado easier to spot.', { wind: 15, width: .5 }], 26),
   ...tornadoTree('Abilities', {
     'Cold tolerance': [
       ['tornado-cold-pool', 'Cold-Pool Balance', 'Keep rain-cooled air from cutting off inflow. Reduce cold-air weakening by 25%.', { coldTolerance: .25 }],
@@ -91,6 +127,16 @@ const tornadoUpgrades = [
       ['tornado-mixed-layer', 'Elevated Mixed Layer', 'Sustain the updraft in hot, dry air. Reduce hot-air weakening by 25%.', { heatTolerance: .25 }],
       ['tornado-heat-flux', 'Sensible Heat Flux Coupling', 'Use surface heating to maintain buoyancy. Block another 20% of base hot-air weakening.', { heatTolerance: .20 }],
       ['tornado-moisture', 'Moisture Retention', 'Keep dry air out of the inflow. Block another 25% of base hot-air weakening.', { heatTolerance: .25 }],
+    ],
+    'Warning disruption': [
+      ['tornado-radar-clutter', 'Radar Clutter', 'Delay local warnings amid nearby storm returns.', { warningDelay: 4 }],
+      ['tornado-warning-gaps', 'Warning Gaps', 'Buy more time before residents hear local warnings.', { warningDelay: 6 }],
+      ['tornado-warning-overload', 'Alert Saturation', 'Slow the local response to a tornado warning.', { warningDelay: 8 }],
+    ],
+    'Inflow recovery': [
+      ['tornado-recovery-feed', 'Secondary Feed', 'Reduce how quickly the inflow reserve runs down.', { endurance: .12 }],
+      ['tornado-recovery-stream', 'Reserve Stream', 'Maintain more reserve through dry air.', { endurance: .14, heatTolerance: .04 }],
+      ['tornado-recovery-core', 'Reserve Core', 'Preserve additional inflow through cold air.', { endurance: .18, coldTolerance: .04 }],
     ],
     Communications: [
       ['tornado-response', 'Spotter Network Gaps', 'Sparse reports delay the first local alerts by 10 seconds.', { warningDelay: 10 }],

@@ -76,6 +76,7 @@ svg { display: block; }
   body[data-phase=setup][data-storm=Tornado] .map-prompt { top: 6%; }
 }
 .map-status { position: absolute; inset: auto 10px 29px; display: flex; justify-content: space-between; gap: 6px; pointer-events: none; }
+.momentum-gain { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 4px 9px; border-radius: 5px; background: var(--instrument); color: #aef6bd; font: 700 18px var(--display); }
 .hud-chip { display: flex; align-items: center; min-height: 33px; border: 1px solid #799ba7; border-radius: 5px; overflow: hidden; background: var(--instrument); }
 .hud-chip span { display: flex; align-items: center; gap: 4px; align-self: stretch; padding: 3px 10px; font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .035em; }
 .hud-chip.momentum span { background: var(--crimson); color: #fff; }

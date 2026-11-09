@@ -7,7 +7,7 @@ const settingsKey = 'stormwake.settings'
 const recordsKey = 'stormwake.records'
 const rankingsKey = 'stormwake.rankings'
 
-type Settings = { startingSpeed: 1 | 2; breakingNews: boolean }
+type Settings = { startingSpeed: 1 | 2; breakingNews: boolean; units: 'imperial' | 'metric' }
 type RecordTotals = { damage: number; deaths: number }
 type Records = Partial<Record<Storm, RecordTotals | { score: number; deaths: number }>>
 type Ranking = RecordTotals & { stars: number }
@@ -32,6 +32,7 @@ function writeStorage(key: string, data: object) {
 
 const storedSettings = readStorage<Settings>(settingsKey)
 export const settings: Settings = {
+  units: storedSettings.units === 'metric' ? 'metric' : 'imperial',
   startingSpeed: storedSettings.startingSpeed === 2 ? 2 : 1,
   breakingNews: storedSettings.breakingNews !== false,
 }

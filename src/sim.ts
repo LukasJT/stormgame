@@ -3,9 +3,9 @@ import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
 import { hazardFor, thunderstormTypes, type ThunderstormType } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
-import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, worldX, type ConvectiveTrack, type MapPoint } from './convection'
+import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
-import { affectedCities, escapeName } from './cities'
+import { affectedCities, escapeName, nearbyCity } from './cities'
 import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, windBand } from './impact'
 import { momentumSchedule, startingMomentum, type WeatherPickup } from './momentum'
 import { cycloneFlow, cycloneSpeed, cycloneTrack, cycloneWeather, latitudeAt, longitudeAt, radarSpin, startCyclone, type Cyclone } from './cyclone'
@@ -17,9 +17,9 @@ export type Difficulty = 'Easy' | 'Normal' | 'Hard'
 export type Origin = 0 | 1
 
 export const difficultyRules = {
-  Easy: { shelter: 0, good: 0.65, hostile: 0.1, description: 'Favorable weather · residents ignore warnings' },
-  Normal: { shelter: 0.5, good: 0.45, hostile: 0.2, description: 'Mixed weather · up to 50% take shelter' },
-  Hard: { shelter: 0.9, good: 0.25, hostile: 0.35, description: 'Fewer favorable conditions · up to 90% follow alerts' },
+  Easy: { shelter: 0, good: 0.65, hostile: 0.1, description: 'Favorable weather · low initial sheltering' },
+  Normal: { shelter: 0.5, good: 0.45, hostile: 0.2, description: 'Mixed weather · 50% baseline sheltering' },
+  Hard: { shelter: 0.9, good: 0.25, hostile: 0.35, description: 'Fewer favorable conditions · 90% baseline sheltering' },
 }
 export const leg = 70
 export const defaultSeed = 80417
@@ -43,6 +43,7 @@ export type Run = {
   seed: number; origin: Origin; difficulty: Difficulty; time: number; strength: number; momentum: number
   name: string; support: number; cyclone: Cyclone | null; overWater: boolean
   tornado: TornadoRecord | null
+  realTime: number; momentumGain: { points: number; at: number } | null
   momentumSchedule: ReturnType<typeof momentumSchedule>; pickup: WeatherPickup | null
   theater: Theater; zones: Zone[]; charge: number; whiteout: number
   thunderstormType: ThunderstormType | null; blizzardPattern: BlizzardPattern | null
@@ -116,9 +117,11 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   const hurricane = theater.storm === 'Hurricane'
   const locality = localityAt(latitudeAt(point), longitudeAt(point))
   const overWater = !locality.code
-  const name = tornado ? overWater ? 'Waterspout' : tornadoName(locality) : ''
+  const city = tornado ? closestTornadoCity(point) : undefined
+  const name = tornado ? overWater ? 'Waterspout' : tornadoName(city) : ''
   const record: TornadoRecord | null = tornado
-    ? { startedAt: tornadoStartDate(), lengthKm: 0, groundTicks: 0, maxWidthKm: 0, peakEf: null, places: new Set() } : null
+    ? { startedAt: tornadoStartDate(), lengthKm: 0, groundTicks: 0, maxWidthKm: 0, peakEf: null, places: new Set(), travelKm: 0,
+      awareness: 0, deaths: 0, impactCredit: 0, nextSatellite: 0, manualSatellite: 0, chaserExposure: 0 } : null
   const cyclone = hurricane ? startCyclone(point, seed, overWater && !lakeAt(latitudeAt(point), longitudeAt(point))) : null
   const front: Front | null = tornado || hurricane || hazard?.group === 'storm'
     ? { ...makeConvectiveTrack(point, seed, tornado), areas, current: frontArea(areas, point), locality, bursts: [], floods: new Map(), swath: [] }
@@ -128,20 +131,61 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     seed, origin, difficulty, theater, zones, charge: 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record,
     thunderstormType: null, blizzardPattern, front,
     time: 0, strength: hurricane ? 31 : tornado ? 58 : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
+    realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
     upgrades: [], effects: { ...baseEffects }, pulses: [],
     detectedAt: null, sites, track: [origin], end: null, alertHeadlines: new Set(),
-    events: [{ time: 0, text: tornado ? overWater ? `Waterspout forms ${locality.reference}.`
-      : `Undetected tornado touches down ${zoneReference(theater, origin)} · ${name}.` : theater.storm === 'Wildfire'
+    events: [{ time: 0, text: tornado ? `Rotating storms detected ${overWater ? locality.reference : city ? `near ${city}` : locality.reference}.` : theater.storm === 'Wildfire'
       ? zones[origin].sea ? 'Ignition has no fuel over open water.' : `Wildfire ignited ${zoneReference(theater, origin)}.`
       : hazard || blizzardPattern ? `${blizzardPattern ?? theater.storm} formed ${zoneReference(theater, origin)}.` : `Circulation formed ${zoneReference(theater, origin)}.`,
     breaking: tornado || !!hazard }],
   }
 }
 
-function tornadoName(place: ReturnType<typeof localityAt>) {
-  return `${place.cityName ?? place.name.split(' · ')[0]} Tornado`
+function closestTornadoCity(point: MapPoint) {
+  const city = nearbyCity(latitudeAt(point), longitudeAt(point), '', undefined, Infinity)
+  return city && escapeName(city.name)
+}
+
+function tornadoName(city: string | undefined) {
+  return city ? `The ${city} Tornado` : 'The Tornado'
+}
+
+export function tornadoLimits(run: Run) {
+  return { ticks: 600 + run.effects.tornadoLifetime, km: 180 + run.effects.tornadoRange }
+}
+
+function gainMomentum(run: Run, points: number) {
+  run.momentum += points
+  const prior = run.momentumGain
+  run.momentumGain = { points: points + (prior?.at === run.realTime ? prior.points : 0), at: run.realTime }
+}
+
+export function satelliteCooldown(run: Run) {
+  return Math.max(0, Math.ceil(((run.tornado?.manualSatellite ?? 0) - run.realTime) / 1000))
+}
+
+function spawnSatellite(run: Run) {
+  const front = run.front!
+  const id = front.funnels.length + 1
+  const roll = random(run.seed ^ Math.imul(id, 0x9e3779b1) ^ run.time)
+  const heading = front.heading + (roll() < .5 ? -1 : 1) * (.55 + roll() * (Math.PI - .55))
+  const { windMph, widthKm } = stormStats(run)
+  const peakEF = Math.min(2, Math.max(0, windBand(windMph) - 1))
+  front.funnels.push({
+    id, ef: 0, peakEF, wind: 65, width: .02, peakWidth: Math.min(.35, Math.max(.025, widthKm * .25)),
+    start: run.time, life: 18 + Math.floor(roll() * 12), point: front.point, path: [front.point],
+    swath: [], heading, naturalHeading: heading, preference: null, speed: .18 + roll() * .15, phase: roll() * 6.28,
+  })
+  log(run, 'A weaker satellite tornado splits from the main circulation.')
+}
+
+export function triggerSatellite(run: Run) {
+  if (!run.tornado || run.end || run.overWater || !run.effects.satelliteTrigger || satelliteCooldown(run)) return false
+  spawnSatellite(run)
+  run.tornado.manualSatellite = run.realTime + 60_000
+  return true
 }
 
 export function nameHurricane(run: Run, name: string) {
@@ -160,7 +204,7 @@ export function nameHurricane(run: Run, name: string) {
 
 export function collectWeatherPickup(run: Run, time: number) {
   if (run.end || !run.pickup || run.pickup.time !== time || run.time >= run.pickup.expires) return false
-  run.momentum += run.pickup.points
+  gainMomentum(run, run.pickup.points)
   run.pickup = null
   return true
 }
@@ -204,7 +248,7 @@ function tornadoWeather(run: Run, roll: number) {
   const latitude = Math.abs(latitudeAt(point))
   const support = tornadoSupportAt(point) * (run.overWater ? .68 : 1)
   const rule = difficultyRules[run.difficulty]
-  const weakening = 1 - run.effects.hazardBuffer
+  const weakening = Math.max(.15, 1 - run.effects.hazardBuffer)
   const cold = latitude >= 52 || roll > 1 - rule.hostile / 2
   const heat = !cold && (latitude <= 30 || roll > 1 - rule.hostile)
   const tolerance = cold ? run.effects.coldTolerance : heat ? run.effects.heatTolerance : 0
@@ -382,7 +426,7 @@ export function position(run: Run) {
 
 function log(run: Run, message: string, breaking = false) {
   run.events.unshift({ time: run.time, text: message, breaking })
-  if (run.events.length > 12) run.events.pop()
+  if (run.events.length > 12) run.events.splice(run.tornado ? -2 : -1, 1)
 }
 
 function updateWarnings(run: Run) {
@@ -407,12 +451,12 @@ function updateSiteWarning(run: Run, zone: Zone, site: Site, threatened: boolean
     if (threatened) {
       site.threatAt ??= run.time
       if (site.warnedAt === null) {
-        if (run.time - site.threatAt < run.effects.warningDelay) return
+        if (run.time - site.threatAt < run.effects.warningDelay * (1 - (run.tornado?.awareness ?? 0) * .7)) return
         site.warnedAt = run.time
         site.clearedAt = null
         if (!site.reportedWarning) {
           site.reportedWarning = true
-          if (!run.front || zone.population >= 600) {
+          if (!run.tornado && (!run.front || zone.population >= 600)) {
             const place = run.front ? localityAt(90 - zone.y / 10, zone.x / 10 - 180) : null
             const where = place?.reference ?? `in ${zone.name}`
             const locality = place?.city ?? zone.name
@@ -425,9 +469,11 @@ function updateSiteWarning(run: Run, zone: Zone, site: Site, threatened: boolean
         }
       }
       const outage = site.outageUntil > run.time ? run.effects.broadcast : 0
-      const uptake = difficultyRules[run.difficulty].shelter * (1 - run.effects.panic)
-      const elapsed = Math.max(0, run.time - site.warnedAt - 14) * (1 - outage)
-      const target = Math.floor(living * uptake * Math.min(1, elapsed / (leg + run.effects.gridlock)))
+      const awareness = run.tornado?.awareness ?? 0
+      const baseline = difficultyRules[run.difficulty].shelter
+      const uptake = (baseline + (1 - baseline) * awareness * .92) * (1 - run.effects.panic)
+      const elapsed = Math.max(0, run.time - site.warnedAt - 14 * (1 - awareness)) * (1 - outage)
+      const target = Math.floor(living * uptake * Math.min(1, elapsed / (leg * (1 - awareness * .90) + run.effects.gridlock)))
       site.sheltered = Math.min(living, Math.max(target, site.sheltered))
     } else {
       site.threatAt = null
@@ -470,6 +516,14 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const casualtyRate = share * rate * (1 + overload + effects.panic)
   const loss = Math.min(zone.assets - site.loss, Math.floor(zone.housing * share * lossPerHome(wind, funnel) * (1 + rain + (propertyOnly ? 0 : effects.gust) + (outage ? effects.supply : 0))))
   site.loss += loss
+  if (run.tornado && loss > 0) {
+    const record = run.tornado
+    const densityBonus = Math.min(6, 1 + zone.population / zone.area / 220)
+    const before = Math.floor(Math.sqrt(record.impactCredit / 500_000))
+    record.impactCredit += loss * densityBonus
+    const after = Math.floor(Math.sqrt(record.impactCredit / 500_000))
+    if (after > before) gainMomentum(run, after - before)
+  }
   if (propertyOnly) return loss
   if (loss > 0 && effects.outageTime && (run.theater.storm !== 'Tornado' || wind >= 86)) {
     site.outageUntil = run.time + effects.outageTime
@@ -479,6 +533,7 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const deaths = Math.min(living, Math.floor(expected))
   site.carry = expected - deaths
   site.deaths += deaths
+  if (run.tornado) run.tornado.deaths += deaths
   const surviving = living - deaths
   site.sheltered = Math.min(surviving, site.sheltered)
   site.injured = Math.min(surviving, site.injured - (living ? Math.floor(site.injured * deaths / living) : 0))
@@ -497,11 +552,11 @@ function sampledAreas(front: Front, center: MapPoint, radius: number) {
 }
 
 export function frontSpeed(run: Run) {
-  return run.cyclone ? cycloneSpeed(run.front!.point) : run.theater.storm === 'Tornado' ? .23 * (1 + run.effects.tornadoSpeed) : 1.15 * travelRate(run)
+  return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? Math.max(.23 * (1 + run.effects.tornadoSpeed), (180 + run.effects.tornadoRange) / 960) : 1.15 * travelRate(run)
 }
 
-function moveFront(run: Run, front: Front) {
-  advanceFront(front, frontSpeed(run), run.time, run.effects.trackStability)
+function moveFront(run: Run, front: Front, speed = frontSpeed(run)) {
+  advanceFront(front, speed, run.time, run.effects.trackStability)
   const current = frontArea(front.areas, front.point)
   if (current !== front.current) {
     front.current = current
@@ -524,29 +579,46 @@ function updateFrontWarnings(run: Run, front: Front, threatened: Set<ImpactArea>
 
 function tickTornado(run: Run, front: Front) {
   const previous = front.point
-  moveFront(run, front)
+  const record = run.tornado!
+  const limit = tornadoLimits(run)
+  moveFront(run, front, Math.min(frontSpeed(run), Math.max(0, limit.km - record.travelKm)))
+  record.travelKm += distanceKm(previous, front.point)
   const wasWater = run.overWater
   run.overWater = front.current.zone.sea
   if (wasWater && !run.overWater && run.name === 'Waterspout') {
     const locality = localityAt(latitudeAt(front.point), longitudeAt(front.point))
-    run.name = tornadoName(locality)
+    run.name = tornadoName(closestTornadoCity(front.point))
     log(run, `Waterspout moves ashore ${locality.reference} · ${run.name}.`, true)
   }
   const weather = conditions(run, run.at)
   const support = tornadoSupportAt(front.point) * (run.overWater ? .68 : 1)
   const exposure = (1 - support) ** 2
   const difficulty = (1 - difficultyRules[run.difficulty].good) * .024
-  const draw = (.153 + exposure * .34 + difficulty) / (1 + Math.min(.9, run.effects.endurance) * .67)
+  const draw = (.153 + exposure * .34 + difficulty) / (1 + run.effects.endurance * .67)
   run.support = Math.max(0, run.support - draw)
   const exhausted = Math.max(0, 1 - run.support / 24) * .52
   run.strength = Math.max(0, run.strength + weather.trend - exhausted)
-  const ahead = movePoint(front.point, front.heading, 15)
-  const threatened = new Set([front.current, frontArea(front.areas, ahead)])
+  const ahead = movePoint(front.point, front.heading, 15 + record.awareness * 35)
+  const threatened = new Set([front.current, ...sampledAreas(front, ahead, record.awareness * 10)])
   const { windMph, widthKm } = stormStats(run)
-  const hidden = run.effects.rainWrap > 0
-  const spotted = front.current.zone.population >= (hidden ? 1800 : 600) || windMph >= (hidden ? 125 : 100)
-  updateFrontWarnings(run, front, threatened, spotted)
-  const record = run.tornado!
+  const concealment = Math.min(.85, run.effects.rainWrap * .53)
+  const visibility = (Math.max(0, windMph - 85) / 150 + widthKm * .48
+    + Math.min(.3, front.current.zone.population / 16_000)) * (1 - concealment)
+  record.awareness = Math.min(1, record.awareness + Math.max(0, visibility - .11) * .023)
+  const spotted = record.awareness >= .14 || front.current.zone.population >= 600 / (1 - concealment)
+  if (!run.overWater && spotted && run.detectedAt === null) {
+    run.detectedAt = run.time
+    log(run, 'Weather station confirms a tornado on the ground.', true)
+  }
+  if (run.effects.satelliteChance && run.realTime >= record.nextSatellite) {
+    record.nextSatellite = run.realTime + 70_000
+    if (!run.overWater && random(run.seed ^ run.time ^ 0x7115)() < run.effects.satelliteChance) spawnSatellite(run)
+  }
+  const satellites = advanceTrackedFunnels(run, front, threatened)
+  updateFrontWarnings(run, front, threatened, false)
+  for (const { funnel, distance } of satellites) {
+    applyTornadoSweep(run, front, funnel.point, funnel.heading, distance, funnel.width, funnel.wind)
+  }
   record.maxWidthKm = Math.max(record.maxWidthKm, widthKm)
   const ground = groundSegment(previous, front.point, wasWater, run.overWater)
   if (ground && widthKm && windMph >= 65) {
@@ -576,7 +648,39 @@ function tickTornado(run: Run, front: Front) {
       noteTornadoPlaces(record, front.point, area.country, 0)
     }
   }
+  tornadoHeadlines(run, front, windMph, widthKm)
+  if (run.time >= limit.ticks || record.travelKm >= limit.km - 1e-6) {
+    run.end = 'The tornado dissipated.'
+  }
   finishMovingStorm(run)
+}
+
+function tornadoHeadlines(run: Run, front: Front, wind: number, width: number) {
+  const record = run.tornado!
+  if (run.overWater) return
+  if (run.detectedAt !== null && wind >= 86 && front.current.country) {
+    const radius = 3 + width * .5 + record.awareness * 5
+    const city = nearbyCity(latitudeAt(front.point), longitudeAt(front.point), front.current.country, undefined, radius)
+    if (city && city.population >= 3_000 && !run.alertHeadlines.has(city.name)) {
+      run.alertHeadlines.add(city.name)
+      log(run, `${escapeName(city.name)} residents ordered to shelter as ${wind >= 166 ? 'a violent' : 'a'} tornado passes nearby.`, true)
+    }
+  }
+  if (wind >= 166 && record.chaserExposure >= 0) {
+    record.chaserExposure++
+    if (record.chaserExposure >= 45 || random(run.seed ^ run.time ^ 0x843)() < .025) {
+      record.chaserExposure = -1
+      log(run, 'Popular storm chasers killed by violent tornado.', true)
+    }
+  }
+  for (const threshold of [25, 100, 500]) {
+    const key = `tornado-casualties-${threshold}`
+    if (record.deaths < threshold || run.alertHeadlines.has(key)) continue
+    run.alertHeadlines.add(key)
+    record.awareness = Math.min(1, record.awareness + (threshold === 25 ? .35 : .5))
+    run.detectedAt ??= run.time
+    log(run, `${threshold} deaths confirmed. Officials urge everyone in the tornado’s path to shelter in place.`, true)
+  }
 }
 
 function groundSegment(from: MapPoint, to: MapPoint, fromWater: boolean, toWater: boolean): [MapPoint, MapPoint, number] | undefined {
@@ -607,15 +711,7 @@ function applyTornadoSweep(run: Run, front: Front, point: MapPoint, heading: num
   }
 }
 
-function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof hazardFor>>) {
-  moveFront(run, front)
-  const weather = frontConditions(run, run.time)
-  develop(run, weather.trend)
-  run.charge = Math.max(0, Math.min(100, run.charge + hazard.recharge + weather.trend * 1.8 + run.effects.chargeGain))
-  const width = stormStats(run).widthKm
-  const core = sampledAreas(front, front.point, width * .28)
-  const ahead = movePoint(front.point, front.heading, 20)
-  const threatened = sampledAreas(front, ahead, width * .35)
+function advanceTrackedFunnels(run: Run, front: Front, threatened: Set<ImpactArea>) {
   const funnels = front.funnels.filter(funnel => isActive(funnel, run.time - 1))
   const sweeps = []
   for (const funnel of funnels) {
@@ -628,12 +724,25 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
       sweeps.push({ funnel, distance: distanceKm(previous, funnel.point) })
     }
   }
+  return sweeps
+}
+
+function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof hazardFor>>) {
+  moveFront(run, front)
+  const weather = frontConditions(run, run.time)
+  develop(run, weather.trend)
+  run.charge = Math.max(0, Math.min(100, run.charge + hazard.recharge + weather.trend * 1.8 + run.effects.chargeGain))
+  const width = stormStats(run).widthKm
+  const core = sampledAreas(front, front.point, width * .28)
+  const ahead = movePoint(front.point, front.heading, 20)
+  const threatened = sampledAreas(front, ahead, width * .35)
+  const sweeps = advanceTrackedFunnels(run, front, threatened)
   for (const area of core) threatened.add(area)
   for (const area of front.floods.keys()) threatened.add(area)
   front.bursts = front.bursts.filter(burst => burst.until >= run.time)
   const bursts = front.bursts.map(burst => ({ burst, areas: sampledAreas(front, burst.point, burst.radius) }))
   for (const { areas } of bursts) for (const area of areas) threatened.add(area)
-  updateFrontWarnings(run, front, threatened, run.strength > 31 || funnels.length > 0 || front.current.zone.population >= 1800)
+  updateFrontWarnings(run, front, threatened, run.strength > 31 || front.funnels.some(funnel => isActive(funnel, run.time - 1)) || front.current.zone.population >= 1800)
   const force = (run.strength / 100) ** 2
   const developed = Math.max(0, (run.strength - 30) / 70)
   const passive = hazard.passive * force * (1 + run.effects.hazardDamage) * (.06 + developed * .8)
@@ -741,7 +850,7 @@ export function tick(run: Run) {
   const storm = activeStorm(run)
   const hazard = hazardFor(storm)
   const award = run.momentumSchedule.awards.find(item => item.time === run.time)
-  if (award) run.momentum += award.points
+  if (award) gainMomentum(run, award.points)
   if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
   run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
   if (run.front) return run.cyclone ? tickCyclone(run, run.front, run.cyclone) : hazard ? tickFront(run, run.front, hazard) : tickTornado(run, run.front)

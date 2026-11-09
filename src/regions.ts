@@ -9,7 +9,7 @@ export function getRegions(code: string): Promise<Region[]> {
   if (!(code in regionIndex)) return Promise.resolve([])
   const cached = pending.get(code)
   if (cached) return cached
-  const request = fetch(`/regions/${code}.json`).then(async response => {
+  const request = fetch(`${import.meta.env.BASE_URL}regions/${code}.json`).then(async response => {
     if (!response.ok) throw Error('Regional map data could not be loaded.')
     const regions: Region[] = await response.json()
     if (code === 'CA' || code === 'US') localBoundaries.set(code, regions.flatMap(({ name, polygons }) =>

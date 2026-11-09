@@ -24,14 +24,14 @@ export function loadCities() {
 export const escapeName = (name: string) => name.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 const plain = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
-export function nearbyCity(lat: number, lon: number, code: string, region?: string) {
+export function nearbyCity(lat: number, lon: number, code: string, region?: string, radius = 55) {
   const x = (lon + 180) * 10
   const y = (90 - lat) * 10
   const scale = 11.12 * Math.cos(lat * Math.PI / 180)
   const regionKey = region && plain(region)
   let nearest: City | undefined
-  let distance = 55
-  for (const city of byCountry.get(code) ?? []) {
+  let distance = radius
+  for (const city of (code ? byCountry.get(code) ?? [] : cities)) {
     if ((regionKey && (!city.region || plain(city.region) !== regionKey)) || Math.abs(city.y - y) * 11.12 > distance) continue
     const dx = city.x - x
     const km = Math.hypot((dx - Math.round(dx / 3600) * 3600) * scale, (city.y - y) * 11.12)

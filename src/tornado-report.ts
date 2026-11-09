@@ -2,13 +2,13 @@ export const tornadoTickSeconds = 15
 
 export type TornadoRecord = {
   startedAt: number; lengthKm: number; groundTicks: number; maxWidthKm: number; peakEf: number | null
-  places: Set<string>
+  places: Set<string>; travelKm: number; awareness: number; deaths: number; impactCredit: number
+  nextSatellite: number; manualSatellite: number; chaserExposure: number
 }
 
 const longDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' })
 const shortDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' })
 const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
-const distance = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
 
 export function tornadoStartDate(today = new Date()) {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15).getTime()
@@ -27,8 +27,6 @@ export function tornadoDuration(ticks: number) {
   const hours = Math.floor(minutes / 60)
   return hours ? `${hours} hr ${minutes % 60} min` : `${minutes} min`
 }
-
-export const tornadoDistance = (km: number) => km > 0 && km < 1 ? `${Math.round(km * 1000)} m` : `${distance.format(km)} km`
 
 export function tornadoVerdict(record: TornadoRecord, damage: number, deaths: number, countryDeaths: ReadonlyMap<string, number>) {
   if (deaths > 1300) return 'Deadliest tornado in recorded history'

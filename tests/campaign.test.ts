@@ -82,24 +82,25 @@ it('seeds irregular Momentum awards and lets weather pickups pay out only once',
     if (active.pickup) collectWeatherPickup(active, active.pickup.time)
     tick(active)
   }
-  expect(active.strength).toBe(0)
+  expect(active.end).toBeTruthy()
   expect(active.momentum).toBe(10 + schedule.awards.filter(item => item.time <= active.time).reduce((sum, item) => sum + item.points, 0)
-    + schedule.pickups.filter(item => item.time < active.time).reduce((sum, item) => sum + item.points, 0))
+    + schedule.pickups.filter(item => item.time < active.time).reduce((sum, item) => sum + item.points, 0)
+    + Math.floor(Math.sqrt(active.tornado!.impactCredit / 500_000)))
 })
 
 it('gates tornado capstones behind any completed branch and makes intensity purchased', () => {
   const run = startRun(plains, 0, 'Normal', defaultSeed)
   const point = { x: run.front!.point.x - 2, y: run.front!.point.y }
   expect(setCourse(run, point)).toBe(false)
-  run.momentum = 100
+  run.momentum = 130
   expect(buyUpgrade(run, 'tornado-course')).toBe(false)
   expect(buyUpgrade(run, 'multi-vortex')).toBe(false)
   for (const id of ['tornado-thermal', 'tornado-organize', 'tornado-reserve', 'tornado-course']) expect(buyUpgrade(run, id)).toBe(true)
   expect(setCourse(run, point)).toBe(true)
-  for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'multi-vortex']) expect(buyUpgrade(run, id)).toBe(true)
+  for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex']) expect(buyUpgrade(run, id)).toBe(true)
   expect(stormStats(run).category).toContain('EF0')
   for (let i = 0; i < 24; i++) tick(run)
-  expect(stormStats(run).windMph).toBe(225)
+  expect(stormStats(run).windMph).toBe(217)
   expect(stormStats(run).category).toContain('EF5')
 
   const longRun = startRun(plains, 0, 'Normal', defaultSeed)
@@ -148,8 +149,10 @@ it('tracks surveyed distance and towns while geography and upgrades shape the ca
   const plains = startRun(makeDrop('Tornado', 41.2565, -95.9345), 0, 'Normal', defaultSeed)
   const persistent = startRun(plains.theater, 0, 'Normal', defaultSeed)
   const arctic = startRun(makeDrop('Tornado', 64.317, -96.02), 0, 'Normal', defaultSeed)
-  persistent.momentum = 100
-  for (const id of ['inflow', 'tornado-occlusion', 'ground-coupling', 'tornado-cold-pool', 'tornado-baroclinic', 'tornado-cold-buffer', 'tornado-inflow-coupling']) {
+  persistent.momentum = 150
+  for (const id of ['inflow', 'tornado-occlusion', 'ground-coupling', 'tornado-cold-pool', 'tornado-baroclinic', 'tornado-cold-buffer', 'tornado-inflow-coupling',
+    'tornado-life-feed', 'tornado-life-balance', 'tornado-life-recycle', 'tornado-life-anchor',
+    'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-chain', 'tornado-track-long']) {
     expect(buyUpgrade(persistent, id)).toBe(true)
   }
   for (const run of [plains, persistent, arctic]) {

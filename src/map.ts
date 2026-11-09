@@ -1,3 +1,4 @@
+import { formatDistance } from './units'
 import { activeStorm, burstRange, footprint, frontSpeed, leg, routeOptions, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
 import { bounds, stormColor, theaters, zoneIds, type Storm, type Theater, type ZoneId } from './world'
 import { alongTrack, pathFor } from './track'
@@ -8,8 +9,8 @@ import { efColors, tornadoBands, type Swath } from './swath'
 import { drawWeather } from './weather-layer'
 import { tornadoClimateRegions, tornadoClimateTiers } from './tornado-climate'
 
-const earth = '<image href="/blue-marble.jpg" width="3600" height="1800"/>'
-const regionalEarth = `${earth}<image href="/blue-marble.jpg" x="-3600" width="3600" height="1800"/><image href="/blue-marble.jpg" x="3600" width="3600" height="1800"/>`
+const earth = `<image href="${import.meta.env.BASE_URL}blue-marble.jpg" width="3600" height="1800"/>`
+const regionalEarth = `${earth}<image href="${import.meta.env.BASE_URL}blue-marble.jpg" x="-3600" width="3600" height="1800"/><image href="${import.meta.env.BASE_URL}blue-marble.jpg" x="3600" width="3600" height="1800"/>`
 const satelliteTiles = '<g data-satellite-tiles pointer-events="none" aria-hidden="true"></g>'
 const tornadoStartAreas = `<g class="tornado-start-areas" role="img" aria-label="Global tornado formation regions">
   ${[...tornadoClimateRegions].sort((a, b) => a.tier - b.tier).map(({ tier, ring }) => {
@@ -172,11 +173,11 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
     `<circle class="storm-flood" cx="${near(zone.x)}" cy="${zone.y}" r=".5"/>`).join('')
   const funnels = front.funnels.map(funnel => {
     const active = !run.end && isActive(funnel, run.time)
-    const label = `Tornado ${funnel.id}, EF${funnel.ef}`
+    const label = `${run.tornado ? 'Satellite tornado' : 'Tornado'} ${funnel.id}, EF${funnel.ef}`
     return `<path class="funnel-track ${active ? 'active' : ''}" data-funnel-track="${funnel.id}" d="${pathFor([...funnel.path, funnel.point], world)}" vector-effect="non-scaling-stroke"/>
       ${drawSwath(funnel.swath, world)}
-      ${active ? `<g class="funnel-pin ${selectedFunnel === funnel.id ? 'selected' : ''}" data-funnel="${funnel.id}" data-key="funnel-${funnel.id}" role="button" tabindex="0" aria-label="${label}" transform="translate(${longitude(funnel.point.x)} ${funnel.point.y})">
-        <title>${label} · ${funnel.width.toFixed(2)} km wide</title>
+      ${active ? `<g class="funnel-pin ${selectedFunnel === funnel.id ? 'selected' : ''}" ${run.tornado ? 'role="img"' : `data-funnel="${funnel.id}" data-key="funnel-${funnel.id}" role="button" tabindex="0"`} aria-label="${label}" transform="translate(${longitude(funnel.point.x)} ${funnel.point.y})">
+        <title>${label} · ${formatDistance(funnel.width)} wide</title>
         <g data-camera-scaled="screen"><circle class="funnel-hit" r="13"/><circle r="8"/><path d="M-5-4H5M-4-1H3M-2 2H2M-1 5H1"/>${world ? '' : `<text x="11" y="4">EF${funnel.ef}</text>`}</g>
       </g>` : ''}`
   }).join('')

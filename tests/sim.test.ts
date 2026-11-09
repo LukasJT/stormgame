@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
+import { activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
 import { makeZones, theaters, type Storm } from '../src/world'
 import { lakeAt, loadLocalities, makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { hazardNames, hazards } from '../src/hazards'
@@ -145,6 +145,76 @@ describe('global weather scenarios', () => {
       expect(funnel.point.x).toBeGreaterThan(start.x)
       expect(funnel.point.y).toBeLessThan(start.y)
     }
+  })
+
+  it('reaches four simulated hours and 400 km when the lifetime and travel lanes are maxed', () => {
+    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
+    run.momentum = 100
+    for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-recycle', 'tornado-life-anchor',
+      'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-chain', 'tornado-track-long']) {
+      expect(buyUpgrade(run, id)).toBe(true)
+    }
+    expect(tornadoLimits(run)).toEqual({ ticks: 960, km: 400 })
+    advance(run, 1_000)
+    expect(run.time).toBe(960)
+    expect(run.tornado!.lengthKm).toBeCloseTo(400)
+    expect(run.end).toBeTruthy()
+  })
+
+  it('reaches EF5 with the wind lane alone and gates manual satellite spawning on real time', () => {
+    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
+    run.momentum = 80
+    for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core']) {
+      expect(buyUpgrade(run, id)).toBe(true)
+    }
+    advance(run, 24)
+    expect(stormStats(run).category).toContain('EF5')
+    expect(triggerSatellite(run)).toBe(false)
+    run.momentum = 60
+    for (const id of ['tornado-satellite-seed', 'tornado-satellite-lobes', 'tornado-satellite-shear', 'tornado-satellite-split']) {
+      expect(buyUpgrade(run, id)).toBe(true)
+    }
+    expect(triggerSatellite(run)).toBe(true)
+    const satellite = run.front!.funnels[0]
+    expect(satellite.peakEF).toBeLessThan(5)
+    expect(satellite.heading).not.toBe(run.front!.heading)
+    advance(run, 120)
+    expect(triggerSatellite(run)).toBe(false)
+    run.realTime = 59_999
+    expect(triggerSatellite(run)).toBe(false)
+    run.realTime = 60_000
+    expect(triggerSatellite(run)).toBe(true)
+    expect(run.events.filter(event => event.text.includes('storm chasers'))).toHaveLength(1)
+  })
+
+  it('earns enough Momentum for EF5 on a favorable run and delays publicity with rain wrapping', async () => {
+    await loadLocalities()
+    const theater = makeDrop('Tornado', 37.69, -97.34)
+    const run = startRun(theater, 0, 'Normal', defaultSeed)
+    const windLane = ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core']
+    let next = 0
+    while (!run.end && (next < windLane.length || !stormStats(run).category.includes('EF5'))) {
+      if (run.pickup) collectWeatherPickup(run, run.pickup.time)
+      if (next < windLane.length && buyUpgrade(run, windLane[next])) next++
+      tick(run)
+    }
+    expect(run.end).toBeNull()
+    expect(run.effects.satelliteTrigger).toBe(0)
+    expect(run.tornado!.impactCredit).toBeGreaterThan(0)
+    expect(run.momentumGain?.points).toBeGreaterThan(0)
+
+    const visible = startRun(theater, 0, 'Normal', defaultSeed)
+    const concealed = startRun(theater, 0, 'Normal', defaultSeed)
+    for (const storm of [visible, concealed]) {
+      storm.momentum = 100
+      for (const id of [...windLane, 'wide-funnel', 'satellite', 'wedge']) expect(buyUpgrade(storm, id)).toBe(true)
+    }
+    expect(buyUpgrade(concealed, 'rain-wrapped')).toBe(true)
+    advance(visible, 28)
+    advance(concealed, 28)
+    expect(visible.tornado!.awareness).toBeGreaterThan(concealed.tornado!.awareness)
+    expect(impactAreas(visible).reduce((sum, area) => sum + area.site.sheltered, 0))
+      .toBeGreaterThan(impactAreas(concealed).reduce((sum, area) => sum + area.site.sheltered, 0))
   })
 
   it('uses swept area, wind fragility and shelter for losses', () => {
@@ -299,7 +369,7 @@ describe('global weather scenarios', () => {
     advance(tornado, 70)
     expect(stormStats(tornado).category).toContain('On ground')
 
-    expect(tornado.events.some(event => event.text.includes('touches down'))).toBe(true)
+    expect(tornado.events.at(-1)?.text).toContain('Rotating storms detected')
 
     const blizzard = startRun(theaters.find(theater => theater.id === 'ontario')!, 0, 'Normal', defaultSeed)
     advance(blizzard, 3)
@@ -363,7 +433,10 @@ describe('global weather scenarios', () => {
   it('names tornadoes from nearby cities, detects large lakes, and records ground-only EF swaths', async () => {
     await loadLocalities()
     const wichita = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Normal', defaultSeed)
-    expect(wichita.name).toBe('Wichita Tornado')
+    expect(wichita.name).toBe('The Wichita Tornado')
+    expect(wichita.events[0].text).toBe('Rotating storms detected near Wichita.')
+    expect(startRun(makeDrop('Tornado', 32.7486, -97.3289), 0, 'Normal', defaultSeed).name).toBe('The Fort Worth Tornado')
+    expect(startRun(makeDrop('Tornado', 43.5789, -79.6583), 0, 'Normal', defaultSeed).name).toBe('The Mississauga Tornado')
     advance(wichita, 6)
     expect(wichita.front!.swath[0]).toMatchObject({ ef: 0, scour: false })
     expect(stormStats(wichita).widthKm).toBeLessThan(.1)
