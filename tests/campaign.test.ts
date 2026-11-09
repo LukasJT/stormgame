@@ -192,7 +192,7 @@ it('lets a specialized storm aim its active ability after buying Targeted Outbre
   const charge = run.charge
   expect(useAbility(run, nearby)).toBeFalsy()
   run.momentum = 29
-  for (const id of ['impact-hail', 'impact-gust', 'impact-grid', 'impact-extreme']) expect(buyUpgrade(run, id)).toBe(true)
+  for (const id of ['impact-hail', 'impact-gust', 'impact-grid', 'impact-signature', 'impact-extreme']) expect(buyUpgrade(run, id)).toBe(true)
   expect(useAbility(run, movePoint(point, 0, 150))).toBeFalsy()
   expect(run.charge).toBe(charge)
   expect(useAbility(run, nearby)).toBe(true)

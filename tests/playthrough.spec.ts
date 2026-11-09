@@ -626,7 +626,7 @@ test.describe('touch play', () => {
     await panel.getByRole('button', { name: 'Damage', exact: true }).tap()
     const debris = panel.getByRole('button', { name: 'Violent Multivortex Core' })
     await debris.scrollIntoViewIfNeeded()
-    const tree = panel.locator('.tornado-tree')
+    const tree = panel.locator('.upgrade-tree')
     const offset = await tree.evaluate(element => element.scrollLeft)
     expect(offset).toBeGreaterThan(0)
     await debris.tap()

@@ -348,7 +348,7 @@ function abilityTargets(run: Run, reach: number) {
 export function hazardAbilityReady(run: Run) {
   const ability = hazardFor(activeStorm(run))?.ability
   return !!ability && !run.end && !needsThunderstormType(run) && run.charge >= abilityCost(run) &&
-    (!!run.front || abilityTargets(run, ability.reach ?? 0).length > 0)
+    (!!run.front || abilityTargets(run, (ability.reach ?? 0) + run.effects.abilityReach).length > 0)
 }
 
 function addPulse(run: Run, zone: ZoneId, seconds: number, damage: number, kind: Pulse['kind']) {
@@ -381,7 +381,7 @@ export function useAbility(run: Run, target?: MapPoint) {
       run.charge -= abilityCost(run)
       return true
     }
-    const zones = abilityTargets(run, ability.reach ?? 0)
+    const zones = abilityTargets(run, (ability.reach ?? 0) + run.effects.abilityReach)
     if (!zones.length) return
     run.charge -= abilityCost(run)
     zones.forEach((zone, i) => addPulse(run, zone, ability.seconds + run.effects.burst, ability.damage * (1 + run.effects.burstPower) * (i === 0 ? 1 : .68), 'ability'))
@@ -407,14 +407,11 @@ export function routeOptions(run: Run) {
 
 function missingPrerequisite(upgrades: string[], upgrade: Upgrade) {
   return (!!upgrade.requires && !upgrades.includes(upgrade.requires)) ||
-    !!upgrade.requiresAll?.some(id => !upgrades.includes(id)) ||
-    (!!upgrade.requiresAny && !upgrade.requiresAny.some(id => upgrades.includes(id)))
+    !!upgrade.requiresAll?.some(id => !upgrades.includes(id))
 }
 
 export function upgradeLocked(run: Run, upgrade: Upgrade) {
-  return missingPrerequisite(run.upgrades, upgrade) ||
-    (!!upgrade.capstone && run.theater.storm !== 'Tornado' &&
-      trees[activeStorm(run)].some(item => item.capstone && item.id !== upgrade.id && run.upgrades.includes(item.id)))
+  return missingPrerequisite(run.upgrades, upgrade)
 }
 
 const upgradeEconomy = {

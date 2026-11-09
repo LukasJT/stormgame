@@ -186,7 +186,7 @@ function menuSection(screen: keyof typeof menuSections) {
       content = `<ol class="guide-steps">
         <li><strong>Start a hazard</strong><p>Begin with Tornado. Finish any forecast to earn at least one star and unlock the next event. Choose a difficulty, place a marker on the map, then press Begin.</p></li>
         <li><strong>Track and evolve</strong><p>Name your hurricane and choose its origin. Its course follows atmospheric flow. Open Storm view for a closer look, Track history for hurricane classifications, or Evolve to spend Momentum and specialize a thunderstorm.</p></li>
-        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes also earn Momentum from damage, with larger rewards in populated areas. A wide funnel draws attention, and rain can buy time before people take shelter. Some tornado branches converge into a shared upgrade. Removing an upgrade returns part of what you paid, with smaller refunds after each removal. Expert refunds zero Momentum. Other forecasts can unlock one capstone per run.</p></li>
+        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes also earn Momentum from damage, with larger rewards in populated areas. A wide funnel draws attention, and rain can buy time before people take shelter. Removing an upgrade returns part of what you paid, with smaller refunds after each removal. Expert refunds zero Momentum. Each event has its own upgrade paths. Shared upgrades require both paths in their tree.</p></li>
         <li><strong>Watch for warnings</strong><p>Large storms and storms near cities are easier to detect. On higher difficulties, conditions are tougher and more people follow shelter warnings. Track damage score and total deaths in the bottom bar.</p></li>
         <li><strong>Chase five stars</strong><p>Stars two through five come from property damage. Each event and difficulty has its own targets and personal best. Deaths are tallied separately.</p></li>
       </ol>
@@ -477,14 +477,11 @@ function renderPanel() {
     const selected = choices.find(item => item.id === selectedUpgrade) ?? choices[0]
     title = `Evolve ${name.toLowerCase()}`
     const pane = selected
-      ? (tornado ? tornadoUpgradeBoard(state, choices, selected.id)
-        : `<div class="evolve-tree upgrade-board ${state.front && !state.cyclone ? 'convection-board' : ''}" role="group" aria-label="${evolutionTab} upgrades">${choices.map((item, index) =>
-          upgradeNode(state, item, selected.id, (state.front && !state.cyclone ? index : index % 3) && choices[index - 1]?.id === item.requires ? 'linked' : '')).join('')}</div>`)
-        + upgradeDetails(state, selected.id)
+      ? upgradeBoard(state, choices, selected.id) + upgradeDetails(state, selected.id)
       : tornado ? tornadoOverview(state) : `<div class="evolve-tree"><div class="node"><div class="hex installed">${icon('storm')}</div><span>${name}</span></div></div>
         <div class="upgrade-detail"><h3>${name}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p><dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
     content = `<nav class="evolution-tabs ${state.thunderstormType ? 'convection-tabs' : ''}" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${tab}</button>`).join('')}</nav>
-      <div class="evolution ${tornado ? 'tornado-evolution' : ''}">${pane}</div>
+      <div class="evolution network-evolution">${pane}</div>
       <div class="panel-status"><strong>${run.momentum} Momentum</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
   } else if (panel === 'history' && run.cyclone) {
     title = `${run.name} · Track history`
@@ -507,10 +504,10 @@ function renderPanel() {
       : `<p>${conditions(run, id).name}. ${conditions(run, id).trend > 0 ? 'The storm can gain strength here.' : 'The storm loses strength here.'}</p>`
   }
   dialog.dataset.view = panel
-  const oldTree = dialog.querySelector<HTMLElement>('.tornado-tree')
+  const oldTree = dialog.querySelector<HTMLElement>('.upgrade-tree')
   const treeScroll = oldTree?.dataset.branch === evolutionTab ? { left: oldTree.scrollLeft, top: oldTree.scrollTop } : null
   replace(dialog, `<header class="panel-header"><h2 id="panel-title" tabindex="-1">${title}</h2><button class="icon-button" data-key="close-panel" data-action="close-panel" aria-label="${panel === 'pause-settings' ? 'Back' : 'Close'}">${icon('close')}</button></header>${content}`)
-  if (treeScroll) dialog.querySelector<HTMLElement>('.tornado-tree')?.scrollTo(treeScroll)
+  if (treeScroll) dialog.querySelector<HTMLElement>('.upgrade-tree')?.scrollTo(treeScroll)
 }
 
 function upgradeNode(state: Run, item: Upgrade, selected: string, connector = '') {
@@ -523,9 +520,9 @@ function upgradeNode(state: Run, item: Upgrade, selected: string, connector = ''
   </button>`
 }
 
-function tornadoUpgradeBoard(state: Run, choices: Upgrade[], selected: string) {
+function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
   const groups = [...new Set(choices.map(item => item.group!))]
-  return `<div class="tornado-tree" role="group" data-branch="${evolutionTab}" aria-label="${evolutionTab} upgrades">
+  return `<div class="upgrade-tree" role="group" data-branch="${evolutionTab}" aria-label="${evolutionTab} upgrades">
     ${groups.map(group => {
       const nodes = choices.filter(item => item.group === group)
       const lanes = [...new Set(nodes.flatMap(item => item.lane ? [item.lane] : []))]
@@ -565,17 +562,13 @@ function upgradeDetails(state: Run, id: string) {
   const installed = state.upgrades.includes(id)
   const prereq = tree.find(entry => entry.id === item.requires)
   const locked = upgradeLocked(state, item)
-  const chosenCapstone = item.capstone && !item.requiresAny && tree.find(entry => entry.capstone && entry.id !== id && state.upgrades.includes(entry.id))
-  const prerequisites = item.requiresAny?.map(id => tree.find(entry => entry.id === id)!.name)
   const required = item.requiresAll?.map(id => tree.find(entry => entry.id === id)!.name)
   const price = upgradeCost(state, item)
   const refund = upgradeRefund(state, id)
   const cost = locked ? 'Locked' : state.momentum < price ? `Need ${price - state.momentum} more Momentum` : `Buy for ${price} Momentum`
   return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${measurementText(item.description)}</p>
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
-    ${prerequisites ? `<p class="requirement">Requires one of these upgrades</p><ul class="capstone-requirements">${prerequisites.map(name => `<li>${name}</li>`).join('')}</ul>` : ''}
     ${required ? `<p class="requirement">Requires both ${required.join(' and ')}</p>` : ''}
-    ${item.capstone && !item.requiresAny && !item.requiresAll ? `<p class="requirement">${chosenCapstone ? `Capstone chosen: ${chosenCapstone.name}` : 'You can install one capstone per forecast.'}</p>` : ''}
     ${installed
       ? `<button class="order" data-key="refund" data-action="refund" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade · ${refund} Momentum back</button>
         ${!state.end && !canRemoveUpgrade(state, id) ? '<p class="requirement">Remove dependent upgrades first.</p>' : ''}`
@@ -651,7 +644,7 @@ function liveReadings(state: Run) {
   const mainReading = state.theater.storm === 'Wildfire' ? ['Spread rate', state.zones[state.at].sea ? 'No fuel' : `${Math.round(travelRate(state) * 100 / hazards.Wildfire.speed)}%`]
     : state.theater.storm === 'Flooding' ? ['Water depth', `${waterDepth(state.strength * .045)}`]
     : state.theater.storm === 'Dust Storm' ? ['Visibility', `${formatDistance(2 * (1 - state.strength / 100) ** 2 + .02)}`]
-    : state.theater.storm === 'Heat Dome' ? ['Temperature', `${temperature(29 + state.strength * .28)}`]
+    : state.theater.storm === 'Heat Dome' ? ['Temperature', `${temperature(29 + state.strength * .28 + state.effects.heatDegrees)}`]
     : ['Wind speed', `${windSpeed(reading.windMph)}`]
   const items = [
     ['Width', formatDistance(reading.widthKm)],

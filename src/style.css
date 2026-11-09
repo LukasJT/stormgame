@@ -590,8 +590,6 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .breaking-news span { display: block; font: 700 15px/1 var(--display); color: #842e39; }
 .breaking-news strong { display: block; margin-top: 4px; font-size: 14px; }
 .breaking-news .icon-button { color: #632431; background: var(--silver); min-width: 33px; min-height: 34px; flex-shrink: 0; }
-.upgrade-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: center; }
-.convection-board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .upgrade-node {
   position: relative;
   display: grid; justify-items: center; align-content: start; gap: 2px; min-width: 0; padding: 5px 3px;
@@ -604,8 +602,8 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .upgrade-node .hex.locked { opacity: .62; }
 .upgrade-node strong { font: 700 17px/1 var(--display); }
 .upgrade-node small, .requirement { color: #dcc9cf; font-size: 10px; }
-.tornado-evolution { grid-template-columns: minmax(0, 1fr) minmax(215px, 30%); min-height: 0; }
-.tornado-tree { min-width: 0; overflow-x: auto; padding: 12px 15px 16px; background: #38202a; scrollbar-color: #b87e89 #38202a; }
+.network-evolution { grid-template-columns: minmax(0, 1fr) minmax(215px, 30%); min-height: 0; }
+.upgrade-tree { min-width: 0; overflow-x: auto; padding: 12px 15px 16px; background: #38202a; scrollbar-color: #b87e89 #38202a; }
 .upgrade-network + .upgrade-network { margin-top: 16px; padding-top: 12px; border-top: 1px solid #704450; }
 .upgrade-network h3 { margin: 0 0 7px; color: #ffd4c7; font: 700 20px/1 var(--display); }
 .upgrade-network-grid { display: grid; grid-template-columns: minmax(max-content, 1fr); gap: 8px 18px; width: max-content; max-width: 100%; }
@@ -621,8 +619,7 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .upgrade-junction::after { left: -9px; }
 .has-merge .upgrade-lane::after { right: -9px; }
 .has-merge .upgrade-lane .upgrade-node:nth-child(2) { margin-left: auto; }
-.tornado-evolution .upgrade-detail { align-content: start; padding: 18px; }
-.capstone-requirements { margin: -4px 0 12px; padding-left: 18px; color: #e2c9ce; font-size: 12px; line-height: 1.55; }
+.network-evolution .upgrade-detail { align-content: start; padding: 18px; }
 .tornado-overview { grid-column: 1 / -1; padding: 20px; background: #30212a; }
 .tornado-profile { display: flex; align-items: center; gap: 14px; }
 .tornado-profile .hex { width: 60px; flex-shrink: 0; }
@@ -630,13 +627,13 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .tornado-profile p { margin: 4px 0 0; }
 .tornado-overview .region-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 @media (max-width: 720px) {
-  dialog:has(.tornado-evolution)[open] { display: flex; flex-direction: column; overflow: hidden; }
-  dialog:has(.tornado-evolution) > :not(.tornado-evolution) { flex-shrink: 0; }
-  .tornado-evolution { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
-  .tornado-tree { padding: 10px 8px 12px; overflow: auto; }
-  .tornado-tree .upgrade-node .hex { width: 27px; }
-  .tornado-evolution .upgrade-detail, .tornado-overview { padding: 13px; }
-  .tornado-evolution .upgrade-detail { max-height: 25dvh; overflow-y: auto; }
+  dialog:has(.network-evolution)[open] { display: flex; flex-direction: column; overflow: hidden; }
+  dialog:has(.network-evolution) > :not(.network-evolution) { flex-shrink: 0; }
+  .network-evolution { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
+  .upgrade-tree { padding: 10px 8px 12px; overflow: auto; }
+  .upgrade-tree .upgrade-node .hex { width: 27px; }
+  .network-evolution .upgrade-detail, .tornado-overview { padding: 13px; }
+  .network-evolution .upgrade-detail { max-height: 25dvh; overflow-y: auto; }
   .tornado-overview .region-stats { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
@@ -652,12 +649,8 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
   .inspection dl div { display: grid; gap: 2px; padding: 0; font-size: 10px; }
   .breaking-news { bottom: 51px; }
   .breaking-news strong { font-size: 12px; }
-  .upgrade-board { padding: 7px; gap: 4px; }
-  .convection-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .convection-board .linked:nth-child(odd)::before { display: none; }
   .upgrade-node strong { font-size: 15px; }
   .upgrade-node .hex { width: 38px; }
-  .upgrade-node.linked::before { left: -5px; width: 4px; }
   .evolution-tabs button { font-size: 17px; }
 }
 

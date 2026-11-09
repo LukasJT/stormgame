@@ -91,8 +91,10 @@ describe('global weather scenarios', () => {
     expect(useAbility(run, target)).toBe(true)
     expect(distanceKm(front.funnels[0].point, target)).toBeLessThan(.001)
     expect(setCourse(run, front.point, 1)).toBe(true)
-    for (const id of ['track-inflow', 'track-organize', 'track-align']) expect(buyUpgrade(run, id)).toBe(true)
+    for (const id of ['track-inflow', 'track-organize']) expect(buyUpgrade(run, id)).toBe(true)
     expect(buyUpgrade(run, 'track-control')).toBe(false)
+    expect(buyUpgrade(run, 'track-align')).toBe(true)
+    expect(buyUpgrade(run, 'track-control')).toBe(true)
     const guided = startRun(area, 0, 'Easy', defaultSeed)
     chooseThunderstormType(guided, 'Supercell')
     guided.momentum = 100
@@ -279,9 +281,9 @@ describe('global weather scenarios', () => {
     const wetTrend = conditions(fire, 0, rainy).trend
     fire.momentum = 15
     expect(buyUpgrade(fire, 'spread')).toBe(true)
-    expect(travelRate(fire)).toBeCloseTo(baselineRate * 1.35)
+    expect(travelRate(fire)).toBeCloseTo(baselineRate * 1.25)
     expect(buyUpgrade(fire, 'rain-proof')).toBe(true)
-    expect(conditions(fire, 0, rainy).trend).toBeCloseTo(wetTrend * .4)
+    expect(conditions(fire, 0, rainy).trend).toBeCloseTo(wetTrend * .62)
     expect(buyUpgrade(fire, 'evacuation')).toBe(true)
     advance(fire, 2)
     expect(fire.sites[0].warnedAt).toBeNull()
@@ -354,7 +356,7 @@ describe('global weather scenarios', () => {
     advance(run, leg * 2)
     const width = stormStats(run).widthKm
     expect(buyUpgrade(run, 'bands')).toBe(true)
-    expect(stormStats(run).widthKm).toBe(width + 65)
+    expect(stormStats(run).widthKm).toBe(width + 45)
     expect(buyUpgrade(run, 'bands')).toBe(false)
     advance(run, 360)
     expect(impactAreas(run).some(({ site }) => site.loss > 0)).toBe(true)
@@ -398,11 +400,13 @@ describe('global weather scenarios', () => {
   it('gates hurricane upgrades and applies official wind bands', () => {
     const storm = startRun(gulf, 1, 'Normal', defaultSeed)
     storm.momentum = 100
-    expect(buyUpgrade(storm, 'air-masses')).toBe(false)
+    expect(buyUpgrade(storm, 'marine')).toBe(false)
     const before = conditions(storm, 1).trend
     expect(buyUpgrade(storm, 'warm')).toBe(true)
     expect(conditions(storm, 1).trend).toBeGreaterThan(before)
-    expect(buyUpgrade(storm, 'air-masses')).toBe(true)
+    expect(buyUpgrade(storm, 'deep')).toBe(true)
+    expect(buyUpgrade(storm, 'marine')).toBe(false)
+    for (const id of ['shear', 'shear-core', 'marine']) expect(buyUpgrade(storm, id)).toBe(true)
     const wind = stormStats(storm).windMph
     expect(buyUpgrade(storm, 'eye')).toBe(true)
     expect(stormStats(storm).windMph).toBe(wind + 12)
@@ -416,7 +420,7 @@ describe('global weather scenarios', () => {
     const run = startRun(makeHurricaneDrop(22, -90), 0, 'Normal', defaultSeed)
     nameHurricane(run, 'Hazel')
     run.momentum = 100
-    for (const id of ['warm', 'deep', 'marine', 'shear', 'core', 'persistent', 'inland-engine', 'surge']) buyUpgrade(run, id)
+    for (const id of ['warm', 'deep', 'shear', 'shear-core', 'marine', 'core', 'persistent', 'eye', 'rapid', 'inland-engine', 'surge']) expect(buyUpgrade(run, id)).toBe(true)
     advance(run, 2400)
     expect(run.time).toBeGreaterThanOrEqual(12 * 60)
     expect(run.time).toBeLessThanOrEqual(19 * 60)
