@@ -9,7 +9,7 @@ function gtaForecast() {
   run.momentum = 200
   for (const upgrade of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core',
     'wide-funnel', 'satellite', 'wedge', 'multi-vortex',
-    'tornado-thermal', 'tornado-organize', 'tornado-reserve', 'tornado-course']) {
+    'tornado-thermal', 'tornado-organize', 'tornado-course']) {
     expect(buyUpgrade(run, upgrade)).toBe(true)
   }
   expect(setCourse(run, project(43.84, -79.09))).toBe(true)
@@ -30,6 +30,12 @@ it('uses GTA census divisions along a moving EF5 tornado track', () => {
   }
 
   expect(regional.tornado?.peakEf).toBe(5)
+  const scheduled = regional.momentumSchedule.awards.filter(award => award.time <= regional.time)
+    .reduce((points, award) => points + award.points, 0)
+  const paid = [...regional.upgradePayments.values()].reduce((points, price) => points + price, 0)
+  const damagePoints = regional.momentum + paid - 200 - scheduled
+  expect(damagePoints).toBeGreaterThan(0)
+  expect(damagePoints).toBeLessThanOrEqual(32)
   const sources = impactAreas(regional).filter(area => area.site.loss).map(area => area.zone.source)
   expect(sources).toContain('Toronto, ON · Canadian census division')
   expect(sources).toContain('Peel, ON · Canadian census division')

@@ -6,7 +6,7 @@ import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
-import { satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
 import { makeZones, stormColor, stormRules, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards, thunderstormTypes, type ThunderstormType } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
@@ -186,7 +186,7 @@ function menuSection(screen: keyof typeof menuSections) {
       content = `<ol class="guide-steps">
         <li><strong>Start a hazard</strong><p>Begin with Tornado. Finish any forecast to earn at least one star and unlock the next event. Choose a difficulty, place a marker on the map, then press Begin.</p></li>
         <li><strong>Track and evolve</strong><p>Name your hurricane and choose its origin. Its course follows atmospheric flow. Open Storm view for a closer look, Track history for hurricane classifications, or Evolve to spend Momentum and specialize a thunderstorm.</p></li>
-        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes also earn Momentum from damage, with larger rewards in populated areas. A wide funnel draws attention, and rain can buy time before people take shelter. Each tornado tree has its own capstone. Other forecasts can unlock one capstone per run.</p></li>
+        <li><strong>Collect weather opportunities</strong><p>Momentum arrives at irregular intervals. Tap weather bubbles on the map for bonus points, then spend them in Evolve. Tornadoes also earn Momentum from damage, with larger rewards in populated areas. A wide funnel draws attention, and rain can buy time before people take shelter. Some tornado branches converge into a shared upgrade. Removing an upgrade returns part of what you paid, with smaller refunds after each removal. Expert refunds zero Momentum. Other forecasts can unlock one capstone per run.</p></li>
         <li><strong>Watch for warnings</strong><p>Large storms and storms near cities are easier to detect. On higher difficulties, conditions are tougher and more people follow shelter warnings. Track damage score and total deaths in the bottom bar.</p></li>
         <li><strong>Chase five stars</strong><p>Stars two through five come from property damage. Each event and difficulty has its own targets and personal best. Deaths are tallied separately.</p></li>
       </ol>
@@ -515,25 +515,31 @@ function renderPanel() {
 
 function upgradeNode(state: Run, item: Upgrade, selected: string, connector = '') {
   const installed = state.upgrades.includes(item.id)
-  const status = installed ? 'installed' : upgradeLocked(state, item) ? 'locked' : state.momentum < item.cost ? 'unaffordable' : 'available'
+  const price = upgradeCost(state, item)
+  const status = installed ? 'installed' : upgradeLocked(state, item) ? 'locked' : state.momentum < price ? 'unaffordable' : 'available'
   return `<button class="upgrade-node ${connector} ${item.capstone ? 'capstone' : ''}" data-key="upgrade-${item.id}" data-action="select-upgrade" data-value="${item.id}" aria-pressed="${item.id === selected}" aria-label="${item.name}">
     <span class="hex ${status}">${icon(upgradeIcon(item))}</span>
-    <strong>${item.name}</strong><small>${installed ? 'Installed' : `${item.cost} Momentum${status === 'locked' ? ' · Locked' : ''}`}</small>
+    <strong>${item.name}</strong><small>${installed ? 'Installed' : `${price} Momentum${status === 'locked' ? ' · Locked' : ''}`}</small>
   </button>`
 }
 
 function tornadoUpgradeBoard(state: Run, choices: Upgrade[], selected: string) {
-  const lanes = [...new Set(choices.flatMap(item => item.lane ? [item.lane] : []))]
-  const capstone = choices.find(item => item.capstone)!
+  const groups = [...new Set(choices.map(item => item.group!))]
   return `<div class="tornado-tree" role="group" data-branch="${evolutionTab}" aria-label="${evolutionTab} upgrades">
-    <p class="tree-instruction">Complete any branch to unlock the shared capstone.</p>
-    ${lanes.length > 3 ? '<p class="tree-swipe">Scroll sideways for more branches.</p>' : ''}
-    <div class="tornado-lanes" style="--lane-count:${lanes.length}">
-      ${lanes.map(lane => `<section class="tornado-lane"><h3>${lane}</h3>
-        ${choices.filter(item => item.lane === lane).map(item => upgradeNode(state, item, selected, item.requires ? 'vertical-link' : '')).join('')}
-      </section>`).join('')}
-      <div class="tornado-merge">${upgradeNode(state, capstone, selected)}</div>
-    </div>
+    ${groups.map(group => {
+      const nodes = choices.filter(item => item.group === group)
+      const lanes = [...new Set(nodes.flatMap(item => item.lane ? [item.lane] : []))]
+      const merge = nodes.find(item => item.requiresAll)
+      return `<section class="upgrade-network ${merge ? 'has-merge' : ''}">
+        <h3>${group}</h3>
+        <div class="upgrade-network-grid">
+          ${lanes.map(lane => `<div class="upgrade-lane"><h4>${lane}</h4>
+            ${nodes.filter(item => item.lane === lane).map(item => upgradeNode(state, item, selected, item.requires ? 'linked' : '')).join('')}
+          </div>`).join('')}
+          ${merge ? `<div class="upgrade-junction">${upgradeNode(state, merge, selected)}</div>` : ''}
+        </div>
+      </section>`
+    }).join('')}
   </div>`
 }
 
@@ -561,12 +567,19 @@ function upgradeDetails(state: Run, id: string) {
   const locked = upgradeLocked(state, item)
   const chosenCapstone = item.capstone && !item.requiresAny && tree.find(entry => entry.capstone && entry.id !== id && state.upgrades.includes(entry.id))
   const prerequisites = item.requiresAny?.map(id => tree.find(entry => entry.id === id)!.name)
-  const cost = installed ? 'Installed' : locked ? 'Locked' : state.momentum < item.cost ? `Need ${item.cost - state.momentum} more Momentum` : `Buy for ${item.cost} Momentum`
+  const required = item.requiresAll?.map(id => tree.find(entry => entry.id === id)!.name)
+  const price = upgradeCost(state, item)
+  const refund = upgradeRefund(state, id)
+  const cost = locked ? 'Locked' : state.momentum < price ? `Need ${price - state.momentum} more Momentum` : `Buy for ${price} Momentum`
   return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${measurementText(item.description)}</p>
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
     ${prerequisites ? `<p class="requirement">Requires one of these upgrades</p><ul class="capstone-requirements">${prerequisites.map(name => `<li>${name}</li>`).join('')}</ul>` : ''}
-    ${item.capstone && !item.requiresAny ? `<p class="requirement">${chosenCapstone ? `Capstone chosen: ${chosenCapstone.name}` : 'You can install one capstone per forecast.'}</p>` : ''}
-    <button class="order hot" data-key="buy" data-action="buy" data-value="${id}" ${installed || locked || state.momentum < item.cost || state.end ? 'disabled' : ''}>${cost}</button>
+    ${required ? `<p class="requirement">Requires both ${required.join(' and ')}</p>` : ''}
+    ${item.capstone && !item.requiresAny && !item.requiresAll ? `<p class="requirement">${chosenCapstone ? `Capstone chosen: ${chosenCapstone.name}` : 'You can install one capstone per forecast.'}</p>` : ''}
+    ${installed
+      ? `<button class="order" data-key="refund" data-action="refund" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade · ${refund} Momentum back</button>
+        ${!state.end && !canRemoveUpgrade(state, id) ? '<p class="requirement">Remove dependent upgrades first.</p>' : ''}`
+      : `<button class="order hot" data-key="buy" data-action="buy" data-value="${id}" ${locked || state.momentum < price || state.end ? 'disabled' : ''}>${cost}</button>`}
   </div>`
 }
 
@@ -990,6 +1003,9 @@ document.addEventListener('click', event => {
     case 'evolution-tab': evolutionTab = value as typeof evolutionTab; selectedUpgrade = null; break
     case 'select-upgrade': selectedUpgrade = value ?? null; break
     case 'buy': if (run && value) buyUpgrade(run, value); break
+    case 'refund':
+      if (run && value && removeUpgrade(run, value)) mapOrder = null
+      break
     case 'weather-pickup':
       if (run && !opening && collectWeatherPickup(run, Number(value))) {
         render()

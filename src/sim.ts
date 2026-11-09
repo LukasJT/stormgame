@@ -51,6 +51,7 @@ export type Run = {
   front: Front | null
   at: ZoneId; to: ZoneId; queued: ZoneId | null; progress: number
   upgrades: string[]; effects: Effects
+  upgradePayments: Map<string, number>; purchases: number; refunds: number
   pulses: Pulse[]
   detectedAt: number | null; sites: Record<ZoneId, Site>; track: ZoneId[]; events: Event[]
   alertHeadlines: Set<string>
@@ -138,7 +139,7 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
-    upgrades: [], effects: { ...baseEffects }, pulses: [],
+    upgrades: [], effects: { ...baseEffects }, upgradePayments: new Map(), purchases: 0, refunds: 0, pulses: [],
     detectedAt: null, sites, track: [origin], end: null, alertHeadlines: new Set(),
     events: [{ time: 0, text: tornado ? `Rotating storms detected ${overWater ? locality.reference : city ? `near ${city}` : locality.reference}.` : theater.storm === 'Wildfire'
       ? zones[origin].sea ? 'Ignition has no fuel over open water.' : `Wildfire ignited ${zoneReference(theater, origin)}.`
@@ -404,20 +405,74 @@ export function routeOptions(run: Run) {
   return run.front ? [] : run.zones[run.progress === 0 ? run.at : run.to].neighbors
 }
 
+function missingPrerequisite(upgrades: string[], upgrade: Upgrade) {
+  return (!!upgrade.requires && !upgrades.includes(upgrade.requires)) ||
+    !!upgrade.requiresAll?.some(id => !upgrades.includes(id)) ||
+    (!!upgrade.requiresAny && !upgrade.requiresAny.some(id => upgrades.includes(id)))
+}
+
 export function upgradeLocked(run: Run, upgrade: Upgrade) {
-  return (!!upgrade.requires && !run.upgrades.includes(upgrade.requires)) ||
-    (!!upgrade.requiresAny && !upgrade.requiresAny.some(id => run.upgrades.includes(id))) ||
+  return missingPrerequisite(run.upgrades, upgrade) ||
     (!!upgrade.capstone && run.theater.storm !== 'Tornado' &&
       trees[activeStorm(run)].some(item => item.capstone && item.id !== upgrade.id && run.upgrades.includes(item.id)))
 }
 
+const upgradeEconomy = {
+  Easy: { increase: 0, refund: .50, decay: .20 },
+  Normal: { increase: .5, refund: .35, decay: .35 },
+  Hard: { increase: 1, refund: .25, decay: .50 },
+  Expert: { increase: 2, refund: 0, decay: 0 },
+}
+
+export function upgradeCost(run: Run, upgrade: Upgrade) {
+  return upgrade.cost + Math.floor(run.purchases * upgradeEconomy[run.difficulty].increase)
+}
+
+export function upgradeRefund(run: Run, id: string) {
+  const policy = upgradeEconomy[run.difficulty]
+  return Math.floor((run.upgradePayments.get(id) ?? 0) * policy.refund / (1 + run.refunds * policy.decay))
+}
+
+export function canRemoveUpgrade(run: Run, id: string) {
+  if (run.end || !run.upgrades.includes(id)) return false
+  const remaining = run.upgrades.filter(installed => installed !== id)
+  return !trees[activeStorm(run)].some(item => remaining.includes(item.id) && missingPrerequisite(remaining, item))
+}
+
+function applyUpgradeEffects(run: Run, upgrade: Upgrade) {
+  for (const [key, amount] of Object.entries(upgrade.effects)) run.effects[key as keyof Effects] += amount
+}
+
+export function removeUpgrade(run: Run, id: string) {
+  if (!canRemoveUpgrade(run, id)) return false
+  run.momentum += upgradeRefund(run, id)
+  run.refunds++
+  run.upgradePayments.delete(id)
+  run.upgrades = run.upgrades.filter(installed => installed !== id)
+  run.effects = { ...baseEffects }
+  for (const item of trees[activeStorm(run)]) if (run.upgrades.includes(item.id)) applyUpgradeEffects(run, item)
+  if (run.front && !run.effects.courseControl) run.front.preference = null
+  if (run.front && !run.effects.tornadoSteering) {
+    for (const funnel of run.front.funnels) funnel.preference = null
+  }
+  return true
+}
+
 export function buyUpgrade(run: Run, id: string) {
   const upgrade = trees[activeStorm(run)].find(item => item.id === id)
-  if (!upgrade || run.end || needsThunderstormType(run) || run.upgrades.includes(id) || run.momentum < upgrade.cost || upgradeLocked(run, upgrade)) return false
-  run.momentum -= upgrade.cost
+  if (!upgrade || run.end || needsThunderstormType(run) || run.upgrades.includes(id) || upgradeLocked(run, upgrade)) return false
+  const cost = upgradeCost(run, upgrade)
+  if (run.momentum < cost) return false
+  run.momentum -= cost
+  run.upgradePayments.set(id, cost)
+  run.purchases++
   run.upgrades.push(id)
-  for (const [key, amount] of Object.entries(upgrade.effects)) run.effects[key as keyof Effects] += amount
+  applyUpgradeEffects(run, upgrade)
   return true
+}
+
+function damageMomentum(credit: number) {
+  return Math.min(32, Math.floor(Math.sqrt(credit / 125_000_000)))
 }
 
 export function trackPoints(run: Run) {
@@ -523,9 +578,9 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   if (run.tornado && loss > 0) {
     const record = run.tornado
     const densityBonus = Math.min(6, 1 + zone.population / zone.area / 220)
-    const before = Math.floor(Math.sqrt(record.impactCredit / 500_000))
+    const before = damageMomentum(record.impactCredit)
     record.impactCredit += loss * densityBonus
-    const after = Math.floor(Math.sqrt(record.impactCredit / 500_000))
+    const after = damageMomentum(record.impactCredit)
     if (after > before) gainMomentum(run, after - before)
   }
   if (propertyOnly) return loss

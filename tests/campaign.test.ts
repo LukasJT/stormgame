@@ -85,19 +85,22 @@ it('seeds irregular Momentum awards and lets weather pickups pay out only once',
   expect(active.end).toBeTruthy()
   expect(active.momentum).toBe(10 + schedule.awards.filter(item => item.time <= active.time).reduce((sum, item) => sum + item.points, 0)
     + schedule.pickups.filter(item => item.time < active.time).reduce((sum, item) => sum + item.points, 0)
-    + Math.floor(Math.sqrt(active.tornado!.impactCredit / 500_000)))
+    + Math.min(32, Math.floor(Math.sqrt(active.tornado!.impactCredit / 125_000_000))))
 })
 
-it('gates tornado capstones behind any completed branch and makes intensity purchased', () => {
+it('gates tornado junctions behind both branches and makes intensity purchased', () => {
   const run = startRun(plains, 0, 'Normal', defaultSeed)
   const point = { x: run.front!.point.x - 2, y: run.front!.point.y }
   expect(setCourse(run, point)).toBe(false)
   run.momentum = 130
   expect(buyUpgrade(run, 'tornado-course')).toBe(false)
   expect(buyUpgrade(run, 'multi-vortex')).toBe(false)
-  for (const id of ['tornado-thermal', 'tornado-organize', 'tornado-reserve', 'tornado-course']) expect(buyUpgrade(run, id)).toBe(true)
+  for (const id of ['tornado-thermal', 'tornado-organize', 'tornado-course']) expect(buyUpgrade(run, id)).toBe(true)
   expect(setCourse(run, point)).toBe(true)
-  for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex']) expect(buyUpgrade(run, id)).toBe(true)
+  for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core']) expect(buyUpgrade(run, id)).toBe(true)
+  expect(buyUpgrade(run, 'multi-vortex')).toBe(false)
+  run.momentum = 100
+  for (const id of ['wide-funnel', 'satellite', 'wedge', 'multi-vortex']) expect(buyUpgrade(run, id)).toBe(true)
   expect(stormStats(run).category).toContain('EF0')
   for (let i = 0; i < 24; i++) tick(run)
   expect(stormStats(run).windMph).toBe(217)
@@ -105,10 +108,10 @@ it('gates tornado capstones behind any completed branch and makes intensity purc
 
   const longRun = startRun(plains, 0, 'Normal', defaultSeed)
   longRun.momentum = 50
-  expect(buyUpgrade(longRun, 'ground-coupling')).toBe(false)
-  for (const id of ['inflow', 'tornado-occlusion', 'ground-coupling', 'tornado-course', 'tornado-steering-flow']) expect(buyUpgrade(longRun, id)).toBe(true)
-  expect(longRun.effects.endurance).toBeCloseTo(.7)
-  expect(frontSpeed(longRun)).toBeCloseTo(frontSpeed(run) * 1.15)
+  expect(buyUpgrade(longRun, 'tornado-life-anchor')).toBe(false)
+  for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor']) expect(buyUpgrade(longRun, id)).toBe(true)
+  expect(longRun.effects.endurance).toBeCloseTo(2.02)
+  expect(frontSpeed(run)).toBeCloseTo(frontSpeed(longRun) * 1.15)
 })
 
 it('keeps unupgraded winds at EF0 and lets hail and rain damage property independently', () => {
@@ -117,7 +120,7 @@ it('keeps unupgraded winds at EF0 and lets hail and rain damage property indepen
   const rain = makeRun()
   const hail = makeRun()
   rain.momentum = 50
-  for (const id of ['rain-wrapped', 'tornado-rain-core', 'tornado-runoff']) expect(buyUpgrade(rain, id)).toBe(true)
+  for (const id of ['rain-wrapped', 'tornado-rain-screen', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']) expect(buyUpgrade(rain, id)).toBe(true)
   expect(buyUpgrade(hail, 'tornado-hail')).toBe(true)
   for (let i = 0; i < 360; i++) for (const run of [base, rain, hail]) tick(run)
   for (const run of [base, rain, hail]) {
@@ -150,9 +153,9 @@ it('tracks surveyed distance and towns while geography and upgrades shape the ca
   const persistent = startRun(plains.theater, 0, 'Normal', defaultSeed)
   const arctic = startRun(makeDrop('Tornado', 64.317, -96.02), 0, 'Normal', defaultSeed)
   persistent.momentum = 150
-  for (const id of ['inflow', 'tornado-occlusion', 'ground-coupling', 'tornado-cold-pool', 'tornado-baroclinic', 'tornado-cold-buffer', 'tornado-inflow-coupling',
-    'tornado-life-feed', 'tornado-life-balance', 'tornado-life-recycle', 'tornado-life-anchor',
-    'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-chain', 'tornado-track-long']) {
+  for (const id of ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-mixed-layer', 'tornado-heat-flux', 'tornado-inflow-coupling',
+    'tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor',
+    'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']) {
     expect(buyUpgrade(persistent, id)).toBe(true)
   }
   for (const run of [plains, persistent, arctic]) {
@@ -188,7 +191,7 @@ it('lets a specialized storm aim its active ability after buying Targeted Outbre
   const nearby = movePoint(point, 0, 7)
   const charge = run.charge
   expect(useAbility(run, nearby)).toBeFalsy()
-  run.momentum = 27
+  run.momentum = 29
   for (const id of ['impact-hail', 'impact-gust', 'impact-grid', 'impact-extreme']) expect(buyUpgrade(run, id)).toBe(true)
   expect(useAbility(run, movePoint(point, 0, 150))).toBeFalsy()
   expect(run.charge).toBe(charge)

@@ -606,24 +606,21 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .upgrade-node small, .requirement { color: #dcc9cf; font-size: 10px; }
 .tornado-evolution { grid-template-columns: minmax(0, 1fr) minmax(215px, 30%); min-height: 0; }
 .tornado-tree { min-width: 0; overflow-x: auto; padding: 12px 15px 16px; background: #38202a; scrollbar-color: #b87e89 #38202a; }
-.tornado-tree .tree-instruction { margin: 0 0 12px; color: #e5cbd1; font-size: 12px; }
-.tree-swipe { display: none; }
-.tornado-lanes { display: grid; grid-template-columns: repeat(var(--lane-count), minmax(108px, 1fr)); gap: 0 8px; min-width: calc(var(--lane-count) * 116px - 8px); }
-.tornado-lane { position: relative; display: grid; grid-template-rows: minmax(31px, auto) repeat(3, minmax(84px, 1fr)); gap: 9px; min-width: 0; }
-.tornado-lane h3 { align-self: end; margin: 0; color: #ffd4c7; font: 700 16px/1.05 var(--display); text-align: center; }
-.tornado-lane .upgrade-node { padding: 6px 4px; }
-.tornado-lane .upgrade-node strong { font-size: 16px; }
-.tornado-tree .upgrade-node .hex { width: 33px; }
-.tornado-tree .upgrade-node .hex::before { inset: 2px; }
-.tornado-lane .vertical-link::before, .tornado-lane::after, .tornado-merge::before, .tornado-merge::after {
-  content: ''; position: absolute; background: #b87984; pointer-events: none;
-}
-.tornado-lane .vertical-link::before { top: -10px; left: 50%; width: 1px; height: 9px; }
-.tornado-lane::after { bottom: -11px; left: 50%; width: 1px; height: 11px; }
-.tornado-merge { position: relative; grid-column: 1 / -1; display: grid; justify-content: center; padding-top: 24px; }
-.tornado-merge::before { top: 10px; left: calc((100% - (var(--lane-count) - 1) * 8px) / (2 * var(--lane-count))); right: calc((100% - (var(--lane-count) - 1) * 8px) / (2 * var(--lane-count))); height: 1px; }
-.tornado-merge::after { top: 10px; left: 50%; width: 1px; height: 14px; }
-.tornado-merge .upgrade-node { padding: 7px 12px; }
+.upgrade-network + .upgrade-network { margin-top: 16px; padding-top: 12px; border-top: 1px solid #704450; }
+.upgrade-network h3 { margin: 0 0 7px; color: #ffd4c7; font: 700 20px/1 var(--display); }
+.upgrade-network-grid { display: grid; grid-template-columns: minmax(max-content, 1fr); gap: 8px 18px; width: max-content; max-width: 100%; }
+.upgrade-network.has-merge .upgrade-network-grid { grid-template-columns: max-content 105px; }
+.upgrade-lane { display: flex; align-items: stretch; gap: 9px; min-width: max-content; grid-column: 1; position: relative; }
+.upgrade-lane h4 { width: 70px; align-self: center; margin: 0; color: #ead0d8; font: 600 15px/1.05 var(--display); }
+.upgrade-network .upgrade-node { width: 96px; min-height: 74px; padding: 5px 4px; }
+.upgrade-network .upgrade-node strong { font-size: 15px; }
+.upgrade-network .upgrade-node .hex { width: 30px; }
+.upgrade-junction { grid-area: 1 / 2 / 3; display: flex; align-items: center; position: relative; }
+.upgrade-junction::before { content: ''; position: absolute; left: -10px; top: 24%; bottom: 24%; width: 1px; background: #b87984; }
+.upgrade-junction::after, .has-merge .upgrade-lane::after { content: ''; position: absolute; height: 1px; top: 50%; width: 9px; background: #b87984; }
+.upgrade-junction::after { left: -9px; }
+.has-merge .upgrade-lane::after { right: -9px; }
+.has-merge .upgrade-lane .upgrade-node:nth-child(2) { margin-left: auto; }
 .tornado-evolution .upgrade-detail { align-content: start; padding: 18px; }
 .capstone-requirements { margin: -4px 0 12px; padding-left: 18px; color: #e2c9ce; font-size: 12px; line-height: 1.55; }
 .tornado-overview { grid-column: 1 / -1; padding: 20px; background: #30212a; }
@@ -637,11 +634,6 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
   dialog:has(.tornado-evolution) > :not(.tornado-evolution) { flex-shrink: 0; }
   .tornado-evolution { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
   .tornado-tree { padding: 10px 8px 12px; overflow: auto; }
-  .tornado-tree .tree-instruction { margin-bottom: 4px; }
-  .tornado-tree .tree-swipe { display: block; margin: 0 0 6px; font-size: 11px; }
-  .tornado-lane { grid-template-rows: minmax(23px, auto) repeat(3, minmax(85px, 1fr)); }
-  .tornado-lane .upgrade-node strong { font-size: 14px; }
-  .tornado-lane .upgrade-node { padding: 4px; }
   .tornado-tree .upgrade-node .hex { width: 27px; }
   .tornado-evolution .upgrade-detail, .tornado-overview { padding: 13px; }
   .tornado-evolution .upgrade-detail { max-height: 25dvh; overflow-y: auto; }

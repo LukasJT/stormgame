@@ -150,8 +150,8 @@ describe('global weather scenarios', () => {
   it('reaches four simulated hours and 400 km when the lifetime and travel lanes are maxed', () => {
     const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
     run.momentum = 100
-    for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-recycle', 'tornado-life-anchor',
-      'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-chain', 'tornado-track-long']) {
+    for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor',
+      'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']) {
       expect(buyUpgrade(run, id)).toBe(true)
     }
     expect(tornadoLimits(run)).toEqual({ ticks: 960, km: 400 })
