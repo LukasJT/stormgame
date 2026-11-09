@@ -1,4 +1,4 @@
-import { makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
+import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
 import { hazardFor, thunderstormTypes, type ThunderstormType } from './hazards'
@@ -65,12 +65,15 @@ function frontArea(areas: Front['areas'], point: MapPoint, surface = landAt(poin
   const x = Math.floor(worldX(point.x)) + .5
   const y = Math.floor(point.y) + .5
   const { name, code } = surface
-  const key = `${x},${y},${code ?? ''}`
+  const local = localExposureAt(code, latitudeAt(point), longitudeAt(point))
+  const key = `${x},${y},${code ?? ''},${local?.id ?? ''}`
   const saved = areas.get(key)
   if (saved) return saved
   const center = landAt({ x, y })
-  const sample = center.code === code ? { x, y } : point
-  const area = { zone: makeZone([name, latitudeAt(sample), longitudeAt(sample), code], kmPerX(y) * 11.1 / 2.59), site: newSite(), country: code }
+  const centerExposure = localExposureAt(code, latitudeAt({ x, y }), longitudeAt({ x, y }))
+  const sample = center.code === code && centerExposure?.id === local?.id ? { x, y } : point
+  const zone = makeZone([name, latitudeAt(sample), longitudeAt(sample), code], kmPerX(y) * 11.1 / 2.59, [], local)
+  const area = { zone, site: newSite(), country: code }
   areas.set(key, area)
   return area
 }

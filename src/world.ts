@@ -2,6 +2,8 @@ import population from './data/tornado-population.json'
 import counties from './data/us-counties.json'
 import { hazardNames, hazards, type NewHazard } from './hazards'
 import { homeReplacement } from './impact'
+import { gtaCensusDivision, nearbyCensus } from './census'
+import { regionExposureAt } from './regions'
 
 export type Storm = 'Hurricane' | 'Tornado' | 'Blizzard' | NewHazard
 export type Place = [name: string, lat: number, lon: number, country?: string, localId?: string]
@@ -193,22 +195,46 @@ const nationalFallback = {
   CA: { n: 'Canada', d: 36991981 / 8788702.8 * 2.589988 },
 }
 
-export function makeZone([name, lat, lon, country, localId]: Place, area: number, connections: ZoneId[] = []): Zone {
-  const division = country === 'CA' && localId ? population.CANADA_CENSUS_DIVISIONS.find(row => row.n === localId) : undefined
-  const county = country === 'US' && localId ? counties[localId as keyof typeof counties] : undefined
-  const local = division ?? county
-  const national = population.WORLD_COUNTRIES.find(row => row.iso === country)
-    ?? (country === 'US' || country === 'CA' ? nationalFallback[country] : undefined)
-  const density = local ? local.d : national?.d ?? 0
-  const housingDensity = local ? local.h : density * 0.4
+const divisions = new Map(population.CANADA_CENSUS_DIVISIONS.map(row => [row.n, row]))
+const countries = new Map(population.WORLD_COUNTRIES.map(row => [row.iso, row]))
+
+type LocalExposure = { id: string; pop: number; d: number; h?: number; source: string }
+
+export function localExposureAt(country: string | undefined, lat: number, lon: number, localId?: string): LocalExposure | undefined {
+  if (!country) return
+  const longitude = ((lon + 180) % 360 + 360) % 360 - 180
+  if (country === 'CA') {
+    const division = divisions.get(localId ?? gtaCensusDivision(lat, longitude) ?? '')
+    if (division) return { ...division, id: division.n, source: `${division.n} · Canadian census division` }
+  }
+  if (country === 'US' && localId) {
+    const county = counties[localId as keyof typeof counties]
+    if (county) return { ...county, id: localId, source: `${county.n} · U.S. county census estimate` }
+  }
+  if (country === 'CA' || country === 'US') {
+    const nearest = nearbyCensus(country, lat, longitude)
+    if (nearest) {
+      const [id, , , pop, , d, h] = nearest
+      return { id, pop, d, h, source: `${id} · nearest census area` }
+    }
+  }
+  const point = project(lat, longitude)
+  const region = regionExposureAt(country, point.x, point.y)
+  if (region) return { ...region, source: `${region.name} · regional population estimate` }
+}
+
+export function makeZone([name, lat, lon, country, localId]: Place, area: number, connections: ZoneId[] = [],
+  local = localExposureAt(country, lat, lon, localId)): Zone {
+  const national = country ? countries.get(country)
+    ?? (country === 'US' || country === 'CA' ? nationalFallback[country] : undefined) : undefined
+  const density = local?.d ?? national?.d ?? 0
+  const housingDensity = local?.h ?? density * 0.4
   const modeledArea = local && density ? Math.min(area, local.pop / density) : area
   return {
     name, ...project(lat, lon), sea: !country, neighbors: connections,
     population: Math.round(density * modeledArea), housing: housingDensity * modeledArea, area: modeledArea,
     assets: Math.round(housingDensity * modeledArea * homeReplacement), density,
-    source: division ? `${division.n} · Canadian census division`
-      : county ? `${county.n} · U.S. county census estimate`
-        : national ? `${national.n} · national density` : country ? 'No local population data' : 'Offshore',
+    source: local?.source ?? (national ? `${national.n} · national density` : country ? 'No local population data' : 'Offshore'),
   }
 }
 

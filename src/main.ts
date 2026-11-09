@@ -5,9 +5,9 @@ import '@fontsource/dm-sans/600.css'
 import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
-import { coordinates, loadLocalities, makeDrop } from './free-drop'
+import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
 import { satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
-import { stormColor, stormRules, theaters, type Storm, type Theater } from './world'
+import { makeZones, stormColor, stormRules, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards, thunderstormTypes, type ThunderstormType } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
@@ -103,6 +103,7 @@ let selectedFunnel: number | null = null
 let mapFeedback = ''
 let overview = false
 let opening = false
+let loadingExposure: Run | null = null
 let alternateOpening = false
 let showWeather = true
 let hurricaneName = ''
@@ -284,7 +285,7 @@ function showScreen(next: Screen) {
 function openingOptions(state: Run) {
   if (state.cyclone) return `<form class="hurricane-name-form" id="hurricane-name-form">
     <label for="hurricane-name">Hurricane name</label><input id="hurricane-name" name="name" maxlength="32" required autocomplete="off" value="${escapeName(hurricaneName)}">
-    <button type="submit" class="order hot"><strong>Begin</strong></button>
+    <button type="submit" class="order hot" ${loadingExposure === state ? 'disabled aria-busy="true"' : ''}><strong>Begin</strong></button>
     <button type="button" class="quiet" data-key="change-origin" data-action="change-origin">Clear marker</button>
   </form>`
   const rule = state.theater.storm === 'Blizzard' ? stormRules.Blizzard : null
@@ -299,7 +300,7 @@ function openingOptions(state: Run) {
       `<button class="quiet" data-key="blizzard-type-${type}" data-action="blizzard-type" data-value="${type}" aria-pressed="${state.blizzardPattern === type}"><strong>${type}</strong>${index === 0 ? '<small>Recommended</small>' : ''}</button>`).join('')}
   </div>` : ''
   return `<div class="opening-controls">${forecast}${modes}<div class="orders">
-    ${button('launch', '<strong>Begin</strong>', undefined, 'order hot')}
+    <button class="order hot" data-key="launch" data-action="launch" ${loadingExposure === state ? 'disabled aria-busy="true"' : ''}><strong>Begin</strong></button>
     ${button('change-origin', 'Clear marker', undefined, 'quiet')}
   </div></div>`
 }
@@ -748,9 +749,16 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
   controls.querySelector<HTMLInputElement>('#hurricane-name')?.focus({ preventScroll: true })
 }
 
-function launch() {
-  if (!run || !opening) return
-  if (run.cyclone && !nameHurricane(run, hurricaneName)) return
+async function launch() {
+  const forecast = run
+  if (!forecast || !opening || loadingExposure === forecast) return
+  if (forecast.cyclone && !nameHurricane(forecast, hurricaneName)) return
+  loadingExposure = forecast
+  render()
+  await loadImpactRegions(forecast.theater, forecast.origin)
+  if (loadingExposure === forecast) loadingExposure = null
+  if (screen !== 'map' || run !== forecast || !opening) return
+  run.zones = makeZones(run.theater)
   if (run.tornado) run.tornado.startedAt = tornadoStartDate()
   if (alternateOpening) useAbility(run)
   opening = false

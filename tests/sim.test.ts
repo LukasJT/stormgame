@@ -126,7 +126,7 @@ describe('global weather scenarios', () => {
     advance(run, 10)
     expect(totals(run).deaths).toBe(0)
     expect(totals(run).damage).toBeGreaterThan(0)
-    expect(totals(run).damage).toBeLessThan(2_000)
+    expect(totals(run).damage).toBeLessThan(3_000)
   })
 
   it('drifts northeast without looping for both standalone and dropped tornadoes', () => {

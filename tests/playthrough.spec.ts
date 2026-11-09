@@ -344,7 +344,7 @@ test('starts a tornado near Wichita at EF0 without immediate casualties', async 
   await expect(page.locator('.metric.deaths strong')).toHaveText('0')
   const damage = await page.locator('.metric.damage strong').innerText()
   expect(damage).toMatch(/^\$\d+$/)
-  expect(Number(damage.slice(1))).toBeLessThan(2_000)
+  expect(Number(damage.slice(1))).toBeLessThan(3_000)
 })
 
 test('describes the tornado and buys an upgrade through the branching evolution screen', async ({ page }) => {
