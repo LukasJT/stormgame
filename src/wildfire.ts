@@ -62,7 +62,7 @@ export type Wildfire = {
   responseAt: number | null; aircraft: boolean; spotfires: number; areaKm2: number; active: number; containment: number
 }
 
-const hexRadius = 1.25
+const hexRadius = 2.5
 const cellArea = Math.sqrt(3) * 1.5 * hexRadius ** 2
 const neighbors = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]] as const
 const key = (q: number, r: number) => `${q},${r}`
@@ -115,7 +115,7 @@ export function spotFire(fire: Wildfire, effects: Effects, time: number) {
 
 export function advanceWildfire(fire: Wildfire, effects: Effects, time: number, resistance: number) {
   const roll = random(fire.seed ^ Math.imul(Math.floor(time / 80), 13337))
-  const dry = Math.max(.25, .76 + roll() * .36 - Math.max(0, time - 650) / 460)
+  const dry = Math.max(.25, .76 + roll() * .36 - Math.max(0, time - 820) / 520)
   const active = [...fire.cells.values()].filter(live)
   const age = fire.responseAt === null ? 0 : time - fire.responseAt
   const airPass = fire.aircraft && time % 24 === 0
@@ -131,12 +131,12 @@ export function advanceWildfire(fire: Wildfire, effects: Effects, time: number, 
     cell.burned += burn
     fire.areaKm2 += burn * cellArea / (.61 + cell.history * .09)
     if (fire.responseAt !== null) {
-      const crews = Math.min(.155, .023 + age * .00038) * resistance
-      const perimeterLoad = Math.max(1, active.length ** .32)
+      const crews = Math.min(.05, .007 + age * .00011) * resistance
+      const perimeterLoad = Math.max(1, active.length ** .28)
       cell.line = bound(cell.line + crews / perimeterLoad * Math.max(.22, 1 - effects.fireLine - cell.heat * .48)
-        + (cell === aircraftTarget ? .21 * Math.max(.22, 1 - effects.fireAir) : 0))
+        + (cell === aircraftTarget ? .085 * Math.max(.22, 1 - effects.fireAir) : 0))
     }
-    cell.heat = bound(cell.heat + heatGain - Math.max(0, 1 - dry) * .09 * (1 - effects.hazardBuffer) - cell.line * .21 - Math.max(0, .30 - cell.fuel) * .46)
+    cell.heat = bound(cell.heat + heatGain - Math.max(0, 1 - dry) * .09 * (1 - effects.hazardBuffer) - cell.line * .17 - Math.max(0, .30 - cell.fuel) * .46)
     cell.status = cell.fuel < .035 ? 'Burned out'
       : (cell.line >= .60 && cell.heat < .15) || (cell.line >= .22 && cell.heat < .04) ? 'Contained'
       : cell.heat <= .005 ? 'Burned out'
@@ -149,7 +149,7 @@ export function advanceWildfire(fire: Wildfire, effects: Effects, time: number, 
       if (fire.cells.has(id)) continue
       const downwind = Math.cos((direction - fire.wind) * Math.PI / 3)
       const edge = fire.pressure.get(id) ?? { q, r, amount: 0 }
-      edge.amount += cell.heat * (1 - cell.line) * (.19 + downwind * .11) * dry * (1 + effects.spread)
+      edge.amount += cell.heat * (1 - cell.line) * (.24 + downwind * .13) * dry * (1 + effects.spread)
       fire.pressure.set(id, edge)
     }
   }
@@ -159,7 +159,7 @@ export function advanceWildfire(fire: Wildfire, effects: Effects, time: number, 
   for (const [id, edge] of available) {
     fire.pressure.delete(id)
     if (ignite(fire, edge.q, edge.r, .21)) starts++
-    if (starts >= 2 + Math.floor(effects.fringe)) break
+    if (starts >= 3 + Math.floor(effects.fringe)) break
   }
   if (effects.fireSpot && time % 36 === 0 && active.some(cell => cell.heat >= .73)) spotFire(fire, effects, time)
   const cells = [...fire.cells.values()]

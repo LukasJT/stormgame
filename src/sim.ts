@@ -1082,11 +1082,11 @@ function tickWildfire(run: Run, front: Front, fire: Wildfire) {
   run.charge = Math.min(100, run.charge + .44 + run.effects.chargeGain)
   if (run.time % 4 !== 0) return
   const resistance = { Easy: .73, Normal: 1, Hard: 1.23, Expert: 1.44 }[run.difficulty]
-  if (fire.responseAt === null && run.time >= 36 / resistance + run.effects.fireDelay) {
+  if (fire.responseAt === null && run.time >= 84 / resistance + run.effects.fireDelay) {
     fire.responseAt = run.time
     log(run, 'Fire crews deploy and begin building containment lines.', true)
   }
-  if (fire.responseAt !== null && !fire.aircraft && run.time >= fire.responseAt + 40 / resistance) {
+  if (fire.responseAt !== null && !fire.aircraft && run.time >= fire.responseAt + 112 / resistance) {
     fire.aircraft = true
     log(run, 'Aircraft begin dropping retardant along the fire perimeter.', true)
   }

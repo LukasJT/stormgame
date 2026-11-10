@@ -22,7 +22,7 @@ const targets: Record<CampaignEvent, Record<Exclude<Difficulty, 'Expert'>, reado
     Easy: [120, 2500, 17000, 44000], Normal: [30, 800, 6500, 18000], Hard: [12, 170, 1200, 5700],
   },
   Wildfire: {
-    Easy: [.5, 5, 30, 100], Normal: [.3, 2.5, 10, 50], Hard: [.2, 1.4, 4, 15],
+    Easy: [1800, 8500, 55000, 190000], Normal: [1000, 6000, 40000, 145000], Hard: [650, 3500, 26000, 100000],
   },
   'Dust Storm': {
     Easy: [3500, 5500, 16500, 16976], Normal: [2800, 4500, 9000, 16976], Hard: [2300, 3200, 6500, 16600],
