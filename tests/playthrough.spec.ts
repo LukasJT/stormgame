@@ -53,6 +53,49 @@ test('starts at the main menu and requires weather and difficulty before showing
   await expect(atlas).toBeHidden()
 })
 
+test('sandbox opens all events with free upgrades and leaves campaign records alone', async ({ page }) => {
+  await page.clock.install()
+  await page.goto('/')
+  const play = page.getByRole('button', { name: 'Play', exact: true })
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click()
+  const events = page.getByRole('group', { name: 'Weather events' })
+  await expect(events.locator('button:disabled')).toHaveCount(0)
+  await events.getByRole('button', { name: 'Tornado', exact: true }).click()
+  await page.getByRole('button', { name: /^Expert / }).click()
+  await play.click()
+  await dropAt(page, 64.317, -96.02)
+  await page.getByRole('button', { name: 'Begin', exact: true }).click()
+  const balance = page.getByLabel('Unlimited Momentum')
+  await expect(balance).toHaveText('∞')
+
+  await page.getByRole('button', { name: 'Evolve' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('Unlimited Momentum')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Damage', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Expanded Vorticity Field' }).click()
+  await expect(dialog.getByRole('button', { name: 'Locked', exact: true })).toBeDisabled()
+  for (const upgrade of ['Broad Inflow Layer', 'Expanded Vorticity Field', 'Wedge Circulation']) {
+    const node = dialog.getByRole('button', { name: upgrade, exact: true })
+    await node.click()
+    await dialog.getByRole('button', { name: 'Install upgrade' }).click()
+    await expect(node).toContainText('Installed')
+  }
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(balance).toHaveText('∞')
+  await page.getByRole('button', { name: 'Speed 1×' }).click()
+  await page.clock.runFor(65000)
+  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+  const results = page.getByRole('region', { name: 'Forecast complete' })
+  await expect(results.getByText('Sandbox', { exact: true })).toBeVisible()
+  await expect(results.getByRole('img', { name: /stars/ })).toHaveCount(0)
+  await results.getByRole('button', { name: 'Exit' }).click()
+  await play.click()
+  await expect(events.getByRole('button', { name: 'Hurricane', exact: true })).toBeDisabled()
+  await events.getByRole('button', { name: 'Tornado', exact: true }).click()
+  await expect(page.getByRole('button', { name: /^Expert / })).toBeDisabled()
+  expect(await page.evaluate(() => localStorage.getItem('stormwake.rankings'))).toBeNull()
+})
+
 test('colors difficulty ratings and unlocks Expert at three Hard stars for the selected event', async ({ page }) => {
   await page.addInitScript(() => {
     const key = 'stormwake.rankings'

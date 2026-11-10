@@ -48,7 +48,7 @@ type Front = ConvectiveTrack & {
   swath: Swath[]
 }
 export type Run = {
-  seed: number; origin: Origin; difficulty: Difficulty; time: number; strength: number; momentum: number
+  seed: number; origin: Origin; difficulty: Difficulty; sandbox: boolean; time: number; strength: number; momentum: number
   name: string; support: number; cyclone: Cyclone | null; overWater: boolean
   tornado: TornadoRecord | null; snow: Snowstorm | null; fire: Wildfire | null
   realTime: number; momentumGain: { points: number; at: number } | null
@@ -130,7 +130,7 @@ export function setBlizzardCourse(run: Run, course: BlizzardCourse) {
   snow.steering = { course, from: blizzardSteeringOffset(snow.steering, run.time), since: run.time }
 }
 
-export function startRun(theater: Theater, origin: Origin, difficulty: Difficulty, seed: number): Run {
+export function startRun(theater: Theater, origin: Origin, difficulty: Difficulty, seed: number, sandbox = false): Run {
   const zones = makeZones(theater)
   const hazard = hazardFor(theater.storm)
   const blizzardPattern = theater.storm === 'Blizzard' ? blizzardOptions(theater.places[origin])[0] : null
@@ -154,11 +154,11 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   if (front && cyclone) front.heading = cycloneFlow(cyclone, point)
   if (front && blizzardPattern) front.heading = blizzardHeading(point, blizzardPattern, front.phase, 0, 0)
   return {
-    seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record, fire,
+    seed, origin, difficulty, sandbox, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record, fire,
     impactCredit: 0, blizzardPattern, front,
     snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0,
       steering: { course: 'natural', from: 0, since: 0 } } : null,
-    time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : fire ? 100 * ([...fire.cells.values()][0]?.heat ?? 0) : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
+    time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : fire ? 100 * ([...fire.cells.values()][0]?.heat ?? 0) : front ? 17 : origin === 1 ? 38 : 43, momentum: sandbox ? Infinity : startingMomentum(theater.storm),
     realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
@@ -453,7 +453,7 @@ const upgradeEconomy = {
 }
 
 export function upgradeCost(run: Run, upgrade: Upgrade) {
-  return upgrade.cost + Math.floor(run.purchases * upgradeEconomy[run.difficulty].increase)
+  return run.sandbox ? 0 : upgrade.cost + Math.floor(run.purchases * upgradeEconomy[run.difficulty].increase)
 }
 
 export function upgradeRefund(run: Run, id: string) {
@@ -605,7 +605,7 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const casualtyRate = share * rate * (1 + overload + effects.panic)
   const loss = Math.min(zone.assets - site.loss, Math.floor(zone.housing * share * lossPerHome(wind, funnel) * (1 + rain + (propertyOnly ? 0 : effects.gust) + (outage ? effects.supply : 0))))
   site.loss += loss
-  if (loss > 0 && usesTornadoEconomy(run.theater.storm)) {
+  if (loss > 0 && !run.sandbox && usesTornadoEconomy(run.theater.storm)) {
     const densityBonus = Math.min(6, 1 + zone.population / zone.area / 220)
     const before = damageMomentum(run.impactCredit)
     run.impactCredit += loss * densityBonus
@@ -1114,10 +1114,12 @@ export function tick(run: Run) {
   run.time++
   const storm = activeStorm(run)
   const hazard = hazardFor(storm)
-  const award = run.momentumSchedule.awards.find(item => item.time === run.time)
-  if (award) gainMomentum(run, award.points)
-  if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
-  run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
+  if (!run.sandbox) {
+    const award = run.momentumSchedule.awards.find(item => item.time === run.time)
+    if (award) gainMomentum(run, award.points)
+    if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
+    run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
+  }
   if (run.fire && run.front) return tickWildfire(run, run.front, run.fire)
   if (run.front && run.blizzardPattern) return tickBlizzard(run, run.front, run.blizzardPattern)
   if (run.front) return run.cyclone ? tickCyclone(run, run.front, run.cyclone) : hazard ? tickFront(run, run.front, hazard) : tickTornado(run, run.front)
