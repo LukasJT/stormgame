@@ -89,6 +89,10 @@ export const theaters: Theater[] = [
     ['Cochrane area', 51.19, -114.47, 'CA'], ['Rocky Mountain House area', 52.37, -114.92, 'CA'],
     ['Calgary area', 51.05, -114.07, 'CA'], ['Medicine Hat area', 50.04, -110.68, 'CA'], ['Lethbridge area', 49.69, -112.83, 'CA'],
   ] },
+  { id: 'mid-atlantic', name: 'Mid-Atlantic Coast', storm: 'Blizzard', places: [
+    ['Cape Hatteras area', 35.24, -75.54, 'US'], ['Virginia Beach area', 36.85, -75.98, 'US'],
+    ['Norfolk area', 36.85, -76.29, 'US'], ['Ocean City area', 38.34, -75.08, 'US'], ['Cape May area', 38.94, -74.91, 'US'],
+  ] },
   { id: 'new-england', name: 'New England Coast', storm: 'Blizzard', places: [
     ['Cape Cod area', 41.70, -70.30, 'US'], ['Cape Ann area', 42.65, -70.63, 'US'],
     ['Boston area', 42.36, -71.06, 'US'], ['Portland, Maine area', 43.66, -70.26, 'US'], ['Providence area', 41.82, -71.41, 'US'],

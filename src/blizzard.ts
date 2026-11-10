@@ -1,10 +1,10 @@
 import type { Place } from './world'
-import { movePoint, type MapPoint } from './convection'
+import { headingToward, movePoint, type MapPoint } from './convection'
 import type { Effects } from './upgrades'
 
 export const blizzardPatterns = {
   'Alberta Clipper': { description: 'A fast track with lighter snow and shorter whiteouts.', favorable: 'Cold prairie air', speed: 1.32, growth: .08, snow: -.06, width: 60, heading: 0.18, curve: 0.04 },
-  "Nor'easter": { description: 'A broad coastal storm with longer whiteouts.', favorable: 'Cold Atlantic moisture', speed: .87, growth: .14, snow: .13, width: 230, heading: -0.84, curve: 0.3 },
+  "Nor'easter": { description: 'A broad coastal storm that climbs northeast along the Atlantic seaboard.', favorable: 'Cold Atlantic moisture', speed: .87, growth: .14, snow: .13, width: 230, heading: -0.84, curve: 0.3 },
   'Lake-Effect Storm': { description: 'A narrow band that builds snowpack quickly.', favorable: 'Moist lake inflow', speed: .91, growth: .12, snow: .19, width: 42, heading: 0.08, curve: 0.03 },
   'Snow Squall': { description: 'A quick, narrow burst with short whiteouts.', favorable: 'Arctic front', speed: 1.2, growth: .11, snow: .12, width: 35, heading: 0.27, curve: 0.05 },
   'Colorado Low': { description: 'A broad snow shield that builds strength over the plains.', favorable: 'Moist upslope flow', speed: .94, growth: .15, snow: .09, width: 150, heading: -0.36, curve: 0.25 },
@@ -15,8 +15,25 @@ export const blizzardPatterns = {
 } as const
 
 export type BlizzardPattern = keyof typeof blizzardPatterns
-export type BlizzardCourse = 'left' | 'natural' | 'right'
+export const blizzardCourses = {
+  'far-left': { label: 'Far left', name: 'Curve farther left', degrees: -36 },
+  left: { label: 'Curve left', name: 'Curve left', degrees: -18 },
+  natural: { label: 'Natural', name: 'Natural track', degrees: 0 },
+  right: { label: 'Curve right', name: 'Curve right', degrees: 18 },
+  'far-right': { label: 'Far right', name: 'Curve farther right', degrees: 36 },
+} as const
+export type BlizzardCourse = keyof typeof blizzardCourses
 export type BlizzardSteering = { course: BlizzardCourse; from: number; since: number }
+
+const atlanticTrack = [[31, -80], [35, -75.3], [38, -73.9], [40.5, -72.4], [42, -70], [44, -66], [47, -60], [54, -45]]
+
+function coastalLongitude(latitude: number) {
+  const next = atlanticTrack.findIndex(([lat], index) => index > 0 && lat >= latitude)
+  const end = next < 0 ? atlanticTrack.length - 1 : next
+  const [south, west] = atlanticTrack[end - 1]
+  const [north, east] = atlanticTrack[end]
+  return west + (east - west) * (latitude - south) / (north - south)
+}
 
 export function blizzardOptions([, lat, lon]: Place): readonly BlizzardPattern[] {
   const west = ((lon + 180) % 360 + 360) % 360 - 180
@@ -25,7 +42,9 @@ export function blizzardOptions([, lat, lon]: Place): readonly BlizzardPattern[]
 
   if (inArea(46, 58, -123, -103)) return ['Alberta Clipper', 'Frontal Snowstorm']
   if (inArea(41, 49, -93, -74)) return ['Lake-Effect Storm', 'Snow Squall']
-  if (inArea(35, 52, -76, -51)) return ["Nor'easter", 'Frontal Snowstorm']
+  if (inArea(35, 52, -76, -51) || (lat >= 31 && lat <= 52 && Math.abs(west - coastalLongitude(lat)) <= 3.5)) {
+    return ["Nor'easter", 'Frontal Snowstorm']
+  }
   if (inArea(34, 44, -110, -101)) return ['Colorado Low', 'Mountain Snowstorm']
   if (inArea(36, 47, 135, 148)) return ['Sea-Effect Snow', 'Frontal Snowstorm']
   if (inArea(57, 71, 4, 19) || inArea(45, 63, -138, -122)) return ['Mountain Snowstorm', 'Frontal Snowstorm']
@@ -35,20 +54,26 @@ export function blizzardOptions([, lat, lon]: Place): readonly BlizzardPattern[]
 
 
 export function blizzardSteeringOffset({ course, from, since }: BlizzardSteering, time: number) {
-  const target = course === 'left' ? -Math.PI / 10 : course === 'right' ? Math.PI / 10 : 0
+  const target = blizzardCourses[course].degrees * Math.PI / 180
   return target + (from - target) * Math.exp(-Math.max(0, time - since) / 16)
 }
 
-export function blizzardHeading(pattern: BlizzardPattern, phase: number, time: number, stability: number) {
+export function blizzardHeading(point: MapPoint, pattern: BlizzardPattern, phase: number, time: number, stability: number) {
   const { heading, curve } = blizzardPatterns[pattern]
-  return heading + curve * Math.min(1, time / 540) + .10 * (1 - Math.min(1, stability)) * Math.sin(time / 180 + phase)
+  const wobble = .10 * (1 - Math.min(1, stability)) * Math.sin(time / 180 + phase)
+  if (pattern !== "Nor'easter") return heading + curve * Math.min(1, time / 540) + wobble
+  const latitude = 90 - point.y / 10
+  const ahead = latitude + 2
+  const coastalPoint = { x: (coastalLongitude(ahead) + 180) * 10, y: (90 - ahead) * 10 }
+  return headingToward(point, coastalPoint) + wobble
 }
 
 export function blizzardTrack(point: MapPoint, pattern: BlizzardPattern, phase: number, time: number, seconds: number, effects: Effects, steering?: BlizzardSteering) {
-  const headingAt = (at: number) => blizzardHeading(pattern, phase, at, effects.trackStability)
+  const headingAt = (at: number, position: MapPoint) => blizzardHeading(position, pattern, phase, at, effects.trackStability)
     + (steering ? blizzardSteeringOffset(steering, at) : 0)
+  const next = movePoint(point, headingAt(time + seconds / 2, point), blizzardPatterns[pattern].speed * (1 + effects.spread) * seconds)
   return {
-    point: movePoint(point, headingAt(time + seconds / 2), blizzardPatterns[pattern].speed * (1 + effects.spread) * seconds),
-    heading: headingAt(time + seconds),
+    point: next,
+    heading: headingAt(time + seconds, next),
   }
 }

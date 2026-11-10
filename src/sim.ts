@@ -119,7 +119,7 @@ export function stormAbility(run: Run) {
 export function chooseBlizzardPattern(run: Run, pattern: BlizzardPattern) {
   if (!run.blizzardPattern || run.time || run.end || !blizzardOptions(run.theater.places[run.origin]).includes(pattern)) return false
   run.blizzardPattern = pattern
-  if (run.front) run.front.heading = blizzardHeading(pattern, run.front.phase, 0, 0)
+  if (run.front) run.front.heading = blizzardHeading(run.front.point, pattern, run.front.phase, 0, 0)
   run.events[0].text = `${pattern} formed near ${run.zones[run.origin].name}.`
   return true
 }
@@ -152,7 +152,7 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     ? { ...makeConvectiveTrack(point, seed, tornado), areas, current: frontArea(areas, point), locality, bursts: [], floods: new Map(), swath: [] }
     : null
   if (front && cyclone) front.heading = cycloneFlow(cyclone, point)
-  if (front && blizzardPattern) front.heading = blizzardHeading(blizzardPattern, front.phase, 0, 0)
+  if (front && blizzardPattern) front.heading = blizzardHeading(point, blizzardPattern, front.phase, 0, 0)
   return {
     seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record, fire,
     impactCredit: 0, blizzardPattern, front,

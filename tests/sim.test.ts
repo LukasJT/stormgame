@@ -254,6 +254,7 @@ describe('global weather scenarios', () => {
   it.each([
     [51.05, -114.07, 'Alberta Clipper'],
     [42.36, -71.06, "Nor'easter"],
+    [35.24, -75.54, "Nor'easter"],
     [44.45, -81.23, 'Lake-Effect Storm'],
     [39.74, -104.99, 'Colorado Low'],
     [43.06, 141.35, 'Sea-Effect Snow'],
@@ -278,8 +279,12 @@ describe('global weather scenarios', () => {
     const natural = startRun(theater, 0, 'Normal', defaultSeed)
     const left = startRun(theater, 0, 'Normal', defaultSeed)
     const right = startRun(theater, 0, 'Normal', defaultSeed)
+    const farLeft = startRun(theater, 0, 'Normal', defaultSeed)
+    const farRight = startRun(theater, 0, 'Normal', defaultSeed)
     setBlizzardCourse(left, 'left')
     setBlizzardCourse(right, 'right')
+    setBlizzardCourse(farLeft, 'far-left')
+    setBlizzardCourse(farRight, 'far-right')
     expect(left.front!.heading).toBe(natural.front!.heading)
     for (const run of [natural, left, right]) advance(run, 1)
     expect(natural.front!.heading - left.front!.heading).toBeLessThan(.03)
@@ -287,9 +292,23 @@ describe('global weather scenarios', () => {
     expect(left.front!.point.y).toBeLessThan(natural.front!.point.y)
     expect(right.front!.point.y).toBeGreaterThan(natural.front!.point.y)
     expect(right.front!.heading - natural.front!.heading).toBeLessThanOrEqual(Math.PI / 10)
+    for (const run of [farLeft, farRight]) advance(run, 60)
+    expect(farLeft.front!.point.y).toBeLessThan(left.front!.point.y)
+    expect(farRight.front!.point.y).toBeGreaterThan(right.front!.point.y)
+    expect(farRight.front!.heading - natural.front!.heading).toBeCloseTo(Math.PI / 5, 1)
     setBlizzardCourse(right, 'natural')
     for (const run of [natural, right]) advance(run, 140)
     expect(right.front!.heading).toBeCloseTo(natural.front!.heading, 2)
+  })
+
+  it('tracks a Mid-Atlantic Nor’easter north and east along the coast', () => {
+    const run = startRun(theaters.find(theater => theater.id === 'mid-atlantic')!, 0, 'Normal', defaultSeed)
+    expect(run.blizzardPattern).toBe("Nor'easter")
+    const start = run.front!.point
+    advance(run, 480)
+    expect(run.front!.point.y).toBeLessThan(start.y - 26)
+    expect(run.front!.point.x).toBeGreaterThan(start.x)
+    expect(run.front!.point.x).toBeLessThan(start.x + 35)
   })
 
   it('keeps exact custom origins on land, open water, and across the dateline', () => {

@@ -330,6 +330,10 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .origin-switch .quiet[aria-pressed=true] { border-color: var(--blue); background: #26394c; }
 .route-choice.ability { border-color: var(--red); background: var(--crimson); }
 .blizzard-steering .route-choice[aria-pressed=true] { color: var(--blue); border-color: var(--blue); background: #26394c; }
+.blizzard-steering .route-choice { text-align: center; }
+@media (max-width: 720px) {
+  .blizzard-steering .route-choice { flex: 1 1 0; min-width: 0; }
+}
 .regional-atlas .storm { stroke: var(--storm-color); }
 .regional-atlas .marker.damaged .pin { fill: #ff7362; }
 .regional-atlas .marker text { font-size: 16px; stroke-width: 4px; }

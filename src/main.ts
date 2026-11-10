@@ -11,7 +11,7 @@ import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free
 import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, setBlizzardCourse, setCourse, startRun, steer, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
 import { makeZones, stormColor, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards } from './hazards'
-import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
+import { blizzardCourses, blizzardOptions, blizzardPatterns, type BlizzardCourse, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
 import { countries, countryAt, drawInspection, inspectedTotals, type Inspection } from './inspection'
 import { getRegions } from './regions'
@@ -338,8 +338,8 @@ function routeOrders(state: Run) {
     <span>${state.whiteout ? 'Whiteout conditions' : state.snow.source === 'ocean' ? 'Ocean moisture feeding the band'
       : state.snow.source ? `Moisture from ${escapeName(state.snow.source)}` : conditions(state, state.at).name}</span></div>
     <div class="orders blizzard-steering" role="group" aria-label="Blizzard course">
-      ${([['left', 'Curve left'], ['natural', 'Natural track'], ['right', 'Curve right']] as const).map(([course, label]) =>
-        `<button class="route-choice" data-key="blizzard-course-${course}" data-action="blizzard-course" data-value="${course}" aria-pressed="${state.snow?.steering.course === course}">${label}</button>`).join('')}
+      ${Object.entries(blizzardCourses).map(([course, { label, name, degrees }]) =>
+        `<button class="route-choice" data-key="blizzard-course-${course}" data-action="blizzard-course" data-value="${course}" aria-label="${name}" aria-pressed="${state.snow?.steering.course === course}">${label}<small>${degrees ? `${Math.abs(degrees)}°` : '0°'}</small></button>`).join('')}
     </div></div>`
   if (state.front && state.theater.storm !== 'Tornado') return frontOrders(state)
   const { zones } = state
@@ -994,7 +994,7 @@ document.addEventListener('click', event => {
       return showScreen('results')
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
     case 'blizzard-course':
-      if (run && !opening && (value === 'left' || value === 'natural' || value === 'right')) setBlizzardCourse(run, value)
+      if (run && !opening && value && Object.hasOwn(blizzardCourses, value)) setBlizzardCourse(run, value as BlizzardCourse)
       break
     case 'launch': return launch()
     case 'restart': {
