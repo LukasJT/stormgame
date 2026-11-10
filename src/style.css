@@ -333,6 +333,7 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .blizzard-steering .route-choice { text-align: center; }
 @media (max-width: 720px) {
   .blizzard-steering .route-choice { flex: 1 1 0; min-width: 0; }
+  .blizzard-steering.wide-steering { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .regional-atlas .storm { stroke: var(--storm-color); }
 .regional-atlas .marker.damaged .pin { fill: #ff7362; }

@@ -246,7 +246,7 @@ const blizzard = [
     Support: [
       ['snow-support', 'Steady Cold Feed', 'Draw down environmental support more slowly.', { endurance: .16 }, 3],
       ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track.', { endurance: .18 }, 5],
-      ['polar-lock', 'Polar Lock', 'Sustain the circulation longer as its support runs low.', { endurance: .24 }, 7],
+      ['polar-lock', 'Polar Lock', 'Sustain the circulation as its support runs low. Especially useful for Clippers crossing the prairies.', { endurance: .24 }, 7],
     ],
   }),
   ...upgradeTree('Damage', 'Moisture and snowfall', {
@@ -301,8 +301,8 @@ const blizzard = [
   }, ['snow-cold-lock', 'Cold-Core Resilience', 'Resist warming and preserve the cold air needed for snow.', { coldTolerance: .11, hazardBuffer: .17 }, 8]),
   ...upgradeTree('Abilities', 'Lake and ocean moisture', {
     'Lake fetch': [
-      ['snow-lake', 'Lake Inflow', 'Absorb more moisture while crossing a lake.', { lakeMoisture: .25 }, 3],
-      ['snow-lake-band', 'Long Lake Fetch', 'Increase lake moisture uptake further.', { lakeMoisture: .32 }, 5],
+      ['snow-lake', 'Lake Inflow', 'Absorb more lake moisture. An Alberta Clipper can use it to rebuild over the Great Lakes.', { lakeMoisture: .25 }, 3],
+      ['snow-lake-band', 'Long Lake Fetch', 'Increase lake moisture uptake and strengthen a Clipper’s recovery over the Great Lakes.', { lakeMoisture: .32 }, 5],
     ],
     'Ocean feed': [
       ['snow-ocean', 'Maritime Inflow', 'Absorb more moisture while crossing cold coastal waters.', { oceanMoisture: .23 }, 3],

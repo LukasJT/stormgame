@@ -311,6 +311,20 @@ describe('global weather scenarios', () => {
     expect(run.front!.point.x).toBeLessThan(start.x + 35)
   })
 
+  it('allows sharper left turns on a Nor’easter while preserving the gentler Clipper limit', () => {
+    const coastal = makeDrop('Blizzard', 35.24, -75.54)
+    const hard = startRun(coastal, 0, 'Normal', defaultSeed)
+    const max = startRun(coastal, 0, 'Normal', defaultSeed)
+    const clipper = startRun(makeDrop('Blizzard', 51.19, -114.47), 0, 'Normal', defaultSeed)
+    setBlizzardCourse(clipper, 'max-left')
+    expect(clipper.snow!.steering.course).toBe('natural')
+    setBlizzardCourse(hard, 'hard-left')
+    setBlizzardCourse(max, 'max-left')
+    for (const run of [hard, max]) advance(run, 55)
+    expect(max.front!.point.x).toBeLessThan(hard.front!.point.x)
+    expect(max.front!.point.x).toBeLessThan(max.front!.path[0].x)
+  })
+
   it('keeps exact custom origins on land, open water, and across the dateline', () => {
     const plains = startRun(makeHurricaneDrop(39, -97), 0, 'Normal', defaultSeed)
     expect(plains.theater.places[0].slice(1, 3)).toEqual([39, -97])

@@ -3,7 +3,7 @@ import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, typ
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
 import { hazardFor, hazards } from './hazards'
-import { blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
+import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
@@ -126,7 +126,7 @@ export function chooseBlizzardPattern(run: Run, pattern: BlizzardPattern) {
 
 export function setBlizzardCourse(run: Run, course: BlizzardCourse) {
   const snow = run.snow
-  if (!snow || run.end || snow.steering.course === course) return
+  if (!snow || run.end || snow.steering.course === course || !blizzardCourseAvailable(course, run.blizzardPattern)) return
   snow.steering = { course, from: blizzardSteeringOffset(snow.steering, run.time), since: run.time }
 }
 
@@ -666,6 +666,8 @@ function updateFrontWarnings(run: Run, front: Front, threatened: Set<ImpactArea>
   }
 }
 
+const greatLakes = new Set(['Lake Superior', 'Lake Michigan', 'Lake Huron', 'Lake Erie', 'Lake Ontario'])
+
 function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   const snow = run.snow!
   const next = blizzardTrack(front.point, patternName, front.phase, run.time - 1, 1, run.effects, snow.steering)
@@ -680,8 +682,6 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   }
 
   const pattern = blizzardPatterns[patternName]
-  const weather = conditions(run, run.at)
-  develop(run, weather.trend)
   const cold = Math.max(0, Math.min(1, (Math.abs(latitudeAt(front.point)) - 25) / 12 + run.effects.coldTolerance))
   const lake = !surface.code && surface.name !== 'Open water'
   const water = !surface.code && cold > .3
@@ -692,6 +692,17 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   } else {
     snow.waterMoisture = Math.max(0, snow.waterMoisture - .62 / (1 + run.effects.snowRetention))
     if (snow.waterMoisture < 6) snow.source = null
+  }
+  const clipper = patternName === 'Alberta Clipper'
+  const lakeFeed = clipper && water && greatLakes.has(surface.name)
+    ? run.effects.lakeMoisture * cold * Math.min(1, snow.waterMoisture / 20) : 0
+  const weather = conditions(run, run.at)
+  const priorStrength = run.strength
+  develop(run, weather.trend + lakeFeed * .85, lakeFeed * .55, clipper ? run.effects.endurance * .28 : 0)
+  const lakeHeadline = `clipper-recovery-${surface.name}`
+  if (lakeFeed > .08 && run.strength > priorStrength && !run.alertHeadlines.has(lakeHeadline)) {
+    run.alertHeadlines.add(lakeHeadline)
+    log(run, `Alberta Clipper rebuilds over ${surface.name} as lake moisture feeds the storm.`, true)
   }
   const moisture = Math.min(100, Math.max(0, run.charge + (.13 + pattern.snow + run.effects.snowGain * .35) * cold
     - (water ? 0 : .31 * snow.rate)))
@@ -990,10 +1001,10 @@ function finishMovingStorm(run: Run) {
   if (run.strength <= 0) run.end = 'The storm dissipated.'
 }
 
-function develop(run: Run, trend: number) {
+function develop(run: Run, trend: number, supportGain = 0, extraEndurance = 0) {
   // Inflow, moisture or fuel is depleted at a rate that depends on conditions and intensity.
   const draw = .069 + run.strength * .00028 + Math.max(0, -trend) * .18
-  run.support = Math.max(0, run.support - draw / (1 + run.effects.endurance))
+  run.support = Math.min(100, Math.max(0, run.support + supportGain - draw / (1 + run.effects.endurance + extraEndurance)))
   const exhausted = Math.max(0, 1 - run.support / 33) * .49
   run.strength = Math.min(100, Math.max(0, run.strength + trend - exhausted))
 }
