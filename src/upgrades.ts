@@ -10,7 +10,7 @@ export const baseEffects = {
   seaGain: 0, coldBuffer: 0, inlandBuffer: 0, wind: 0, width: 0, fringe: 0,
   rain: 0, rainTrail: 0, surge: 0, surgeFringe: 0, gust: 0,
   power: 0, broadcast: 0, outageTime: 0, panic: 0, gridlock: 0, warningDelay: 0, overload: 0, supply: 0,
-  snowGain: 0, burst: 0,
+  snowGain: 0, snowRate: 0, lakeMoisture: 0, oceanMoisture: 0, snowRetention: 0, drift: 0, burst: 0,
   hazardGain: 0, hazardBuffer: 0, chargeGain: 0, hazardDamage: 0, burstPower: 0, spread: 0, persistence: 0,
   trackStability: 0, courseControl: 0, tornadoIntensity: 0, tornadoWidth: 0, tornadoLife: 0,
   tornadoEfficiency: 0, tornadoSteering: 0, precisionDrop: 0, floodPower: 0, floodLife: 0, endurance: 0,
@@ -226,31 +226,93 @@ const hurricane = [
 ]
 
 const blizzard = [
-  ...upgradeTree('Formation', 'Cold air and snowpack', {
-    'Cold air': [
-      ['arctic-inflow', 'Arctic Inflow', 'Grow stronger in favorable cold air.', { hazardGain: .045 }],
-      ['arctic-feed', 'Arctic Feed', 'Resist warm-air intrusions.', { hazardBuffer: .30 }],
+  ...upgradeTree('Movement', 'Storm track', {
+    Steering: [
+      ['snow-steer', 'Aligned Flow', 'Reduce drift away from the prevailing wind.', { trackStability: .32 }, 3],
+      ['snow-track', 'Stable Storm Track', 'Steady the path as the storm travels.', { trackStability: .31 }, 5],
+      ['snow-alignment', 'Deep-Layer Alignment', 'Keep the band on a more predictable track.', { trackStability: .37 }, 7],
     ],
-    Snowpack: [
-      ['powder', 'Powder Reserve', 'Build snowpack faster between whiteouts.', { snowGain: .28 }],
-      ['powder-drift', 'Drift Reservoir', 'Gather loose snow faster before the next whiteout.', { snowGain: .24 }],
+  }),
+  ...upgradeTree('Movement', 'Forward speed', {
+    Translation: [
+      ['snow-slow', 'Slow Translation', 'Move 12% more slowly so snow has longer to accumulate.', { spread: -.12 }, 3],
+      ['snow-block', 'Blocking Pattern', 'Slow the storm by another 10% of base speed.', { spread: -.10 }, 5],
+      ['snow-stall', 'Anchored Band', 'Slow the storm by another 8% of base speed.', { spread: -.08 }, 7],
     ],
-  }, ['polar-lock', 'Polar Lock', 'Preserve cold-air support and build snowpack faster.', { endurance: .22, snowGain: .18 }]),
-  ...upgradeTree('Impact', 'Whiteout and blowing snow', {
-    'Snow bands': [
-      ['snow-bands', 'Snow Bands', 'Widen the storm and expose an adjacent zone during whiteout.', { width: 70, fringe: 1 }],
-      ['snow-squalls', 'Snow Squalls', 'Sweep another adjacent zone with damaging wind and snow.', { fringe: 1, gust: .18 }],
+  }),
+  ...upgradeTree('Movement', 'Persistence', {
+    Support: [
+      ['snow-support', 'Steady Cold Feed', 'Draw down environmental support more slowly.', { endurance: .16 }, 3],
+      ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track.', { endurance: .18 }, 5],
+      ['polar-lock', 'Polar Lock', 'Sustain the circulation longer as its support runs low.', { endurance: .24 }, 7],
     ],
-    'Wind and duration': [
-      ['gust-front', 'Gust Front', 'Add up to 14 mph to peak winds.', { wind: 14 }],
-      ['whiteout', 'Prolonged Whiteout', 'Keep whiteout active for another 16 seconds.', { burst: 16 }],
+  }),
+  ...upgradeTree('Damage', 'Moisture and snowfall', {
+    'Moisture uptake': [
+      ['powder', 'Moisture Uptake', 'Absorb more moisture as cold air feeds the storm.', { snowGain: .24 }, 3],
+      ['powder-drift', 'Moisture Convergence', 'Feed more moisture into the snow band.', { snowGain: .22 }, 5],
+      ['snow-feeder', 'Persistent Moisture Feed', 'Keep drawing moisture into the storm as it moves.', { snowGain: .22 }, 7],
     ],
-  }, ['whiteout-lock', 'Ground Blizzard', 'Extend whiteouts and strengthen wind damage as loose snow keeps blowing.', { burst: 22, gust: .18 }]),
-  ...upgradeTree('Disruption', 'Ice and blocked roads', {
+    'Snow production': [
+      ['snow-crystals', 'Snow Crystal Growth', 'Increase the snowfall rate in cold air.', { snowRate: .18 }, 3],
+      ['snow-aggregates', 'Heavy Flakes', 'Increase the accumulation rate as flakes clump together.', { snowRate: .18 }, 5],
+      ['snow-lift', 'Sustained Lift', 'Support heavier precipitation in the band.', { snowRate: .21 }, 7],
+      ['snow-dump', 'Intense Snowfall', 'Further increase the snowfall rate when moisture is available.', { snowRate: .26 }, 10],
+    ],
+  }, ['snow-plume', 'Deep Snow Plume', 'Combine strong moisture uptake with heavier snowfall.', { snowGain: .20, snowRate: .20 }, 11]),
+  ...upgradeTree('Damage', 'Band width', {
+    'Snow shield': [
+      ['snow-bands', 'Snow Bands', 'Widen the area receiving snow by 14 km.', { width: 14 }, 3],
+      ['snow-squalls', 'Expanded Snow Shield', 'Add another 16 km to the snow footprint.', { width: 16 }, 5],
+    ],
+    'Band edges': [
+      ['snow-fringe', 'Fringe Flurries', 'Spread light snow beyond the main band.', { width: 10 }, 3],
+      ['snow-wrap', 'Wraparound Snow', 'Extend snow farther out from the core.', { width: 14 }, 5],
+    ],
+  }, ['snow-wide', 'Broad Snow Shield', 'Widen the snow footprint by another 20 km.', { width: 20 }, 8]),
+  ...upgradeTree('Damage', 'Wind and whiteouts', {
+    Wind: [
+      ['gust-front', 'Gust Front', 'Raise peak winds by up to 7 mph.', { wind: 7 }, 3],
+      ['snow-gusts', 'Strong Surface Gusts', 'Add up to another 9 mph to peak winds.', { wind: 9 }, 5],
+    ],
+    'Blowing snow': [
+      ['snow-loft', 'Lofted Snow', 'Let wind lift more settled snow and reduce visibility.', { drift: .20 }, 3],
+      ['whiteout', 'Blowing Snow', 'Increase blowing snow when wind crosses an existing snowpack.', { drift: .24 }, 5],
+    ],
+  }, ['whiteout-lock', 'Ground Blizzard', 'Stronger winds and more blowing snow make whiteouts more likely.', { wind: 7, drift: .25 }, 9]),
+  ...upgradeTree('Damage', 'Drifting snow', {
+    Drifts: [
+      ['snow-drifts', 'Snowdrifts', 'Increase drifting snow and damage from deep accumulations.', { drift: .14 }, 3],
+      ['snow-loading', 'Snow Loading', 'Raise property losses as snow accumulates.', { gust: .16 }, 5],
+      ['snow-burden', 'Heavy Snow Load', 'Increase damage from snow and wind.', { gust: .21 }, 7],
+    ],
+  }),
+  ...upgradeTree('Abilities', 'Cold-air resilience', {
+    'Cold core': [
+      ['arctic-inflow', 'Arctic Inflow', 'Build strength faster in favorable cold air.', { hazardGain: .035 }, 3],
+      ['arctic-feed', 'Arctic Feed', 'Reduce weakening during warmer intervals.', { hazardBuffer: .17 }, 5],
+    ],
+    'Cold margin': [
+      ['snow-cold', 'Cold-Air Retention', 'Preserve snowfall at the warm edge of the band.', { coldTolerance: .10 }, 3],
+      ['snow-warm-front', 'Resist Thaw', 'Protect the cold core against short warm-air intrusions.', { coldTolerance: .12 }, 5],
+    ],
+  }, ['snow-cold-lock', 'Cold-Core Resilience', 'Resist warming and preserve the cold air needed for snow.', { coldTolerance: .11, hazardBuffer: .17 }, 8]),
+  ...upgradeTree('Abilities', 'Lake and ocean moisture', {
+    'Lake fetch': [
+      ['snow-lake', 'Lake Inflow', 'Absorb more moisture while crossing a lake.', { lakeMoisture: .25 }, 3],
+      ['snow-lake-band', 'Long Lake Fetch', 'Increase lake moisture uptake further.', { lakeMoisture: .32 }, 5],
+    ],
+    'Ocean feed': [
+      ['snow-ocean', 'Maritime Inflow', 'Absorb more moisture while crossing cold coastal waters.', { oceanMoisture: .23 }, 3],
+      ['snow-coastal', 'Coastal Moisture Feed', 'Increase ocean moisture uptake further.', { oceanMoisture: .32 }, 5],
+    ],
+  }, ['snow-water-reserve', 'Water-Fed Snow Band', 'Hold moisture from lakes and oceans longer after moving inland.', { snowRetention: .65 }, 8]),
+  ...upgradeTree('Abilities', 'Ice and blocked roads', {
     Infrastructure: [
-      ['ice-grid', 'Ice-Loaded Lines', 'Damage triggers outages and slows sheltering.', { outageTime: 48, broadcast: .24, power: .12 }],
-      ['blocked-roads', 'Blocked Roads', 'Add 24 seconds to the time residents need to reach shelter.', { gridlock: 24 }],
-      ['isolated-towns', 'Isolated Towns', 'Keep damaged roads blocked and local outages active longer.', { gridlock: 18, outageTime: 32 }],
+      ['ice-grid', 'Ice-Loaded Lines', 'Damage triggers power outages that slow sheltering.', { outageTime: 44, broadcast: .18 }, 3],
+      ['blocked-roads', 'Blocked Roads', 'Drifts increase travel time to shelter.', { gridlock: 20 }, 5],
+      ['isolated-towns', 'Isolated Towns', 'Lengthen outages and keep roads blocked longer.', { outageTime: 26, gridlock: 12 }, 7],
+      ['snow-response', 'Regional Disruption', 'Slow emergency response in the hardest-hit areas.', { overload: .17 }, 10],
     ],
   }),
 ]

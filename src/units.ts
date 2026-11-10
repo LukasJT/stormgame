@@ -25,3 +25,7 @@ export function measurementText(description: string) {
   return description.replace(/(\d+(?:\.\d+)?) (mph|km|m)\b/g, (_, value: string, unit: string) =>
     unit === 'mph' ? windSpeed(Number(value)) : formatDistance(Number(value) / (unit === 'm' ? 1000 : 1)))
 }
+
+export function snowfallDepth(cm: number) {
+  return settings.units === 'metric' ? `${distance.format(cm)} cm` : `${distance.format(cm / 2.54)} in`
+}

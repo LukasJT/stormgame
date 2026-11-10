@@ -1,3 +1,4 @@
+import { snowfallScale } from './snow-map'
 import '@fontsource/barlow-condensed/600.css'
 import '@fontsource/barlow-condensed/700.css'
 import '@fontsource/dm-sans/400.css'
@@ -7,7 +8,7 @@ import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
 import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
-import { makeZones, stormColor, stormRules, theaters, type Storm, type Theater } from './world'
+import { makeZones, stormColor, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards, thunderstormTypes, type ThunderstormType } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
@@ -19,7 +20,7 @@ import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
-import { measurementText, temperature, waterDepth, windSpeed, formatDistance } from './units'
+import { snowfallDepth, measurementText, temperature, waterDepth, windSpeed, formatDistance } from './units'
 import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
 
 const menu = document.querySelector<HTMLElement>('#menu')!
@@ -104,7 +105,6 @@ let mapFeedback = ''
 let overview = false
 let opening = false
 let loadingExposure: Run | null = null
-let alternateOpening = false
 let showWeather = true
 let hurricaneName = ''
 let inspected: ZoneId | null = null
@@ -141,7 +141,7 @@ function button(action: string, label: string, value?: string, className = '') {
 const basicWeather = {
   Hurricane: { icon: 'storm', description: 'Build strength over warm water, then make landfall.' },
   Tornado: { icon: 'tornado', description: 'Touch down as an EF0 funnel. Spend Momentum to shape its track, damage and resilience.' },
-  Blizzard: { icon: 'blizzard', description: 'Bank snowpack and spend it on a whiteout.' },
+  Blizzard: { icon: 'blizzard', description: 'Build a moving snow band and use cold air and water to deepen snowfall.' },
 } as const
 const weatherCards = { ...basicWeather, ...hazards }
 function stars(count: number, level: Difficulty, label = '') {
@@ -292,18 +292,11 @@ function openingOptions(state: Run) {
     <button type="submit" class="order hot" ${loadingExposure === state ? 'disabled aria-busy="true"' : ''}><strong>Begin</strong></button>
     <button type="button" class="quiet" data-key="change-origin" data-action="change-origin">Clear marker</button>
   </form>`
-  const rule = state.theater.storm === 'Blizzard' ? stormRules.Blizzard : null
-  const modes = rule
-    ? `<div class="origin-switch" role="group" aria-label="Opening move">
-      <button class="quiet" data-key="opening-direct" data-action="opening-move" data-value="direct" aria-pressed="${!alternateOpening}">${rule.opening}</button>
-      <button class="quiet" data-key="opening-alternate" data-action="opening-move" data-value="alternate" aria-pressed="${alternateOpening}">${rule.alternate}</button>
-    </div>`
-    : ''
   const forecast = state.blizzardPattern ? `<div class="opening-forecast" role="group" aria-label="Blizzard type">
     ${blizzardOptions(state.theater.places[state.origin]).map((type, index) =>
       `<button class="quiet" data-key="blizzard-type-${type}" data-action="blizzard-type" data-value="${type}" aria-pressed="${state.blizzardPattern === type}"><strong>${type}</strong>${index === 0 ? '<small>Recommended</small>' : ''}</button>`).join('')}
   </div>` : ''
-  return `<div class="opening-controls">${forecast}${modes}<div class="orders">
+  return `<div class="opening-controls">${forecast}<div class="orders">
     <button class="order hot" data-key="launch" data-action="launch" ${loadingExposure === state ? 'disabled aria-busy="true"' : ''}><strong>Begin</strong></button>
     ${button('change-origin', 'Clear marker', undefined, 'quiet')}
   </div></div>`
@@ -321,6 +314,10 @@ function routeOrders(state: Run) {
   if (state.cyclone) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.name} · Drifting ${directionName(state.front!.heading)}</strong>
     <span>${conditions(state, state.at).name}</span></div>${button('history', 'Track history', undefined, 'route-choice')}</div>`
+  if (state.snow) return `<div class="route-status"><div class="course-caption">
+    <strong>${state.blizzardPattern} · Drifting ${directionName(state.front!.heading)}</strong>
+    <span>${state.whiteout ? 'Whiteout conditions' : state.snow.source === 'ocean' ? 'Ocean moisture feeding the band'
+      : state.snow.source ? `Moisture from ${escapeName(state.snow.source)}` : conditions(state, state.at).name}</span></div></div>`
   if (state.front && state.theater.storm !== 'Tornado') return frontOrders(state)
   const { zones } = state
   const inTransit = state.progress > 0
@@ -330,9 +327,7 @@ function routeOrders(state: Run) {
     : overview ? 'Pick a map marker or open Storm view' : 'Pick a route marker on the map'
   const ability = hazard
     ? `<button class="route-choice ability" data-key="ability" data-action="ability" ${!hazardAbilityReady(state) ? 'disabled' : ''}><strong>${hazard.ability.name}</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} ${hazard.ability.resource}</small></button>`
-    : state.theater.storm === 'Blizzard'
-      ? `<button class="route-choice ability" data-key="ability" data-action="ability" ${state.whiteout || state.charge < 25 ? 'disabled' : ''}><strong>${state.whiteout ? 'Whiteout active' : 'Trigger whiteout'}</strong><small>${Math.floor(state.charge)} snowpack</small></button>`
-      : ''
+    : ''
   const cooldown = satelliteCooldown(state)
   const satellite = state.effects.satelliteTrigger
     ? `<button class="route-choice ability" data-key="satellite" data-action="satellite" ${cooldown || state.overWater ? 'disabled' : ''}><strong>Spawn satellite tornado</strong><small>${cooldown ? `${cooldown}s to recharge` : state.overWater ? 'Available over land' : 'Ready'}</small></button>`
@@ -377,11 +372,24 @@ function results(state: Run) {
   if (!isCampaignEvent(kind)) return ''
   const rating = earnedStars(kind, state.difficulty, total.damage, true)
   const upcoming = nextEvent(kind)
+  const snowfall = state.snow ? snowfallSummary(state.snow) : ''
   return `<div class="report-heading"><strong>${state.name || kind} · ${difficultyLabel(state.difficulty)}</strong>${stars(rating, state.difficulty)}</div>
-    <p class="report-summary">${state.end} ${formatDamage(total.damage)} in property lost.</p>
+    <p class="report-summary">${state.end} ${formatDamage(total.damage)} in property lost.</p>${snowfall}
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
     <div class="orders">${state.cyclone ? button('history', 'Track history', undefined, 'order') : ''}${upcoming && eventUnlocked(upcoming) ? button('next-event', `Next: ${upcoming}`, upcoming, 'order hot') : ''}
     ${button('retry', 'Retry same forecast', undefined, 'order')}${button('new', 'New forecast', undefined, 'order')}</div>`
+}
+
+function snowfallSummary(snow: NonNullable<Run['snow']>) {
+  const places = new Map<string, number>()
+  for (const { place, cm } of snow.deposits.values()) places.set(place, Math.max(cm, places.get(place) ?? 0))
+  const highest = [...places].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const depths = highest.map(([place, cm]) => `${place} ${snowfallDepth(cm)}`).join(' · ')
+  return `<p class="report-summary">${depths ? `Snowiest areas · ${depths}. ` : ''}Longest whiteout · ${clock(snow.longestWhiteout)} of forecast time.</p>`
+}
+
+function eventText(event: Run['events'][number]) {
+  return event.snowfall ? `${event.snowfall.place} reports ${snowfallDepth(event.snowfall.cm)} ${event.text}` : event.text
 }
 
 function tornadoImpact(state: Run) {
@@ -472,7 +480,8 @@ function renderPanel() {
     const tree = trees[storm]
     const name = state.thunderstormType ? thunderstormLabel(state.thunderstormType) : storm
     const tornado = storm === 'Tornado'
-    const tabs = tornado ? ['Tornado', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
+    const winter = storm === 'Blizzard'
+    const tabs = tornado || winter ? [tornado ? 'Tornado' : 'Storm', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
     const choices = tree.filter(item => item.branch === evolutionTab)
     const selected = choices.find(item => item.id === selectedUpgrade) ?? choices[0]
     title = `Evolve ${name.toLowerCase()}`
@@ -492,7 +501,7 @@ function renderPanel() {
   } else if (panel === 'news') {
     title = 'Storm news'
     const record = run.tornado
-    content = `<ol class="news-list">${run.events.map(event => `<li><time>${record ? tornadoClock(record.startedAt, event.time).time : clock(event.time)}</time><span>${event.text}</span></li>`).join('')}</ol>`
+    content = `<ol class="news-list">${run.events.map(event => `<li><time>${record ? tornadoClock(record.startedAt, event.time).time : clock(event.time)}</time><span>${eventText(event)}</span></li>`).join('')}</ol>`
   } else {
     const id = inspected ?? run.at
     const zone = run.front?.current.zone ?? run.zones[id]
@@ -652,6 +661,10 @@ function liveReadings(state: Run) {
     [hazard ? 'Conditions' : state.theater.storm === 'Hurricane' ? 'Category' : 'Status', reading.category],
   ]
   if (state.blizzardPattern) items.unshift(['Type', state.blizzardPattern])
+  if (state.snow && !opening) {
+    const peak = Array.from(state.snow.deposits.values()).reduce((max, report) => Math.max(max, report.cm), 0)
+    items.push(['Peak snowfall', snowfallDepth(peak)], ['Visibility', formatDistance(state.snow.visibilityMiles * 1.609344)])
+  }
   if (state.name) items.unshift(['Name', state.name])
   if (state.tornado) {
     if (opening) items.push(['Start support', tornadoSupportLabel(tornadoSupportAt(state.front!.point) * (state.overWater ? .68 : 1))])
@@ -675,12 +688,21 @@ function render() {
   }
   const state = run
   const total = state ? totals(state) : { deaths: 0, damage: 0 }
-  const showOverlay = !!state && !state.tornado && !opening && !state.end
+  const showOverlay = !!state && !state.tornado && !opening && (!state.end || !!state.snow)
   weatherToggle.hidden = !showOverlay
   weatherToggle.setAttribute('aria-pressed', String(showWeather))
   chart.dataset.weather = showWeather ? 'on' : 'off'
   const modeled = state && ['Thunderstorm', 'Supercell', 'Wildfire', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
-  weatherCredit.textContent = showOverlay && showWeather ? state?.theater.storm === 'Heat Dome' ? 'Modeled jet stream and surface heat' : modeled ? 'Modeled weather layer' : 'NOAA archive · weather template' : ''
+  const snowLayer = showOverlay && showWeather && !!state?.snow
+  weatherCredit.classList.toggle('snow-legend', snowLayer)
+  weatherToggle.setAttribute('aria-label', state?.snow ? 'Snowfall overlay' : 'Weather overlay')
+  weatherToggle.title = state?.snow ? 'Snowfall overlay' : 'Weather overlay'
+  if (snowLayer) {
+    const labels = [1, 4, 8, 14, 24, 30]
+    replace(weatherCredit, `<strong>Storm-total snowfall</strong><div>${labels.map(inches =>
+      `<span style="--snow-color:${snowfallScale.find(([value]) => value === inches)?.[1]}">${snowfallDepth(inches * 2.54)}${inches === 30 ? '+' : ''}</span>`).join('')}</div>`)
+  } else replace(weatherCredit, showOverlay && showWeather ? state?.theater.storm === 'Heat Dome' ? 'Modeled jet stream and surface heat'
+    : modeled ? 'Modeled weather layer' : 'NOAA archive · weather template' : '')
   const status = !state ? 'Select an origin' : state.end ? 'Forecast ended' : opening ? 'Ready to form' : state.detectedAt === null ? 'Unnoticed' : 'Detected'
   const label = state ? state.front && !opening ? state.front.locality.name : state.zones[inspected ?? state.at].name : 'World'
   map.classList.toggle('is-inspecting', inspectMode)
@@ -713,7 +735,7 @@ function render() {
     renderPanel()
     renderInspection()
     const headline = latestHeadline()
-    replace(breakingNews, headline ? `<div role="status"><span>Breaking news</span><strong>${headline.text}</strong></div><button class="icon-button" data-action="dismiss-news" data-key="dismiss-news" aria-label="Dismiss headline">${icon('close')}</button>` : '')
+    replace(breakingNews, headline ? `<div role="status"><span>Breaking news</span><strong>${eventText(headline)}</strong></div><button class="icon-button" data-action="dismiss-news" data-key="dismiss-news" aria-label="Dismiss headline">${icon('close')}</button>` : '')
     renderWeatherPickup(state)
   }
   forecastId.textContent = `Forecast ${seed}`
@@ -734,7 +756,7 @@ function render() {
     ${gain && state.realTime - gain.at < 3200 ? `<output class="momentum-gain">+${gain.points} ${gain.points === 1 ? 'point' : 'points'}</output>` : ''}
     <div class="hud-chip detection ${state.detectedAt !== null && !state.end ? 'tracked' : ''}"><span>${status}</span><strong>${Math.round(storm === 'Tornado' ? state.support : state.strength)}<small>% ${storm === 'Tornado' ? 'inflow' : 'strength'}</small></strong></div>` : '')
   replace(stats, state ? liveReadings(state) : '')
-  if (!interactionInProgress) replace(bulletins, `<button class="news-button" data-key="news" data-action="news" ${!state || opening ? 'disabled' : ''}><strong>News</strong><span>${state && !opening ? state.events[0]?.text : 'No headlines yet'}</span></button>`)
+  if (!interactionInProgress) replace(bulletins, `<button class="news-button" data-key="news" data-action="news" ${!state || opening ? 'disabled' : ''}><strong>News</strong><span>${state && !opening && state.events[0] ? eventText(state.events[0]) : 'No headlines yet'}</span></button>`)
 }
 
 function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: BlizzardPattern | null = null) {
@@ -744,7 +766,6 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
   if (blizzardPattern) chooseBlizzardPattern(run, blizzardPattern)
   overview = true
   opening = true
-  alternateOpening = false
   mapOrder = null
   selectedFunnel = null
   mapFeedback = ''
@@ -770,7 +791,6 @@ async function launch() {
   if (screen !== 'map' || run !== forecast || !opening) return
   run.zones = makeZones(run.theater)
   if (run.tornado) run.tornado.startedAt = tornadoStartDate()
-  if (alternateOpening) useAbility(run)
   opening = false
   lastFrame = performance.now()
   render()
@@ -780,7 +800,7 @@ async function launch() {
 function showPanel(kind: NonNullable<typeof panel>, trigger: HTMLElement) {
   panel = kind
   if (kind === 'evolve') {
-    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.theater.storm === 'Thunderstorm' ? 'Storm Track' : 'Formation'
+    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.snow ? 'Storm' : run?.theater.storm === 'Thunderstorm' ? 'Storm Track' : 'Formation'
     selectedUpgrade = null
   }
   panelTrigger = trigger
@@ -929,15 +949,12 @@ document.addEventListener('click', event => {
       if (!run?.tornado || !run.end) return
       closeClipping()
       return showScreen('results')
-    case 'opening-move': alternateOpening = value === 'alternate'; break
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
     case 'launch': return launch()
     case 'restart': {
       if (!run || panel !== 'pause') return
-      const openingMove = alternateOpening
       closePause()
       chooseOrigin(run.theater, run.origin, run.blizzardPattern)
-      alternateOpening = openingMove
       return launch()
     }
     case 'retry':

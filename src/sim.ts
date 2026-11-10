@@ -2,7 +2,7 @@ import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, typ
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
 import { hazardFor, thunderstormTypes, type ThunderstormType } from './hazards'
-import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
+import { blizzardHeading, blizzardOptions, blizzardPatterns, blizzardTrack, type BlizzardPattern } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
@@ -30,9 +30,14 @@ type Site = {
   deaths: number; injured: number; loss: number; warnedAt: number | null; threatAt: number | null
   clearedAt: number | null; sheltered: number; carry: number; injuryCarry: number; outageUntil: number; reportedWarning: boolean
 }
-type Event = { time: number; text: string; breaking?: boolean }
+type SnowReport = { place: string; cm: number }
+type Event = { time: number; text: string; breaking?: boolean; snowfall?: SnowReport }
 type Pulse = { zone: ZoneId; until: number; damage: number; kind: 'ability' | 'trail' }
 type ImpactArea = { zone: Zone; site: Site; country?: string }
+type Snowstorm = {
+  deposits: Map<ImpactArea, SnowReport>
+  waterMoisture: number; source: string | null; rate: number; visibilityMiles: number; longestWhiteout: number
+}
 type Front = ConvectiveTrack & {
   areas: Map<string, ImpactArea>; current: ImpactArea
   locality: ReturnType<typeof localityAt>
@@ -43,7 +48,7 @@ type Front = ConvectiveTrack & {
 export type Run = {
   seed: number; origin: Origin; difficulty: Difficulty; time: number; strength: number; momentum: number
   name: string; support: number; cyclone: Cyclone | null; overWater: boolean
-  tornado: TornadoRecord | null
+  tornado: TornadoRecord | null; snow: Snowstorm | null
   realTime: number; momentumGain: { points: number; at: number } | null
   momentumSchedule: ReturnType<typeof momentumSchedule>; pickup: WeatherPickup | null
   theater: Theater; zones: Zone[]; charge: number; whiteout: number
@@ -107,6 +112,7 @@ export function chooseThunderstormType(run: Run, type: ThunderstormType) {
 export function chooseBlizzardPattern(run: Run, pattern: BlizzardPattern) {
   if (!run.blizzardPattern || run.time || run.end || !blizzardOptions(run.theater.places[run.origin]).includes(pattern)) return false
   run.blizzardPattern = pattern
+  if (run.front) run.front.heading = blizzardHeading(pattern, run.front.phase, 0, 0)
   run.events[0].text = `${pattern} formed near ${run.zones[run.origin].name}.`
   return true
 }
@@ -128,14 +134,16 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     ? { startedAt: tornadoStartDate(), lengthKm: 0, groundTicks: 0, maxWidthKm: 0, peakEf: null, places: new Set(), travelKm: 0,
       awareness: 0, deaths: 0, impactCredit: 0, nextSatellite: 0, manualSatellite: 0, chaserExposure: 0 } : null
   const cyclone = hurricane ? startCyclone(point, seed, overWater && !lakeAt(latitudeAt(point), longitudeAt(point))) : null
-  const front: Front | null = tornado || hurricane || hazard?.group === 'storm'
+  const front: Front | null = tornado || hurricane || blizzardPattern || hazard?.group === 'storm'
     ? { ...makeConvectiveTrack(point, seed, tornado), areas, current: frontArea(areas, point), locality, bursts: [], floods: new Map(), swath: [] }
     : null
   if (front && cyclone) front.heading = cycloneFlow(cyclone, point)
+  if (front && blizzardPattern) front.heading = blizzardHeading(blizzardPattern, front.phase, 0, 0)
   return {
-    seed, origin, difficulty, theater, zones, charge: 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record,
+    seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record,
     thunderstormType: null, blizzardPattern, front,
-    time: 0, strength: hurricane ? 31 : tornado ? 58 : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
+    snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0 } : null,
+    time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
     realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
@@ -217,7 +225,7 @@ export function collectWeatherPickup(run: Run, time: number) {
 export function conditions(run: Run, id: ZoneId, time = run.time) {
   const storm = activeStorm(run)
   if (run.cyclone && run.front) return cycloneWeather(run.cyclone, run.front.point, run.effects, 2 - difficultyRules[run.difficulty].good * 3, run.strength)
-  if (run.front && storm !== 'Tornado') return frontConditions(run, time)
+  if (run.front && storm !== 'Tornado' && !run.blizzardPattern) return frontConditions(run, time)
   const rule = difficultyRules[run.difficulty]
   const hash = Math.imul(run.seed ^ Math.imul(id + 1, 374761393) ^ Math.imul(Math.floor(time / (2 * leg)) + 1, 668265263), 1274126177)
   const roll = ((hash ^ (hash >>> 15)) >>> 0) / 4294967296
@@ -235,8 +243,8 @@ export function conditions(run: Run, id: ZoneId, time = run.time) {
   }
   if (run.blizzardPattern) {
     const pattern = blizzardPatterns[run.blizzardPattern]
-    const cold = 1 - run.effects.hazardBuffer
-    if (Math.abs(run.theater.places[id][1]) < 29) return { name: 'Warm surroundings', trend: -.18 * cold }
+    const cold = Math.max(.18, 1 - run.effects.hazardBuffer - run.effects.coldTolerance * .45)
+    if (Math.abs(latitudeAt(position(run))) < 29) return { name: 'Warm surroundings', trend: -.18 * cold }
     if (roll < rule.good) return { name: pattern.favorable, trend: pattern.growth + run.effects.hazardGain }
     if (roll > 1 - rule.hostile) return { name: 'Thaw', trend: -.12 * cold }
     return { name: 'Cold front', trend: -.025 + run.effects.hazardGain * .5 }
@@ -308,7 +316,7 @@ export function stormStats(run: Run) {
     category: conditions(run, run.at).name,
   }
   const width = run.blizzardPattern ? blizzardPatterns[run.blizzardPattern].width : 0
-  return { windMph: Math.round(fraction * 98 + bonus), widthKm: Math.round(140 + run.strength * 3.5 + run.effects.width + width), category: run.whiteout ? 'Whiteout' : 'Snow band' }
+  return { windMph: Math.round(fraction * 85 + bonus), widthKm: Math.round(width * (.75 + fraction * .45) + run.effects.width), category: run.end ? 'Dissipated' : run.whiteout ? 'Whiteout' : 'Snow band' }
 }
 
 export function forecast(run: Run) {
@@ -388,11 +396,6 @@ export function useAbility(run: Run, target?: MapPoint) {
     zones.forEach((zone, i) => addPulse(run, zone, ability.seconds + run.effects.burst, ability.damage * (1 + run.effects.burstPower) * (i === 0 ? 1 : .68), 'ability'))
     log(run, `${activeStorm(run)} intensifies ${zoneReference(run.theater, zones[0])}.`, true)
     return
-  }
-  if (run.blizzardPattern && !run.whiteout && run.charge >= 25) {
-    run.charge -= 25
-    run.whiteout = 40 + run.effects.burst + blizzardPatterns[run.blizzardPattern].whiteout
-    log(run, `Whiteout conditions reported ${zoneReference(run.theater, run.at)}.`)
   }
 }
 
@@ -481,8 +484,8 @@ export function position(run: Run) {
   return run.front?.point ?? alongTrack(trackPoints(run), run.track.length - 1, run.progress / leg)
 }
 
-function log(run: Run, message: string, breaking = false) {
-  run.events.unshift({ time: run.time, text: message, breaking })
+function log(run: Run, message: string, breaking = false, snowfall?: SnowReport) {
+  run.events.unshift({ time: run.time, text: message, breaking, snowfall })
   if (run.events.length > 12) run.events.splice(run.tornado ? -2 : -1, 1)
 }
 
@@ -513,7 +516,7 @@ function updateSiteWarning(run: Run, zone: Zone, site: Site, threatened: boolean
         site.clearedAt = null
         if (!site.reportedWarning) {
           site.reportedWarning = true
-          if (!run.tornado && (!run.front || zone.population >= 600)) {
+          if (!run.tornado && !run.snow && (!run.front || zone.population >= 600)) {
             const place = run.front ? localityAt(90 - zone.y / 10, zone.x / 10 - 180) : null
             const where = place?.reference ?? `in ${zone.name}`
             const locality = place?.city ?? zone.name
@@ -609,7 +612,7 @@ function sampledAreas(front: Front, center: MapPoint, radius: number) {
 }
 
 export function frontSpeed(run: Run) {
-  return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? Math.max(.23 * (1 + run.effects.tornadoSpeed), (180 + run.effects.tornadoRange) / 960) : 1.15 * travelRate(run)
+  return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? Math.max(.23 * (1 + run.effects.tornadoSpeed), (180 + run.effects.tornadoRange) / 960) : run.blizzardPattern ? travelRate(run) : 1.15 * travelRate(run)
 }
 
 function moveFront(run: Run, front: Front, speed = frontSpeed(run)) {
@@ -632,6 +635,102 @@ function updateFrontWarnings(run: Run, front: Front, threatened: Set<ImpactArea>
       updateSiteWarning(run, area.zone, area.site, threatened.has(area))
     }
   }
+}
+
+function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
+  const snow = run.snow!
+  const next = blizzardTrack(front.point, patternName, front.phase, run.time - 1, 1, run.effects)
+  front.point = next.point
+  front.heading = next.heading
+  if (run.time % 5 === 0) front.path.push(front.point)
+  const surface = landAt(front.point)
+  const area = frontArea(front.areas, front.point, surface)
+  if (area !== front.current) {
+    front.current = area
+    front.locality = localityAt(latitudeAt(front.point), longitudeAt(front.point), surface)
+  }
+
+  const pattern = blizzardPatterns[patternName]
+  const weather = conditions(run, run.at)
+  develop(run, weather.trend)
+  const cold = Math.max(0, Math.min(1, (Math.abs(latitudeAt(front.point)) - 25) / 12 + run.effects.coldTolerance))
+  const lake = !surface.code && surface.name !== 'Open water'
+  const water = !surface.code && cold > .3
+  if (water) {
+    const uptake = lake ? .88 + run.effects.lakeMoisture : .66 + run.effects.oceanMoisture
+    snow.waterMoisture = Math.min(100, snow.waterMoisture + uptake * cold)
+    if (snow.waterMoisture >= 12) snow.source = lake ? surface.name : 'ocean'
+  } else {
+    snow.waterMoisture = Math.max(0, snow.waterMoisture - .62 / (1 + run.effects.snowRetention))
+    if (snow.waterMoisture < 6) snow.source = null
+  }
+  const moisture = Math.min(100, Math.max(0, run.charge + (.13 + pattern.snow + run.effects.snowGain * .35) * cold
+    - (water ? 0 : .31 * snow.rate)))
+  run.charge = moisture
+  const strength = run.strength / 100
+  snow.rate = cold * strength * (.27 + moisture * .006 + snow.waterMoisture * .013) * (1 + run.effects.snowRate)
+  const { windMph, widthKm } = stormStats(run)
+  const groundSnow = snow.deposits.get(area)?.cm ?? 0
+  const blowing = Math.min(.95, groundSnow * .021) * (1 + run.effects.drift) * cold
+  const obscuration = (snow.rate + blowing) * Math.max(0, windMph - 21) / 22
+  snow.visibilityMiles = Math.min(10, 10 / (1 + 46 * obscuration ** 2))
+  run.whiteout = !surface.code || windMph < 35 || snow.visibilityMiles >= .25 ? 0 : run.whiteout + 1
+  snow.longestWhiteout = Math.max(snow.longestWhiteout, run.whiteout)
+  if (run.whiteout === 1 && !run.alertHeadlines.has('blizzard-whiteout')) {
+    run.alertHeadlines.add('blizzard-whiteout')
+    log(run, `Whiteout reported ${front.locality.reference}.`, true)
+  }
+
+  if (run.time % 4 === 0 && snow.rate > .025) {
+    const lakeBand = snow.source !== null && snow.source !== 'ocean'
+    const radius = widthKm * (lakeBand ? .28 : .46)
+    const samples = new Map<ImpactArea, number>()
+    const along = snow.source ? 18 : 12
+    const slices = Math.max(2, Math.ceil(radius / (kmPerX(front.point.y) * .88)))
+    for (const longitudinal of [-1, -.5, 0, .5, 1]) {
+      const center = movePoint(front.point, front.heading, longitudinal * along)
+      for (let offset = -slices; offset <= slices; offset++) {
+        const lateral = offset / slices
+        const point = movePoint(center, front.heading + Math.PI / 2, lateral * radius)
+        const affected = frontArea(front.areas, point)
+        if (affected.zone.sea) continue
+        const weight = (1 - .62 * Math.abs(lateral)) * (1 - .34 * Math.abs(longitudinal))
+        samples.set(affected, Math.max(samples.get(affected) ?? 0, weight))
+      }
+    }
+    updateFrontWarnings(run, front, new Set(samples.keys()), snow.rate > .15)
+    for (const [affected, weight] of samples) {
+      const { zone, site, country } = affected
+      const previous = snow.deposits.get(affected)
+      const cm = (previous?.cm ?? 0) + snow.rate * weight * 4
+      const place = previous?.place ?? snowfallPlace(zone, country)
+      snow.deposits.set(affected, { cm, place })
+      const intensity = snow.rate * weight * (.006 + (run.whiteout ? .004 : 0) + Math.min(.004, cm * .00007))
+      const impactWind = Math.max(windMph, 54 + Math.min(55, cm * 1.3))
+      applyImpact(run, zone, site, intensity, impactWind, Math.min(.45, cm * .005 * (1 + run.effects.drift)))
+      if (zone.population >= 600) reportSnowfall(run, place, cm)
+    }
+  }
+  if (run.strength <= 0) run.end = 'The snow band dissipated.'
+}
+
+function snowfallPlace(zone: Zone, country: string | undefined) {
+  const lat = latitudeAt(zone)
+  const lon = longitudeAt(zone)
+  const city = country ? nearbyCity(lat, lon, country, undefined, 26) : undefined
+  return city ? escapeName(city.name) : localityAt(lat, lon).name
+}
+
+function reportSnowfall(run: Run, place: string, cm: number) {
+  const milestone = [100, 70, 45, 30, 15, 5].find(depth => cm >= depth)
+  if (!milestone) return
+  const key = `snow-${place}-${milestone}`
+  if (run.alertHeadlines.has(key)) return
+  run.alertHeadlines.add(key)
+  const source = run.snow!.source
+  const text = source === 'ocean' ? 'as an ocean-fed snow band passes.'
+    : source ? `as lake-effect snow streams off ${escapeName(source)}.` : 'as the snow band moves through.'
+  log(run, text, milestone >= 15, { place, cm })
 }
 
 function tickTornado(run: Run, front: Front) {
@@ -893,7 +992,7 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
 }
 
 export function travelRate(run: Run) {
-  if (run.blizzardPattern) return blizzardPatterns[run.blizzardPattern].speed
+  if (run.blizzardPattern) return blizzardPatterns[run.blizzardPattern].speed * (1 + run.effects.spread)
   const hazard = hazardFor(activeStorm(run))
   if (!hazard) return 1
   if (run.theater.storm === 'Wildfire' && run.zones[run.at].sea) return .15
@@ -910,6 +1009,7 @@ export function tick(run: Run) {
   if (award) gainMomentum(run, award.points)
   if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
   run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
+  if (run.front && run.blizzardPattern) return tickBlizzard(run, run.front, run.blizzardPattern)
   if (run.front) return run.cyclone ? tickCyclone(run, run.front, run.cyclone) : hazard ? tickFront(run, run.front, hazard) : tickTornado(run, run.front)
   run.pulses = run.pulses.filter(pulse => pulse.until >= run.time)
   run.progress += travelRate(run)
@@ -923,11 +1023,6 @@ export function tick(run: Run) {
   }
   const environment = conditions(run, run.at)
   develop(run, environment.trend)
-  const damaging = run.whiteout > 0
-  if (run.blizzardPattern) {
-    run.whiteout = Math.max(0, run.whiteout - 1)
-    run.charge = Math.max(0, Math.min(100, run.charge + .38 + blizzardPatterns[run.blizzardPattern].snow + environment.trend * 3 + run.effects.snowGain))
-  }
   if (hazard) {
     run.charge = Math.max(0, Math.min(100, run.charge + hazard.recharge + environment.trend * 1.8 + run.effects.chargeGain))
   }
@@ -939,13 +1034,6 @@ export function tick(run: Run) {
       for (const id of footprint(run, run.at)) impact(run, id, intensity * (id === run.at ? 1 : .38))
     }
     for (const pulse of run.pulses) impact(run, pulse.zone, pulse.damage * strength)
-  }
-  if (damaging) {
-    const intensity = (stormStats(run).windMph / 98) ** 2 * .0032
-    const hit = footprint(run, run.at)
-    for (const id of hit) impact(run, id, intensity * (id === run.at ? 1 : .36), run.effects.rain)
-    const previous = run.track.at(-2)
-    if (previous !== undefined && !hit.includes(previous)) impact(run, previous, intensity * run.effects.rainTrail, run.effects.rain)
   }
   if (run.strength === 0) run.end = storm === 'Wildfire' ? 'The fire went out.'
     : storm === 'Flooding' ? 'Floodwaters receded.'

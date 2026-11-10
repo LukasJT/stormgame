@@ -250,16 +250,16 @@ describe('global weather scenarios', () => {
   })
 
   it.each([
-    [51.05, -114.07, 'Alberta Clipper', 32],
-    [42.36, -71.06, "Nor'easter", 54],
-    [44.45, -81.23, 'Lake-Effect Storm', 48],
-    [39.74, -104.99, 'Colorado Low', 48],
-    [43.06, 141.35, 'Sea-Effect Snow', 46],
-  ])('forecasts a location-specific blizzard at %s, %s', (lat, lon, name, whiteout) => {
+    [51.05, -114.07, 'Alberta Clipper'],
+    [42.36, -71.06, "Nor'easter"],
+    [44.45, -81.23, 'Lake-Effect Storm'],
+    [39.74, -104.99, 'Colorado Low'],
+    [43.06, 141.35, 'Sea-Effect Snow'],
+  ])('forecasts a location-specific blizzard at %s, %s', (lat, lon, name) => {
     const run = startRun(makeDrop('Blizzard', lat, lon), 0, 'Normal', defaultSeed)
     expect(run.blizzardPattern).toBe(name)
     useAbility(run)
-    expect(run.whiteout).toBe(whiteout)
+    expect(run.whiteout).toBe(0)
   })
 
   it('limits the blizzard alternatives to the start and locks the pattern during play', () => {
@@ -362,7 +362,7 @@ describe('global weather scenarios', () => {
     expect(impactAreas(run).some(({ site }) => site.loss > 0)).toBe(true)
   })
 
-  it('keeps the tornado grounded while blizzard damage requires whiteout', () => {
+  it('keeps the tornado grounded and lets blizzard snowfall cause damage automatically', () => {
     const tornado = startRun(theaters.find(theater => theater.id === 'plains')!, 0, 'Normal', defaultSeed)
     advance(tornado, 6)
     expect(totals(tornado).damage).toBeGreaterThan(0)
@@ -374,11 +374,8 @@ describe('global weather scenarios', () => {
     expect(tornado.events.at(-1)?.text).toContain('Rotating storms detected')
 
     const blizzard = startRun(theaters.find(theater => theater.id === 'ontario')!, 0, 'Normal', defaultSeed)
-    advance(blizzard, 3)
-    expect(totals(blizzard).damage).toBe(0)
-    useAbility(blizzard)
-    expect(blizzard.whiteout).toBe(48)
-    advance(blizzard, 5)
+    advance(blizzard, 24)
+    expect(blizzard.snow?.deposits.size).toBeGreaterThan(0)
     expect(totals(blizzard).damage).toBeGreaterThan(0)
   })
 

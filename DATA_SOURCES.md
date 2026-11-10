@@ -41,3 +41,5 @@ The Dispatch compares simulated deaths with historical single-tornado benchmarks
 - **Major lakes.** Natural Earth 1:110m lake polygons, used alongside the coastline to distinguish water starts, including the Great Lakes. [Natural Earth lakes](https://www.naturalearthdata.com/downloads/110m-physical-vectors/)
 
 The radar assets are color-keyed excerpts of archived reflectivity and are positioned, scaled, and sometimes rotated by the simulation. They illustrate representative signatures. Tornado swaths use the game's modeled wind estimates, with soil scouring approximated from strength, width, and a seeded ground-susceptibility proxy. [NWS EF scale](https://www.weather.gov/oun/efscale) · [NHC inland weakening](https://www.nhc.noaa.gov/outreach/presentations/2011_InlandWindsTornadoes_Brennan.pdf)
+
+Blizzard storm-total colors are adapted from [NWS Albany snowfall verification maps](https://www.weather.gov/media/aly/stormbuster/Spring14SB.pdf). Accumulations come from the game model and are interpolated between grid samples.

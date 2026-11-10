@@ -1,25 +1,9 @@
-import type { BlizzardPattern } from './blizzard'
 import { activeStorm, position, stormStats, type Run } from './sim'
 import { tornadoRadar } from './tornado-radar'
 
 type Echo = { file: string; ratio: number; label: string; angle?: number }
 const cell: Echo = { file: 'cell', ratio: .92, label: 'Convective reflectivity' }
 const bow: Echo = { file: 'bow', ratio: 1.18, label: 'Bowing squall line', angle: -18 }
-const lake: Echo = { file: 'lake-band', ratio: .37, label: 'Narrow lake-effect snow band', angle: -22 }
-const squall: Echo = { file: 'snow-squall', ratio: .65, label: 'Narrow snow squall', angle: 24 }
-const coast: Echo = { file: 'noreaster', ratio: 1.03, label: 'Coastal snow shield', angle: -12 }
-const snow: Record<BlizzardPattern, Echo> = {
-  'Alberta Clipper': { ...squall, ratio: .46, angle: -12, label: 'Compact clipper snow band' },
-  "Nor'easter": coast,
-  'Lake-Effect Storm': lake,
-  'Snow Squall': squall,
-  'Colorado Low': { ...coast, ratio: .81, angle: 58, label: 'Broad plains snow shield' },
-  'Sea-Effect Snow': { ...lake, angle: 32, label: 'Sea-effect snow bands' },
-  'Mountain Snowstorm': { ...lake, ratio: .62, angle: 55, label: 'Terrain-aligned snow band' },
-  'Frontal Snowstorm': { ...squall, ratio: .48, angle: -34, label: 'Frontal snow band' },
-  'Cold-Air Outbreak': { ...lake, ratio: .72, angle: 10, label: 'Scattered cold-air snow showers' },
-}
-
 const stormEchoes: Partial<Record<ReturnType<typeof activeStorm>, Echo>> = {
   Derecho: { ...bow, label: 'Derecho bow echo' },
   Squall: { ...bow, ratio: 1.65, label: 'Linear squall echo' },
@@ -80,19 +64,19 @@ function drawHeatDome(run: Run, width: number) {
 export function drawWeather(run: Run) {
   if (run.end) return ''
   const storm = activeStorm(run)
-  if (storm === 'Tornado') return ''
+  if (storm === 'Tornado' || run.snow) return ''
   const stats = stormStats(run)
   if (storm === 'Heat Dome') return drawHeatDome(run, stats.widthKm)
   const tornadic = storm === 'Thunderstorm' || storm === 'Supercell'
   const echo = run.cyclone ? { file: 'cyclone', ratio: 1, label: 'Tropical cyclone radar' }
-    : run.blizzardPattern ? snow[run.blizzardPattern] : stormEchoes[storm]
+    : stormEchoes[storm]
   const physical = storm === 'Wildfire' || storm === 'Dust Storm' ? modeled[storm] : undefined
   if (!echo && !physical && !tornadic) return ''
   const strength = run.strength / 100
   const diameter = run.cyclone ? stats.widthKm * 1.65 : stats.widthKm * 1.35
   const heading = run.front?.heading ?? Math.atan2(run.zones[run.to].y - run.zones[run.at].y, run.zones[run.to].x - run.zones[run.at].x)
   const angle = run.cyclone ? run.cyclone.radarAngle : tornadic || physical ? heading * 180 / Math.PI : echo?.angle ?? 0
-  const brightness = Math.min(.91, .37 + strength * .49 + (run.whiteout ? .18 : 0))
+  const brightness = Math.min(.91, .37 + strength * .49)
   const imageLayers = echo ? `${storm === 'Multicell' ? `<g transform="translate(.34 -.14) scale(.72)" opacity=".72">${image(echo)}</g>` : ''}
     ${image(echo)}${storm === 'Lightning' ? '<circle class="weather-electric" r=".12"/>' : ''}` : ''
   const reflectivity = tornadic ? `<g transform="scale(.5)"><g data-radar-now>${tornadoRadar(run.time, strength, stats.windMph, run.front!.phase)}</g>

@@ -1,3 +1,5 @@
+import { blizzardTrack } from './blizzard'
+import { drawSnowfall } from './snow-map'
 import { formatDistance } from './units'
 import { activeStorm, burstRange, footprint, frontSpeed, leg, routeOptions, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
 import { bounds, stormColor, theaters, zoneIds, type Storm, type Theater, type ZoneId } from './world'
@@ -34,6 +36,12 @@ function motion(run: Run, fraction: number, world: boolean) {
       for (let step = 0; step < 6; step++) {
         projected = cycloneTrack(run.cyclone, projected.point, projected.heading, 12)
         next.push(projected.point)
+      }
+    } else if (run.blizzardPattern) {
+      let projected = current
+      for (let step = 0; step < 8; step++) {
+        projected = blizzardTrack(projected, run.blizzardPattern, front.phase, run.time + step * 20, 20, run.effects).point
+        next.push(projected)
       }
     } else next.push(movePoint(current, front.heading, speed * 72))
     return { current: { ...current, x: world ? worldX(current.x) : current.x },
@@ -105,7 +113,9 @@ export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, in
     <rect class="map-tone" width="3600" height="1800" fill="#115377" opacity=".55" pointer-events="none"/>
     ${markers}
     ${inspection}
-    ${run ? drawWeather(run) : ''}
+    ${run ? drawSnowfall(run, true) + drawWeather(run) : ''}
+    ${pending?.snow ? `<path class="snow-preview-band" d="${motion(pending, 0, true).next}" stroke-width="${stormStats(pending).widthKm / 11.1}"/>
+      <path class="projected" d="${motion(pending, 0, true).next}" data-snow-preview vector-effect="non-scaling-stroke"/>` : ''}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
     ${run ? '<path class="wake" data-storm-wake vector-effect="non-scaling-stroke" pointer-events="none"/>' : ''}
     ${run && !run.end ? '<path class="projected" data-storm-next vector-effect="non-scaling-stroke" pointer-events="none"/>' : ''}
@@ -224,7 +234,7 @@ export function drawRegion(theater: Theater, run: Run, inspected: ZoneId | null,
     ${regionalEarth}
     ${satelliteTiles}
     <rect class="map-tone" x="-3600" width="10800" height="1800" fill="#164561" opacity=".36" pointer-events="none"/>
-    ${drawWeather(run)}
+    ${drawSnowfall(run, false)}${drawWeather(run)}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
     ${zoneIds.filter(id => run.sites[id].loss > 0).map(id => `<circle cx="${run.zones[id].x}" cy="${run.zones[id].y}" r="${pin * 5}" fill="url(#impact)" pointer-events="none"/>`).join('')}
     <path data-storm-wake d="${view.wake}" class="wake" vector-effect="non-scaling-stroke"/>

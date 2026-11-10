@@ -706,3 +706,14 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
   .difficulty-mark .rating svg { width: 12px; height: 12px; }
   .record-list .rank-row { grid-template-columns: 44px 76px 1fr; }
 }
+
+.snowfall-layer { opacity: .82; }
+.snow-preview-band { fill: none; stroke: #a598fc; stroke-linecap: round; opacity: .25; pointer-events: none; }
+.snow-legend { left: 50%; bottom: 5px; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+.snow-legend strong { display: block; margin-bottom: 2px; }
+.snow-legend div { display: flex; }
+.snow-legend span { padding: 2px 5px; border-top: 4px solid var(--snow-color); font-variant-numeric: tabular-nums; }
+@media (max-width: 540px) {
+  .snow-legend { bottom: 62px; font-size: 9px; }
+  .snow-legend span { padding-inline: 3px; }
+}
