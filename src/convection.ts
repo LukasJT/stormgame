@@ -91,7 +91,7 @@ export function isActive(funnel: Funnel, time: number) {
 }
 
 export function createFunnel(front: ConvectiveTrack, seed: number, time: number, radius: number, effects: Effects,
-  strength: number, lifetime: number, preferred?: MapPoint) {
+  strength: number, lifetime: number, preferred?: MapPoint, maxEf = 5) {
   const id = front.funnels.length + 1
   const roll = random(seed ^ Math.imul(id, 0x9E3779B1) ^ Math.imul(time, 0x85EBCA6B))
   let point: MapPoint | undefined
@@ -111,7 +111,7 @@ export function createFunnel(front: ConvectiveTrack, seed: number, time: number,
   if (!point) return
   const severity = roll() + effects.tornadoIntensity + Math.max(0, strength - 55) * .00045 - Math.max(0, 36 - strength) * .007
   const rolled = [.41, .68, .85, .95, .997].filter(threshold => severity >= threshold).length
-  const peakEF = strength < 30 ? Math.min(rolled, effects.tornadoIntensity ? 2 : 0) : rolled
+  const peakEF = Math.min(rolled, maxEf, strength < 30 ? (effects.tornadoIntensity ? 2 : 0) : 5)
   const peakWidth = Math.min(4.2, (.045 + roll() ** 1.9 * (.50 + peakEF * .22)) * (1 + effects.tornadoWidth))
   const life = Math.round((.48 + roll() * .92) * lifetime + effects.tornadoLife)
   const heading = tornadoHeading(roll())

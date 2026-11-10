@@ -2,7 +2,7 @@ export const tornadoTickSeconds = 15
 
 export type TornadoRecord = {
   startedAt: number; lengthKm: number; groundTicks: number; maxWidthKm: number; peakEf: number | null
-  places: Set<string>; travelKm: number; awareness: number; deaths: number; impactCredit: number
+  places: Set<string>; travelKm: number; awareness: number; deaths: number
   nextSatellite: number; manualSatellite: number; chaserExposure: number
 }
 

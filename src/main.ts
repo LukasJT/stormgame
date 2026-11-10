@@ -7,9 +7,9 @@ import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
-import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, needsThunderstormType, preferredRoute, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, setCourse, startRun, steer, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
 import { makeZones, stormColor, theaters, type Storm, type Theater } from './world'
-import { hazardFor, hazards, thunderstormTypes, type ThunderstormType } from './hazards'
+import { hazardFor, hazards } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
 import { countries, countryAt, drawInspection, inspectedTotals, type Inspection } from './inspection'
@@ -148,7 +148,6 @@ function stars(count: number, level: Difficulty, label = '') {
   const star = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.09 6.26 6.91 1-5 4.88 1.18 6.89L12 17.78l-6.18 3.25L7 14.14 2 9.26l6.91-1Z"/></svg>'
   return `<span class="rating rating-${level.toLowerCase()}" role="img" aria-label="${label}${count} of 5 stars">${Array.from({ length: 5 }, (_, i) => `<span class="${i < count ? 'earned' : ''}">${star}</span>`).join('')}</span>`
 }
-const thunderstormLabel = (type: ThunderstormType) => type === 'Thunderstorm' ? 'Tornadic Thunderstorm' : type
 
 const menuSections = {
   guide: 'How to Play',
@@ -346,20 +345,18 @@ function routeOrders(state: Run) {
 function frontOrders(state: Run) {
   const front = state.front!
   const funnel = front.funnels.find(item => item.id === selectedFunnel && isActive(item, state.time))
-  const ability = hazardFor(activeStorm(state))!.ability
-  const choosing = needsThunderstormType(state)
+  const ability = stormAbility(state)!
   const heading = funnel ? `Tornado ${funnel.id} · EF${funnel.ef}` : `Drifting ${directionName(front.heading)} · ${front.locality.name}`
   const hint = mapFeedback || (mapOrder === 'drop' ? 'Choose land inside the highlighted area'
     : mapOrder === 'burst' ? 'Choose a target on land inside the highlighted range'
     : mapOrder === 'storm' || mapOrder === 'funnel' ? 'Tap the map to set a preferred heading'
-    : choosing ? 'Open Evolve to choose a storm type'
     : funnel ? `${formatDistance(funnel.width)} wide · ${funnel.start + funnel.life - state.time}s left · ${state.effects.tornadoSteering ? 'Select again to set heading' : 'Guided Funnels unlocks steering'}`
     : ability.tornado ? (state.effects.precisionDrop ? 'Precision Touchdown available' : 'Touchdown and heading are random')
     : state.effects.targetedBurst ? 'Activate your ability to select a target' : 'Follow the projected storm track')
   const controls = mapOrder
     ? button('cancel-map-order', 'Cancel', undefined, 'route-choice')
     : `${state.effects.courseControl ? button('storm-course', 'Set storm heading', undefined, 'route-choice') : ''}
-      ${choosing ? '' : `<button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>${ability.name}</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} ${ability.resource}</small></button>`}`
+      <button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>${ability.name}</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} ${ability.resource}</small></button>`
   return `<div class="route-status front-orders"><div class="course-caption"><strong>${heading}</strong><span>${hint}</span></div><div class="orders">${controls}</div></div>`
 }
 
@@ -466,30 +463,21 @@ function renderPanel() {
   } else if (panel === 'clipping' && run.tornado) {
     title = 'Final storm report'
     content = tornadoClipping(run)
-  } else if (panel === 'evolve' && needsThunderstormType(run) && !run.end) {
-    title = 'Choose a thunderstorm type'
-    content = `<p class="thunderstorm-choice-note">Choose the storm type for this run. It sets your ability and opens its upgrade tree.</p>
-      <div class="menu-options thunderstorm-choices" role="group" aria-label="Thunderstorm types">
-        ${thunderstormTypes.map(type => `<button class="menu-option" data-action="thunderstorm-type" data-value="${type}" style="--choice-color:${stormColor(type)}">
-          <span class="weather-badge">${icon(hazards[type].icon)}</span><span><strong>${thunderstormLabel(type)}</strong><small>${hazards[type].description}</small></span>${icon('arrow')}
-        </button>`).join('')}
-      </div>`
   } else if (panel === 'evolve') {
-    const storm = activeStorm(run)
+    const storm = run.theater.storm
     const state = run
     const tree = trees[storm]
-    const name = state.thunderstormType ? thunderstormLabel(state.thunderstormType) : storm
     const tornado = storm === 'Tornado'
-    const winter = storm === 'Blizzard'
-    const tabs = tornado || winter ? [tornado ? 'Tornado' : 'Storm', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
+    const evolvingStorm = storm === 'Thunderstorm'
+    const tabs = tornado || storm === 'Blizzard' || evolvingStorm ? [tornado ? 'Tornado' : 'Storm', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
     const choices = tree.filter(item => item.branch === evolutionTab)
     const selected = choices.find(item => item.id === selectedUpgrade) ?? choices[0]
-    title = `Evolve ${name.toLowerCase()}`
+    title = `Evolve ${storm.toLowerCase()}`
     const pane = selected
       ? upgradeBoard(state, choices, selected.id) + upgradeDetails(state, selected.id)
-      : tornado ? tornadoOverview(state) : `<div class="evolve-tree"><div class="node"><div class="hex installed">${icon('storm')}</div><span>${name}</span></div></div>
-        <div class="upgrade-detail"><h3>${name}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p><dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
-    content = `<nav class="evolution-tabs ${state.thunderstormType ? 'convection-tabs' : ''}" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${storm === 'Hurricane' && tab === 'Impact' ? 'Damage' : tab}</button>`).join('')}</nav>
+      : tornado ? tornadoOverview(state) : `<div class="evolve-tree"><div class="node"><div class="hex installed">${icon('storm')}</div><span>${storm}</span></div></div>
+        <div class="upgrade-detail"><h3>${evolvingStorm ? stormOrganization(run) : storm}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p>${evolvingStorm ? '<p>The strongest of Rotation and touchdown, Straight-line winds, and Cell regeneration determines the storm type. Drop Tornado stays available in all three forms.</p>' : ''}<dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
+    content = `<nav class="evolution-tabs" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${storm === 'Hurricane' && tab === 'Impact' ? 'Damage' : tab}</button>`).join('')}</nav>
       <div class="evolution network-evolution">${pane}</div>
       <div class="panel-status"><strong>${run.momentum} Momentum</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
   } else if (panel === 'history' && run.cyclone) {
@@ -566,7 +554,7 @@ function tornadoOverview(state: Run) {
 }
 
 function upgradeDetails(state: Run, id: string) {
-  const tree = trees[activeStorm(state)]
+  const tree = trees[state.theater.storm]
   const item = tree.find(entry => entry.id === id)!
   const installed = state.upgrades.includes(id)
   const prereq = tree.find(entry => entry.id === item.requires)
@@ -673,8 +661,8 @@ function liveReadings(state: Run) {
       items.push(['Public awareness', `${Math.round(state.tornado.awareness * 100)}%`])
     }
   }
-  if (state.thunderstormType) items.unshift(['Type', thunderstormLabel(state.thunderstormType)])
-  if (hazard?.ability.tornado && !needsThunderstormType(state)) items.push(['Active tornadoes', String(state.end ? 0 : state.front?.funnels.filter(funnel => isActive(funnel, state.time)).length ?? 0)])
+  if (state.theater.storm === 'Thunderstorm') items.unshift(['Type', stormOrganization(state)])
+  if (stormAbility(state)?.tornado) items.push(['Active tornadoes', String(state.end ? 0 : state.front?.funnels.filter(funnel => isActive(funnel, state.time)).length ?? 0)])
   return items.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')
 }
 
@@ -692,7 +680,7 @@ function render() {
   weatherToggle.hidden = !showOverlay
   weatherToggle.setAttribute('aria-pressed', String(showWeather))
   chart.dataset.weather = showWeather ? 'on' : 'off'
-  const modeled = state && ['Thunderstorm', 'Supercell', 'Wildfire', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
+  const modeled = state && ['Supercell', 'Wildfire', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
   const snowLayer = showOverlay && showWeather && !!state?.snow
   weatherCredit.classList.toggle('snow-legend', snowLayer)
   weatherToggle.setAttribute('aria-label', state?.snow ? 'Snowfall overlay' : 'Weather overlay')
@@ -800,15 +788,14 @@ async function launch() {
 function showPanel(kind: NonNullable<typeof panel>, trigger: HTMLElement) {
   panel = kind
   if (kind === 'evolve') {
-    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.snow ? 'Storm' : run?.theater.storm === 'Thunderstorm' ? 'Storm Track' : 'Formation'
+    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.snow || run?.theater.storm === 'Thunderstorm' ? 'Storm' : 'Formation'
     selectedUpgrade = null
   }
   panelTrigger = trigger
   renderPanel()
   dialog.showModal()
-  const choosingType = kind === 'evolve' && run && needsThunderstormType(run) && !run.end
   const focus = kind === 'pause' ? '.pause-options [data-action="close-panel"]'
-    : choosingType ? '#panel-title' : '[data-action="close-panel"]'
+    : '[data-action="close-panel"]'
   dialog.querySelector<HTMLElement>(focus)?.focus()
 }
 
@@ -978,7 +965,7 @@ document.addEventListener('click', event => {
     case 'dismiss-news': dismissedHeadline = latestHeadline(); break
     case 'ability':
       if (run?.effects.targetedBurst) return prepareMapOrder('burst')
-      if (run?.front && hazardFor(activeStorm(run))?.ability.tornado) {
+      if (run?.front && stormAbility(run)?.tornado) {
         if (run.effects.precisionDrop) return prepareMapOrder('drop')
         mapFeedback = useAbility(run) ? '' : 'No land within touchdown range'
         selectedFunnel = null
@@ -1004,12 +991,6 @@ document.addEventListener('click', event => {
       if (panel === 'pause-settings') return backToPause()
       if (panel === 'pause') return closePause()
       return dialog.close()
-    case 'thunderstorm-type':
-      if (run && panel === 'evolve' && chooseThunderstormType(run, value as ThunderstormType)) {
-        render()
-        dialog.querySelector<HTMLElement>('[data-key="evolution-tab-Storm Track"]')?.focus({ preventScroll: true })
-      }
-      return
     case 'evolution-tab': evolutionTab = value as typeof evolutionTab; selectedUpgrade = null; break
     case 'select-upgrade': selectedUpgrade = value ?? null; break
     case 'buy': if (run && value) buyUpgrade(run, value); break

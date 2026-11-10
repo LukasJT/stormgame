@@ -316,7 +316,6 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .storm-flood { fill: #79d5ff77; pointer-events: none; }
 #map.is-aiming .atlas, #map.is-aiming .funnel-pin { cursor: crosshair; }
 .front-orders .orders { flex: 0 0 auto; }
-.convection-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
 @media (max-width: 720px) {
   .front-orders { flex-wrap: wrap; }
   .front-orders .course-caption { flex-basis: 100%; }
@@ -485,10 +484,6 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 @media (prefers-reduced-motion: reduce) {
   .event-emblem { transition: none; }
 }
-.thunderstorm-choice-note { margin: 0; padding: 14px 14px 0; color: #f1dce4; }
-.thunderstorm-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-dialog:has(.thunderstorm-choices) { scrollbar-color: #a37381 #242b31; }
-dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-index: 1; }
 .setup-header {
   display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px;
   min-height: 62px; padding: 8px 14px; background: var(--silver); color: #6a1d29; border-bottom: 1px solid #eff7f7;
@@ -545,10 +540,6 @@ dialog:has(.thunderstorm-choices) .panel-header { position: sticky; top: 0; z-in
 .menu-setting label { cursor: pointer; }
 .run-settings { color: #e4f2f6; font: 600 18px/1 var(--display); white-space: nowrap; }
 @media (max-width: 430px) {
-  .thunderstorm-choices { grid-template-columns: 1fr; }
-  dialog:has(.thunderstorm-choices) .panel-header h2 { font-size: 25px; }
-  .thunderstorm-choices .menu-option { min-height: 64px; padding-block: 7px; }
-  .thunderstorm-choices .menu-option strong { font-size: 22px; }
   .setup-header { padding: 8px; gap: 7px; }
   .menu-options { padding-inline: 9px; }
   .menu-option { padding-inline: 8px; gap: 7px; }

@@ -1,13 +1,13 @@
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
-import { hazardFor, thunderstormTypes, type ThunderstormType } from './hazards'
+import { hazardFor, hazards } from './hazards'
 import { blizzardHeading, blizzardOptions, blizzardPatterns, blizzardTrack, type BlizzardPattern } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
 import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, windBand } from './impact'
-import { momentumSchedule, startingMomentum, type WeatherPickup } from './momentum'
+import { momentumSchedule, startingMomentum, usesTornadoEconomy, type WeatherPickup } from './momentum'
 import { cycloneFlow, cycloneSpeed, cycloneTrack, cycloneWeather, latitudeAt, longitudeAt, radarSpin, startCyclone, type Cyclone } from './cyclone'
 import { markSwath, tornadoStrips, type Swath } from './swath'
 import { tornadoClimate } from './tornado-climate'
@@ -52,7 +52,7 @@ export type Run = {
   realTime: number; momentumGain: { points: number; at: number } | null
   momentumSchedule: ReturnType<typeof momentumSchedule>; pickup: WeatherPickup | null
   theater: Theater; zones: Zone[]; charge: number; whiteout: number
-  thunderstormType: ThunderstormType | null; blizzardPattern: BlizzardPattern | null
+  impactCredit: number; blizzardPattern: BlizzardPattern | null
   front: Front | null
   at: ZoneId; to: ZoneId; queued: ZoneId | null; progress: number
   upgrades: string[]; effects: Effects
@@ -96,17 +96,22 @@ function zoneReference(theater: Theater, id: ZoneId) {
 }
 
 export function activeStorm(run: Run) {
-  return run.thunderstormType ?? run.theater.storm
+  if (run.theater.storm !== 'Thunderstorm') return run.theater.storm
+  const { mesocyclone, outflow, newCells } = run.effects
+  if (mesocyclone && mesocyclone >= Math.max(outflow, newCells)) return 'Supercell'
+  if (outflow && outflow >= newCells) return 'Squall'
+  return newCells ? 'Multicell' : 'Thunderstorm'
 }
 
-export function needsThunderstormType(run: Run) {
-  return run.theater.storm === 'Thunderstorm' && run.thunderstormType === null
+export function stormOrganization(run: Run) {
+  const form = activeStorm(run)
+  return form === 'Thunderstorm' ? 'Developing cell' : form === 'Squall' ? 'Squall line' : form === 'Multicell' ? 'Multicell cluster' : form
 }
 
-export function chooseThunderstormType(run: Run, type: ThunderstormType) {
-  if (run.end || !needsThunderstormType(run) || !thunderstormTypes.includes(type)) return false
-  run.thunderstormType = type
-  return true
+export function stormAbility(run: Run) {
+  const form = activeStorm(run)
+  return run.theater.storm === 'Thunderstorm' && form !== 'Supercell'
+    ? hazards.Thunderstorm.ability : hazardFor(form)?.ability
 }
 
 export function chooseBlizzardPattern(run: Run, pattern: BlizzardPattern) {
@@ -132,7 +137,7 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   const name = tornado ? overWater ? 'Waterspout' : tornadoName(city) : ''
   const record: TornadoRecord | null = tornado
     ? { startedAt: tornadoStartDate(), lengthKm: 0, groundTicks: 0, maxWidthKm: 0, peakEf: null, places: new Set(), travelKm: 0,
-      awareness: 0, deaths: 0, impactCredit: 0, nextSatellite: 0, manualSatellite: 0, chaserExposure: 0 } : null
+      awareness: 0, deaths: 0, nextSatellite: 0, manualSatellite: 0, chaserExposure: 0 } : null
   const cyclone = hurricane ? startCyclone(point, seed, overWater && !lakeAt(latitudeAt(point), longitudeAt(point))) : null
   const front: Front | null = tornado || hurricane || blizzardPattern || hazard?.group === 'storm'
     ? { ...makeConvectiveTrack(point, seed, tornado), areas, current: frontArea(areas, point), locality, bursts: [], floods: new Map(), swath: [] }
@@ -141,7 +146,7 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   if (front && blizzardPattern) front.heading = blizzardHeading(blizzardPattern, front.phase, 0, 0)
   return {
     seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record,
-    thunderstormType: null, blizzardPattern, front,
+    impactCredit: 0, blizzardPattern, front,
     snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0 } : null,
     time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
     realTime: 0, momentumGain: null,
@@ -337,7 +342,7 @@ export function footprint(run: Run, center: ZoneId) {
 export const tornadoRadius = (run: Run) => dropRadius(stormStats(run).widthKm)
 export const burstRange = (run: Run) => Math.max(25, stormStats(run).widthKm * .55)
 export const abilityCost = (run: Run) => {
-  const ability = hazardFor(activeStorm(run))?.ability
+  const ability = stormAbility(run)
   return ability ? ability.cost - (ability.tornado ? run.effects.tornadoEfficiency : 0) : 0
 }
 
@@ -355,8 +360,8 @@ function abilityTargets(run: Run, reach: number) {
 }
 
 export function hazardAbilityReady(run: Run) {
-  const ability = hazardFor(activeStorm(run))?.ability
-  return !!ability && !run.end && !needsThunderstormType(run) && run.charge >= abilityCost(run) &&
+  const ability = stormAbility(run)
+  return !!ability && !run.end && run.charge >= abilityCost(run) &&
     (!!run.front || abilityTargets(run, (ability.reach ?? 0) + run.effects.abilityReach).length > 0)
 }
 
@@ -370,12 +375,13 @@ function addPulse(run: Run, zone: ZoneId, seconds: number, damage: number, kind:
 
 export function useAbility(run: Run, target?: MapPoint) {
   if (run.end) return
-  const ability = hazardFor(activeStorm(run))?.ability
+  const ability = stormAbility(run)
   if (ability) {
     if (!hazardAbilityReady(run)) return
     if (run.front) {
       if (ability.tornado) {
-        const funnel = createFunnel(run.front, run.seed, run.time, tornadoRadius(run), run.effects, run.strength, ability.seconds, target)
+        const maxEf = run.theater.storm === 'Thunderstorm' && activeStorm(run) !== 'Supercell' ? 2 : 5
+        const funnel = createFunnel(run.front, run.seed, run.time, tornadoRadius(run), run.effects, run.strength, ability.seconds, target, maxEf)
         if (!funnel) return
         const where = localityAt(90 - funnel.point.y / 10, funnel.point.x / 10 - 180)
         log(run, `Tornado touches down ${where.reference}.`, true)
@@ -437,7 +443,7 @@ export function upgradeRefund(run: Run, id: string) {
 export function canRemoveUpgrade(run: Run, id: string) {
   if (run.end || !run.upgrades.includes(id)) return false
   const remaining = run.upgrades.filter(installed => installed !== id)
-  return !trees[activeStorm(run)].some(item => remaining.includes(item.id) && missingPrerequisite(remaining, item))
+  return !trees[run.theater.storm].some(item => remaining.includes(item.id) && missingPrerequisite(remaining, item))
 }
 
 function applyUpgradeEffects(run: Run, upgrade: Upgrade) {
@@ -451,7 +457,7 @@ export function removeUpgrade(run: Run, id: string) {
   run.upgradePayments.delete(id)
   run.upgrades = run.upgrades.filter(installed => installed !== id)
   run.effects = { ...baseEffects }
-  for (const item of trees[activeStorm(run)]) if (run.upgrades.includes(item.id)) applyUpgradeEffects(run, item)
+  for (const item of trees[run.theater.storm]) if (run.upgrades.includes(item.id)) applyUpgradeEffects(run, item)
   if (run.front && !run.effects.courseControl) run.front.preference = null
   if (run.front && !run.effects.tornadoSteering) {
     for (const funnel of run.front.funnels) funnel.preference = null
@@ -460,15 +466,17 @@ export function removeUpgrade(run: Run, id: string) {
 }
 
 export function buyUpgrade(run: Run, id: string) {
-  const upgrade = trees[activeStorm(run)].find(item => item.id === id)
-  if (!upgrade || run.end || needsThunderstormType(run) || run.upgrades.includes(id) || upgradeLocked(run, upgrade)) return false
+  const upgrade = trees[run.theater.storm].find(item => item.id === id)
+  if (!upgrade || run.end || run.upgrades.includes(id) || upgradeLocked(run, upgrade)) return false
   const cost = upgradeCost(run, upgrade)
   if (run.momentum < cost) return false
   run.momentum -= cost
   run.upgradePayments.set(id, cost)
   run.purchases++
   run.upgrades.push(id)
+  const before = activeStorm(run)
   applyUpgradeEffects(run, upgrade)
+  if (activeStorm(run) !== before) log(run, `Thunderstorm reorganizes as a ${stormOrganization(run).toLowerCase()} ${run.front!.locality.reference}.`, true)
   return true
 }
 
@@ -551,6 +559,7 @@ function impactWind(run: Run) {
   const storm = activeStorm(run)
   const wind = stormStats(run).windMph
   if (storm === 'Tornado' || storm === 'Hurricane') return wind
+  if (run.theater.storm === 'Thunderstorm') return wind
   if (run.front) return wind + run.effects.hazardDamage * 35
   // Convert non-wind hazards to severity bands for the shared exposure model.
   const severity = storm === 'Wildfire' ? 1.35 : storm === 'Flooding' ? 1.16 : 1.02
@@ -576,12 +585,11 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const casualtyRate = share * rate * (1 + overload + effects.panic)
   const loss = Math.min(zone.assets - site.loss, Math.floor(zone.housing * share * lossPerHome(wind, funnel) * (1 + rain + (propertyOnly ? 0 : effects.gust) + (outage ? effects.supply : 0))))
   site.loss += loss
-  if (run.tornado && loss > 0) {
-    const record = run.tornado
+  if (loss > 0 && usesTornadoEconomy(run.theater.storm)) {
     const densityBonus = Math.min(6, 1 + zone.population / zone.area / 220)
-    const before = damageMomentum(record.impactCredit)
-    record.impactCredit += loss * densityBonus
-    const after = damageMomentum(record.impactCredit)
+    const before = damageMomentum(run.impactCredit)
+    run.impactCredit += loss * densityBonus
+    const after = damageMomentum(run.impactCredit)
     if (after > before) gainMomentum(run, after - before)
   }
   if (propertyOnly) return loss
@@ -890,6 +898,19 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
   run.charge = Math.max(0, Math.min(100, run.charge + hazard.recharge + weather.trend * 1.8 + run.effects.chargeGain))
   const width = stormStats(run).widthKm
   const core = sampledAreas(front, front.point, width * .28)
+  const form = activeStorm(run)
+  if (run.theater.storm === 'Thunderstorm') {
+    if (form === 'Squall') {
+      for (const side of [-1, 1]) {
+        const gustFront = movePoint(front.point, front.heading + side * Math.PI / 2, width * .36)
+        for (const area of sampledAreas(front, gustFront, width * .12)) core.add(area)
+      }
+    } else if (form === 'Multicell') {
+      const phase = Math.sin(run.time / 19 + front.phase)
+      const daughter = movePoint(front.point, front.heading + phase * .9, width * (.34 + phase * .07))
+      for (const area of sampledAreas(front, daughter, width * .17)) core.add(area)
+    }
+  }
   const ahead = movePoint(front.point, front.heading, 20)
   const threatened = sampledAreas(front, ahead, width * .35)
   const sweeps = advanceTrackedFunnels(run, front, threatened)
@@ -904,6 +925,7 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
   const passive = hazard.passive * force * (1 + run.effects.hazardDamage) * (.06 + developed * .8)
   const wind = impactWind(run)
   for (const { zone, site } of core) applyImpact(run, zone, site, passive * 5, wind)
+  if (run.theater.storm === 'Thunderstorm') thunderstormImpacts(run, front, force)
   for (const { funnel, distance } of sweeps) {
     applyTornadoSweep(run, front, funnel.point, funnel.heading, distance, funnel.width, funnel.wind, 1, run.effects.burstPower)
   }
@@ -920,6 +942,27 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
     else applyImpact(run, area.zone, area.site, .00275 * run.effects.floodPower * force, 55 + run.strength * .85 + run.effects.floodPower * 15, .42)
   }
   finishMovingStorm(run)
+}
+
+function thunderstormImpacts(run: Run, front: Front, force: number) {
+  const { hail, hailRadius, lightning, lightningOutage } = run.effects
+  if (hail && run.time % 4 === 0) {
+    for (const { zone, site } of sampledAreas(front, front.point, hailRadius)) {
+      applyImpact(run, zone, site, .008 * hail * force, 75, 0, false, true)
+    }
+  }
+  if (!lightning || run.time % 8 !== 0) return
+  const roll = random(run.seed ^ Math.imul(run.time, 0x45d9f3b))
+  if (roll() >= lightning * Math.sqrt(force)) return
+  const point = movePoint(front.point, roll() * Math.PI * 2, roll() * 18)
+  const { zone, site } = frontArea(front.areas, point)
+  if (applyImpact(run, zone, site, .009 * force, 72, 0, false, true)) {
+    if (lightningOutage) site.outageUntil = Math.max(site.outageUntil, run.time + lightningOutage)
+    if (!run.alertHeadlines.has('ground-strike')) {
+      run.alertHeadlines.add('ground-strike')
+      log(run, `Ground lightning strike reported ${localityAt(latitudeAt(point), longitudeAt(point)).reference}.`)
+    }
+  }
 }
 
 function finishMovingStorm(run: Run) {

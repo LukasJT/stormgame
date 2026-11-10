@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { campaign, damageTargets, difficulties, earnedStars } from '../src/campaign'
 import { momentumSchedule } from '../src/momentum'
-import { abilityCost, buyUpgrade, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, frontSpeed, setCourse, startRun, stormStats, tick, totals, useAbility } from '../src/sim'
+import { abilityCost, buyUpgrade, collectWeatherPickup, conditions, defaultSeed, frontSpeed, setCourse, startRun, stormStats, tick, totals, useAbility } from '../src/sim'
 import { movePoint } from '../src/convection'
 import { loadLocalities, makeDrop } from '../src/free-drop'
 import { tornadoClock, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from '../src/tornado-report'
@@ -85,7 +85,7 @@ it('seeds irregular Momentum awards and lets weather pickups pay out only once',
   expect(active.end).toBeTruthy()
   expect(active.momentum).toBe(10 + schedule.awards.filter(item => item.time <= active.time).reduce((sum, item) => sum + item.points, 0)
     + schedule.pickups.filter(item => item.time < active.time).reduce((sum, item) => sum + item.points, 0)
-    + Math.min(32, Math.floor(Math.sqrt(active.tornado!.impactCredit / 125_000_000))))
+    + Math.min(32, Math.floor(Math.sqrt(active.impactCredit / 125_000_000))))
 })
 
 it('gates tornado junctions behind both branches and makes intensity purchased', () => {
@@ -185,8 +185,8 @@ it('keeps the calendar date and chooses headlines from country-specific death to
 })
 
 it('lets a specialized storm aim its active ability after buying Targeted Outbreak', () => {
-  const run = startRun(theaters.find(theater => theater.id === 'thunderstorm-plains')!, 0, 'Normal', defaultSeed)
-  chooseThunderstormType(run, 'Lightning')
+  const theater = theaters.find(theater => theater.id === 'thunderstorm-plains')!
+  const run = startRun({ ...theater, storm: 'Lightning' }, 0, 'Normal', defaultSeed)
   const point = run.front!.point
   const nearby = movePoint(point, 0, 7)
   const charge = run.charge

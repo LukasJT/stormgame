@@ -1,7 +1,8 @@
 import { random } from './convection'
 import type { Storm } from './world'
 
-export const startingMomentum = (storm: Storm) => storm === 'Tornado' ? 10 : 5
+export const usesTornadoEconomy = (storm: Storm) => storm === 'Tornado' || storm === 'Thunderstorm'
+export const startingMomentum = (storm: Storm) => usesTornadoEconomy(storm) ? 10 : 5
 const pickupLifetime = 42
 
 const opportunities: Partial<Record<Storm, readonly string[]>> = {
@@ -13,7 +14,7 @@ const opportunities: Partial<Record<Storm, readonly string[]>> = {
   'Dust Storm': ['Loose Topsoil', 'Dry Ground', 'Strong Gusts'],
   'Heat Dome': ['Sinking Air', 'Clear Skies', 'Dry Soil'],
 }
-const thunderstormOpportunities = ['Warm Air', 'Rising Moisture', 'Unstable Air']
+const thunderstormOpportunities = ['Warm Air', 'Rising Moisture', 'Wind Shear', 'Unstable Air']
 
 export type WeatherPickup = { time: number; expires: number; label: string; points: number }
 
@@ -22,7 +23,7 @@ export function momentumSchedule(seed: number, storm: Storm) {
   for (const letter of storm) salt = Math.imul(salt, 31) + letter.charCodeAt(0)
   const roll = random(seed ^ salt)
   const labels = opportunities[storm] ?? thunderstormOpportunities
-  if (storm === 'Tornado') {
+  if (usesTornadoEconomy(storm)) {
     const awards = Array.from({ length: 40 }, (_, index) => ({
       time: 12 + index * 23 + Math.floor(roll() * 15),
       points: roll() < .35 ? 3 : 2,

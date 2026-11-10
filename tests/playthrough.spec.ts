@@ -277,7 +277,7 @@ test('selects a country and then a state to see its population, injuries, and de
   await expect(inspection.getByRole('heading', { name: 'Canada', exact: true })).toBeVisible()
 })
 
-test('offers all types through Evolve and drops two independent tornadoes', async ({ page }) => {
+test('evolves a developing thunderstorm and drops two independent tornadoes', async ({ page }) => {
   await page.clock.install()
   await page.goto('/')
   await openMap(page, 'Thunderstorm', 'Easy')
@@ -287,16 +287,15 @@ test('offers all types through Evolve and drops two independent tornadoes', asyn
   await expect(page.locator('.metric.damage strong')).toHaveText(/^\$\d+/)
   await page.getByRole('button', { name: 'Evolve' }).click()
   const evolve = page.getByRole('dialog')
-  await expect(evolve.getByRole('heading', { name: 'Choose a thunderstorm type' })).toBeFocused()
-  for (const type of ['Derecho', 'Multicell', 'Pulse', 'Squall', 'Storm Cell', 'Supercell', 'Lightning']) {
-    await expect(evolve.getByRole('button', { name: new RegExp(`^${type} `) })).toBeAttached()
-  }
-  await evolve.getByRole('button', { name: /^Tornadic Thunderstorm / }).click()
-  await expect(evolve.getByRole('button', { name: 'Moist Inflow' })).toBeVisible()
-  for (const branch of ['Storm Track', 'Tornadoes', 'Severe Impact', 'Flooding', 'Longevity']) {
+  await expect(evolve.getByRole('heading', { name: 'Evolve thunderstorm' })).toBeVisible()
+  for (const branch of ['Movement', 'Damage', 'Abilities']) {
     await expect(evolve.getByRole('button', { name: branch, exact: true })).toBeVisible()
   }
+  await evolve.getByRole('button', { name: 'Damage', exact: true }).click()
+  await evolve.getByRole('button', { name: 'Cold Pool' }).click()
+  await evolve.getByRole('button', { name: 'Buy for 4 Momentum' }).click()
   await evolve.getByRole('button', { name: 'Close' }).click()
+  await expect(page.locator('#storm-stats')).toContainText('Squall line')
   await page.getByRole('button', { name: /^Drop tornado \d/ }).click()
   await expect(page.getByRole('button', { name: /^Tornado 1, EF/ })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Possible tornado touchdown area' })).toBeVisible()

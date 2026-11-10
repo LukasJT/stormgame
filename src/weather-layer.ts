@@ -5,6 +5,7 @@ type Echo = { file: string; ratio: number; label: string; angle?: number }
 const cell: Echo = { file: 'cell', ratio: .92, label: 'Convective reflectivity' }
 const bow: Echo = { file: 'bow', ratio: 1.18, label: 'Bowing squall line', angle: -18 }
 const stormEchoes: Partial<Record<ReturnType<typeof activeStorm>, Echo>> = {
+  Thunderstorm: cell,
   Derecho: { ...bow, label: 'Derecho bow echo' },
   Squall: { ...bow, ratio: 1.65, label: 'Linear squall echo' },
   Multicell: { ...cell, label: 'Cluster of convective cells' },
@@ -67,7 +68,7 @@ export function drawWeather(run: Run) {
   if (storm === 'Tornado' || run.snow) return ''
   const stats = stormStats(run)
   if (storm === 'Heat Dome') return drawHeatDome(run, stats.widthKm)
-  const tornadic = storm === 'Thunderstorm' || storm === 'Supercell'
+  const tornadic = storm === 'Supercell'
   const echo = run.cyclone ? { file: 'cyclone', ratio: 1, label: 'Tropical cyclone radar' }
     : stormEchoes[storm]
   const physical = storm === 'Wildfire' || storm === 'Dust Storm' ? modeled[storm] : undefined

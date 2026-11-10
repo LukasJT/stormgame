@@ -16,6 +16,7 @@ export const baseEffects = {
   tornadoEfficiency: 0, tornadoSteering: 0, precisionDrop: 0, floodPower: 0, floodLife: 0, endurance: 0,
   targetedBurst: 0, abilityReach: 0, heatDegrees: 0, tornadoSpeed: 0, rainWrap: 0, hail: 0, hailRadius: 0,
   coldTolerance: 0, heatTolerance: 0, shelterBreach: 0,
+  mesocyclone: 0, outflow: 0, newCells: 0, lightning: 0, lightningOutage: 0,
   tornadoRange: 0, tornadoLifetime: 0, satelliteChance: 0, satelliteTrigger: 0,
 }
 export type Effects = typeof baseEffects
@@ -538,11 +539,107 @@ function convectionTree(storm: ThunderstormType) {
   ]
 }
 
+const thunderstorm = [
+  ...upgradeTree('Movement', 'Track control', {
+    Inflow: [
+      ['track-inflow', 'Moist Inflow', 'Build strength faster in unstable air.', { hazardGain: .030 }],
+      ['track-organize', 'Organized Core', 'Reduce course wobble and resist stable air.', { hazardBuffer: .12, trackStability: .24 }],
+    ],
+    Steering: [
+      ['track-align', 'Flow Alignment', 'Reduce course wobble and move 12% faster.', { trackStability: .26, spread: .12 }],
+    ],
+  }, ['track-control', 'Course Control', 'Set a preferred heading. The storm turns gradually.', { courseControl: 1 }, 9]),
+  ...upgradeTree('Movement', 'Inflow and longevity', {
+    Inflow: [
+      ['life-inflow', 'Sustained Inflow', 'Slow weakening in stable air.', { hazardBuffer: .14 }],
+      ['life-reserve', 'Moisture Reserve', 'Build strength faster and conserve inflow.', { hazardGain: .025, endurance: .12 }],
+    ],
+    Updraft: [
+      ['life-recharge', 'Persistent Updraft', 'Replenish rotation faster after a tornado drop.', { chargeGain: .13 }],
+    ],
+  }, ['life-window', 'Long-Lived System', 'Slow inflow depletion and resist weakening.', { endurance: .23, hazardBuffer: .12 }, 9]),
+  ...upgradeTree('Movement', 'Forward motion', {
+    Flow: [
+      ['storm-flow', 'Deep-Layer Flow', 'Move 8% faster.', { spread: .08 }],
+      ['storm-corridor', 'Fast-Moving Corridor', 'Increase forward speed and reduce track wobble.', { spread: .10, trackStability: .12 }],
+      ['storm-jet', 'Fast Steering Flow', 'Add another 12% to forward speed.', { spread: .12 }],
+    ],
+  }),
+  ...upgradeTree('Damage', 'Straight-line winds', {
+    Outflow: [
+      ['storm-outflow', 'Cold Pool', 'Rain-cooled outflow begins organizing the storm into a squall line.', { outflow: 1, width: 8 }],
+      ['storm-shelf', 'Shelf Cloud', 'Strengthen the organized gust front and widen the wind footprint.', { outflow: 1, width: 12 }],
+    ],
+    Gusts: [
+      ['storm-gusts', 'Damaging Gusts', 'Add up to 9 mph to surface winds.', { wind: 9 }],
+      ['storm-downburst', 'Downburst Core', 'Increase local wind damage and add up to 10 mph.', { wind: 10, hazardDamage: .18 }],
+    ],
+  }, ['storm-bow', 'Bowing Line', 'Build a stronger outflow and concentrate the fastest winds along the leading edge.', { outflow: 1, wind: 9, hazardDamage: .15 }, 12]),
+  ...upgradeTree('Damage', 'Hail and ice', {
+    Hail: [
+      ['impact-hail', 'Hail Embryos', 'Grow hail in the updraft and begin damaging property under the core.', { hail: .18, hailRadius: 5 }],
+      ['storm-hail-growth', 'Large Hail', 'Increase damage from hailstones.', { hail: .18 }],
+    ],
+    Footprint: [
+      ['storm-hail-shaft', 'Wide Hail Shaft', 'Spread hail damage over more ground.', { hail: .10, hailRadius: 4 }],
+      ['storm-hail-swath', 'Hail Swath', 'Widen the hail footprint and increase property damage.', { hail: .15, hailRadius: 4 }],
+    ],
+  }, ['storm-hail-core', 'Giant Hail Core', 'Sustain a concentrated swath of damaging hail.', { hail: .27, hailRadius: 5 }, 11]),
+  ...upgradeTree('Damage', 'Rainfall and drainage', {
+    Rain: [
+      ['flood-rain', 'Heavy Rain', 'Leave runoff behind the storm.', { floodPower: .26 }],
+      ['flood-ground', 'Saturated Ground', 'Increase runoff and extend local flooding.', { floodPower: .19, floodLife: 16 }],
+    ],
+    Drainage: [
+      ['flood-drain', 'Overloaded Drainage', 'Keep floodwater in low-lying districts longer.', { floodPower: .14, floodLife: 19 }],
+    ],
+  }, ['flood-cascade', 'Flash Flood Cascade', 'Increase flood damage, especially where cells keep passing over the same area.', { floodPower: .27, floodLife: 12 }, 9]),
+  ...upgradeTree('Abilities', 'Rotation and touchdown', {
+    Rotation: [
+      ['funnel-rotation', 'Stronger Rotation', 'Organize a rotating updraft into a supercell and improve tornado intensity.', { mesocyclone: 1, chargeGain: .12, tornadoIntensity: .055 }],
+      ['funnel-core', 'Violent Core', 'Favor supercell organization and drop wider, longer-lived tornadoes.', { mesocyclone: 1, tornadoWidth: .28, tornadoLife: 8, tornadoIntensity: .075 }],
+    ],
+    Guidance: [
+      ['funnel-guidance', 'Guided Funnels', 'Steer individual tornadoes and spend less rotation on each drop.', { tornadoSteering: 1, tornadoEfficiency: 4 }],
+    ],
+  }, ['funnel-precision', 'Precision Touchdown', 'Choose a land point inside the drop area and further favor supercell organization.', { mesocyclone: 1, precisionDrop: 1 }, 11]),
+  ...upgradeTree('Abilities', 'Cell regeneration', {
+    Cells: [
+      ['storm-new-cell', 'Secondary Updrafts', 'Organize a multicell cluster with new development beside the core.', { newCells: 1 }],
+      ['storm-regenerate', 'Regenerating Cells', 'Favor the cluster and use inflow more slowly.', { newCells: 1, endurance: .13 }],
+    ],
+    Training: [
+      ['storm-train', 'Cell Training', 'Focus runoff behind the storm where cells cross the same ground.', { floodPower: .12, floodLife: 10 }],
+      ['storm-merge', 'Merging Cells', 'Increase the cluster footprint and boost runoff.', { floodPower: .16, width: 10 }],
+    ],
+  }, ['storm-complex', 'Long-Lived Cluster', 'Favor multicell organization and sustain a broader cluster.', { newCells: 1, endurance: .18, width: 12 }, 11]),
+  ...upgradeTree('Abilities', 'Electrical activity', {
+    Charge: [
+      ['storm-charge', 'Charge Separation', 'Produce occasional ground strikes as the storm strengthens.', { lightning: .22 }],
+      ['storm-flash', 'Frequent Ground Strikes', 'Increase the frequency of ground strikes.', { lightning: .18 }],
+    ],
+    Grid: [
+      ['storm-grid-strike', 'Grid Strikes', 'Increase the chance of a ground strike and prolong local outages.', { lightning: .13, lightningOutage: 14 }],
+      ['storm-transformers', 'Transformer Damage', 'Extend outages caused by ground strikes.', { lightningOutage: 20, power: .08 }],
+    ],
+  }, ['storm-barrage', 'Electrical Barrage', 'Increase ground-strike frequency and extend their outages.', { lightning: .22, lightningOutage: 16 }, 11]),
+  ...upgradeTree('Abilities', 'Warning and response', {
+    Outages: [
+      ['impact-grid', 'Grid Failure', 'Severe wind damage can interrupt local power.', { outageTime: 24, power: .08 }],
+      ['storm-grid-cascade', 'Cascading Outages', 'Extend outages and slow the response in affected districts.', { outageTime: 20, broadcast: .13 }],
+    ],
+    Warnings: [
+      ['impact-broadcast', 'Interrupted Alerts', 'Delay warnings by 8 forecast seconds.', { warningDelay: 8 }],
+      ['storm-road-blocks', 'Blocked Roads', 'Slow sheltering after warnings are issued.', { gridlock: .15 }],
+    ],
+  }, ['storm-response', 'Overloaded Response', 'Delay warnings further and slow sheltering in damaged areas.', { warningDelay: 8, gridlock: .14, overload: .09 }, 11]),
+]
+
 export const trees: Record<Storm, Upgrade[]> = {
   Tornado: tornadoUpgrades,
   Hurricane: hurricane,
   Blizzard: blizzard,
-  Thunderstorm: convectionTree('Thunderstorm'),
+  Thunderstorm: thunderstorm,
   Derecho: convectionTree('Derecho'),
   Multicell: convectionTree('Multicell'),
   Pulse: convectionTree('Pulse'),

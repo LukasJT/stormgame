@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeStorm, buyUpgrade, chooseBlizzardPattern, chooseThunderstormType, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
+import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
 import { makeZones, theaters, type Storm } from '../src/world'
 import { lakeAt, loadLocalities, makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { hazardNames, hazards } from '../src/hazards'
@@ -18,7 +18,6 @@ describe('global weather scenarios', () => {
   it.each(hazardNames)('starts %s, activates its own ability, and resolves impact', storm => {
     const area = theaters.find(theater => theater.storm === storm)!
     const run = startRun(area, 0, 'Easy', defaultSeed)
-    if (storm === 'Thunderstorm') expect(chooseThunderstormType(run, 'Thunderstorm')).toBe(true)
     useAbility(run)
     expect(run.front ? run.front.funnels.length + run.front.bursts.length : run.pulses.length).toBeGreaterThan(0)
     expect(run.charge).toBe(35 - hazards[storm].ability.cost)
@@ -28,7 +27,6 @@ describe('global weather scenarios', () => {
 
   it('lets a thunderstorm spawn another tornado while the first is active', () => {
     const run = startRun(theaters.find(theater => theater.storm === 'Thunderstorm')!, 0, 'Easy', defaultSeed)
-    expect(chooseThunderstormType(run, 'Thunderstorm')).toBe(true)
     const front = run.front!
     expect(useAbility(run)).toBe(true)
     useAbility(run)
@@ -46,21 +44,28 @@ describe('global weather scenarios', () => {
     expect(front.funnels.every(funnel => !isActive(funnel, run.time))).toBe(true)
   })
 
-  it('specializes a thunderstorm once and keeps the live forecast and damage totals', () => {
+  it('organizes a developing cell through upgrades and preserves its track and tornadoes', () => {
     const run = startRun(theaters.find(theater => theater.storm === 'Thunderstorm')!, 0, 'Easy', defaultSeed)
-    useAbility(run)
-    expect(run.front!.funnels).toHaveLength(0)
-    expect(buyUpgrade(run, 'favorable')).toBe(false)
+    expect(activeStorm(run)).toBe('Thunderstorm')
+    expect(useAbility(run)).toBe(true)
+    const first = run.front!.funnels[0]
     advance(run, 8)
-    const before = { ...totals(run), time: run.time, momentum: run.momentum, progress: run.progress }
-    expect(chooseThunderstormType(run, 'Derecho')).toBe(true)
-    expect(activeStorm(run)).toBe('Derecho')
-    expect(chooseThunderstormType(run, 'Pulse')).toBe(false)
-    expect({ ...totals(run), time: run.time, momentum: run.momentum, progress: run.progress }).toEqual(before)
-    expect(travelRate(run)).toBe(hazards.Derecho.speed)
-    expect(buyUpgrade(run, 'track-inflow')).toBe(true)
-    useAbility(run)
-    expect(run.front!.bursts).toHaveLength(1)
+    const before = { ...totals(run), time: run.time, point: run.front!.point }
+    run.momentum = 60
+    expect(buyUpgrade(run, 'storm-new-cell')).toBe(true)
+    expect(activeStorm(run)).toBe('Multicell')
+    expect(buyUpgrade(run, 'storm-outflow')).toBe(true)
+    expect(activeStorm(run)).toBe('Squall')
+    expect(travelRate(run)).toBe(hazards.Squall.speed)
+    expect(buyUpgrade(run, 'funnel-rotation')).toBe(true)
+    expect(activeStorm(run)).toBe('Supercell')
+    expect({ ...totals(run), time: run.time, point: run.front!.point }).toEqual(before)
+    expect(run.front!.funnels[0]).toBe(first)
+    expect(removeUpgrade(run, 'funnel-rotation')).toBe(true)
+    expect(activeStorm(run)).toBe('Squall')
+    run.charge = 100
+    expect(useAbility(run)).toBe(true)
+    expect(run.front!.funnels).toHaveLength(2)
   })
 
   it('starts a weak Saskatchewan cell and carries it east without looping through waypoints', () => {
@@ -78,7 +83,6 @@ describe('global weather scenarios', () => {
   it('gates precision and both steering controls behind their trees', () => {
     const area = theaters.find(theater => theater.id === 'thunderstorm-prairies')!
     const run = startRun(area, 0, 'Easy', defaultSeed)
-    chooseThunderstormType(run, 'Thunderstorm')
     const front = run.front!
     const target = movePoint(front.point, -Math.PI / 2, 10)
     expect(useAbility(run, target)).toBeUndefined()
@@ -96,7 +100,6 @@ describe('global weather scenarios', () => {
     expect(buyUpgrade(run, 'track-align')).toBe(true)
     expect(buyUpgrade(run, 'track-control')).toBe(true)
     const guided = startRun(area, 0, 'Easy', defaultSeed)
-    chooseThunderstormType(guided, 'Supercell')
     guided.momentum = 100
     for (const id of ['track-inflow', 'track-organize', 'track-align', 'track-control']) expect(buyUpgrade(guided, id)).toBe(true)
     expect(setCourse(guided, target)).toBe(true)
@@ -202,7 +205,7 @@ describe('global weather scenarios', () => {
     }
     expect(run.end).toBeNull()
     expect(run.effects.satelliteTrigger).toBe(0)
-    expect(run.tornado!.impactCredit).toBeGreaterThan(0)
+    expect(run.impactCredit).toBeGreaterThan(0)
     expect(run.momentumGain?.points).toBeGreaterThan(0)
 
     const visible = startRun(theater, 0, 'Normal', defaultSeed)
@@ -233,7 +236,6 @@ describe('global weather scenarios', () => {
     const baseline = startRun(area, 0, 'Easy', defaultSeed)
     const longevity = startRun(area, 0, 'Easy', defaultSeed)
     for (const run of [flooding, baseline, longevity]) {
-      chooseThunderstormType(run, 'Thunderstorm')
       run.momentum = 40
     }
     expect(buyUpgrade(flooding, 'flood-rain')).toBe(true)

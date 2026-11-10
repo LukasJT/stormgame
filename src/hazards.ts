@@ -17,7 +17,7 @@ const tornadoDrop: Ability = { name: 'Drop tornado', resource: 'rotation', cost:
 
 export const hazards = {
   Thunderstorm: {
-    color: '#b7a5ff', icon: 'bolt', group: 'storm', description: 'Build rotation and drop multiple tornadoes along your route.',
+    color: '#b7a5ff', icon: 'bolt', group: 'storm', description: 'Build a developing cell into a supercell, squall line, or multicell cluster and drop tornadoes along its track.',
     weather: convective, width: 70, wind: 115, speed: 1, growth: .12, recharge: .9, passive: .0015,
     ability: tornadoDrop,
   },

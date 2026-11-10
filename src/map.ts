@@ -1,7 +1,7 @@
 import { blizzardTrack } from './blizzard'
 import { drawSnowfall } from './snow-map'
 import { formatDistance } from './units'
-import { activeStorm, burstRange, footprint, frontSpeed, leg, routeOptions, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
+import { activeStorm, burstRange, footprint, frontSpeed, leg, routeOptions, stormAbility, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
 import { bounds, stormColor, theaters, zoneIds, type Storm, type Theater, type ZoneId } from './world'
 import { alongTrack, pathFor } from './track'
 import { hazardFor } from './hazards'
@@ -177,7 +177,7 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
   const longitude = (x: number) => world ? worldX(x) : x
   const near = (x: number) => world ? worldX(x) : x + Math.round((front.point.x - x) / 3600) * 3600
   const radius = targeting === 'burst' ? burstRange(run) : tornadoRadius(run)
-  const showArea = targeting || (!world && !run.end && run.thunderstormType && hazardFor(activeStorm(run))?.ability.tornado)
+  const showArea = targeting || (!world && !run.end && stormAbility(run)?.tornado)
   const area = showArea ? `<ellipse class="drop-area ${targeting ? 'aiming' : ''}" ${targeting === 'burst' ? 'data-burst-area' : 'data-drop-area'} cx="${longitude(front.point.x)}" cy="${front.point.y}" rx="${radius / kmPerX(front.point.y)}" ry="${radius / 11.1}" role="img" aria-label="${targeting === 'burst' ? 'Active ability range' : 'Possible tornado touchdown area'}" vector-effect="non-scaling-stroke"/>` : ''
   const water = [...front.floods.keys()].map(({ zone }) =>
     `<circle class="storm-flood" cx="${near(zone.x)}" cy="${zone.y}" r=".5"/>`).join('')
