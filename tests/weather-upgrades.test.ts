@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
+import { makeHurricaneDrop } from '../src/free-drop'
 import { thunderstormTypes } from '../src/hazards'
-import { buyUpgrade, chooseThunderstormType, collectWeatherPickup, defaultSeed, startRun, tick, useAbility } from '../src/sim'
+import { buyUpgrade, chooseThunderstormType, collectWeatherPickup, defaultSeed, startRun, stormStats, tick, useAbility } from '../src/sim'
 import { trees } from '../src/upgrades'
 import { theaters, type Storm } from '../src/world'
 
@@ -47,4 +48,24 @@ it('lets a breach cascade overtop a second neighboring land zone', () => {
   expect(base.pulses).toHaveLength(2)
   expect(upgraded.pulses).toHaveLength(3)
   expect(upgraded.pulses[0].damage).toBeGreaterThan(base.pulses[0].damage)
+})
+
+
+it('supports separate wind and warm-water builds while keeping unupgraded hurricanes below Category 1', () => {
+  const theater = makeHurricaneDrop(22, -90)
+  const base = startRun(theater, 0, 'Normal', defaultSeed)
+  const wind = startRun(theater, 0, 'Normal', defaultSeed)
+  const ocean = startRun(theater, 0, 'Normal', defaultSeed)
+  wind.momentum = ocean.momentum = 100
+  for (const id of ['eye', 'rapid', 'eyewall-jet', 'eyewall-peak']) expect(buyUpgrade(wind, id)).toBe(true)
+  for (const id of ['warm', 'deep', 'moist-inflow', 'surface-flux', 'marine']) expect(buyUpgrade(ocean, id)).toBe(true)
+  const startingWind = stormStats(base).windMph
+  expect(stormStats(ocean).windMph).toBe(startingWind)
+  expect(stormStats(wind).windMph).toBeGreaterThan(startingWind)
+  for (let i = 0; i < 360; i++) for (const run of [base, wind, ocean]) tick(run)
+  expect(base.cyclone!.peakWind).toBeGreaterThan(startingWind)
+  expect(base.cyclone!.peakWind).toBeLessThan(74)
+  expect(wind.cyclone!.peakWind).toBeGreaterThanOrEqual(130)
+  expect(ocean.cyclone!.peakWind).toBeGreaterThanOrEqual(130)
+  expect(trees.Hurricane).toHaveLength(trees.Tornado.length)
 })

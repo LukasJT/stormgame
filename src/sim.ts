@@ -216,7 +216,7 @@ export function collectWeatherPickup(run: Run, time: number) {
 
 export function conditions(run: Run, id: ZoneId, time = run.time) {
   const storm = activeStorm(run)
-  if (run.cyclone && run.front) return cycloneWeather(run.cyclone, run.front.point, run.effects, 2 - difficultyRules[run.difficulty].good * 3)
+  if (run.cyclone && run.front) return cycloneWeather(run.cyclone, run.front.point, run.effects, 2 - difficultyRules[run.difficulty].good * 3, run.strength)
   if (run.front && storm !== 'Tornado') return frontConditions(run, time)
   const rule = difficultyRules[run.difficulty]
   const hash = Math.imul(run.seed ^ Math.imul(id + 1, 374761393) ^ Math.imul(Math.floor(time / (2 * leg)) + 1, 668265263), 1274126177)
@@ -287,7 +287,8 @@ export function stormStats(run: Run) {
   const fraction = run.strength / 100
   const bonus = run.effects.wind * Math.min(1, fraction * 5)
   if (run.theater.storm === 'Hurricane') {
-    const windMph = Math.round(fraction * 162 + bonus)
+    const organizedCore = Math.min(1, Math.max(0, (run.strength - 12) / 18))
+    const windMph = Math.round(fraction * 162 + run.effects.wind * organizedCore)
     const fading = run.strength <= 12 && conditions(run, run.at).trend < 0
     return { windMph, widthKm: Math.round(90 + run.strength * 3.2 + run.effects.width),
       category: run.end ? 'Dissipated' : fading ? 'Remnant low' : hurricaneCategory(windMph) }

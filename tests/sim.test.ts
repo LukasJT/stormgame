@@ -406,7 +406,7 @@ describe('global weather scenarios', () => {
     expect(conditions(storm, 1).trend).toBeGreaterThan(before)
     expect(buyUpgrade(storm, 'deep')).toBe(true)
     expect(buyUpgrade(storm, 'marine')).toBe(false)
-    for (const id of ['shear', 'shear-core', 'marine']) expect(buyUpgrade(storm, id)).toBe(true)
+    for (const id of ['moist-inflow', 'surface-flux', 'marine']) expect(buyUpgrade(storm, id)).toBe(true)
     const wind = stormStats(storm).windMph
     expect(buyUpgrade(storm, 'eye')).toBe(true)
     expect(stormStats(storm).windMph).toBe(wind + 12)
@@ -419,8 +419,8 @@ describe('global weather scenarios', () => {
   it('naturally weakens from Category 5 through tropical depression after Gulf landfall', () => {
     const run = startRun(makeHurricaneDrop(22, -90), 0, 'Normal', defaultSeed)
     nameHurricane(run, 'Hazel')
-    run.momentum = 100
-    for (const id of ['warm', 'deep', 'shear', 'shear-core', 'marine', 'core', 'persistent', 'eye', 'rapid', 'inland-engine', 'surge']) expect(buyUpgrade(run, id)).toBe(true)
+    run.momentum = 250
+    for (const id of ['warm', 'deep', 'moist-inflow', 'surface-flux', 'marine', 'core', 'persistent', 'coastal-feed', 'inland-moisture', 'inland-engine', 'surge']) expect(buyUpgrade(run, id)).toBe(true)
     advance(run, 2400)
     expect(run.time).toBeGreaterThanOrEqual(12 * 60)
     expect(run.time).toBeLessThanOrEqual(19 * 60)

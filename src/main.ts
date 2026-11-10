@@ -480,7 +480,7 @@ function renderPanel() {
       ? upgradeBoard(state, choices, selected.id) + upgradeDetails(state, selected.id)
       : tornado ? tornadoOverview(state) : `<div class="evolve-tree"><div class="node"><div class="hex installed">${icon('storm')}</div><span>${name}</span></div></div>
         <div class="upgrade-detail"><h3>${name}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p><dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
-    content = `<nav class="evolution-tabs ${state.thunderstormType ? 'convection-tabs' : ''}" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${tab}</button>`).join('')}</nav>
+    content = `<nav class="evolution-tabs ${state.thunderstormType ? 'convection-tabs' : ''}" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${storm === 'Hurricane' && tab === 'Impact' ? 'Damage' : tab}</button>`).join('')}</nav>
       <div class="evolution network-evolution">${pane}</div>
       <div class="panel-status"><strong>${run.momentum} Momentum</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
   } else if (panel === 'history' && run.cyclone) {
@@ -522,7 +522,7 @@ function upgradeNode(state: Run, item: Upgrade, selected: string, connector = ''
 
 function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
   const groups = [...new Set(choices.map(item => item.group!))]
-  return `<div class="upgrade-tree" role="group" data-branch="${evolutionTab}" aria-label="${evolutionTab} upgrades">
+  return `<div class="upgrade-tree" role="group" data-branch="${evolutionTab}" aria-label="${state.cyclone && evolutionTab === 'Impact' ? 'Damage' : evolutionTab} upgrades">
     ${groups.map(group => {
       const nodes = choices.filter(item => item.group === group)
       const lanes = [...new Set(nodes.flatMap(item => item.lane ? [item.lane] : []))]

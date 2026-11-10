@@ -37,7 +37,7 @@ export function cycloneSpeed(point: MapPoint) {
   return 1.65 + Math.min(.75, Math.abs(latitudeAt(point)) / 52)
 }
 
-export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effects, difficulty: number) {
+export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effects, difficulty: number, strength: number) {
   const lat = Math.abs(latitudeAt(point))
   if (!cyclone.ocean) {
     const inland = Math.min(.10, cyclone.inlandKm / 12_000)
@@ -49,8 +49,11 @@ export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effec
   if (lat >= 34) return { name: 'Cold water and wind shear', trend: -(.16 + Math.min(.22, (lat - 34) * .014)) * buffer }
   if (lat >= 29) return { name: 'Cooler water and wind shear', trend: (-.042 - difficulty * .024) * buffer }
   const shear = Math.min(.78, Math.max(0, cyclone.travelKm - 850) / 1100)
+  const potential = Math.min(100, 43 + effects.seaGain * 220)
+  const approach = (potential - strength) * .012
+  const growth = Math.min(.075 - difficulty * .012 + effects.seaGain, approach)
   return { name: shear > .27 ? 'Increasing wind shear over warm water' : 'Warm ocean water',
-    trend: .30 - difficulty * .035 + effects.seaGain - shear * (1 - Math.min(.28, effects.coldBuffer)) }
+    trend: growth - shear * (1 - Math.min(.28, effects.coldBuffer)) }
 }
 
 // Points for the short map projection. The simulation uses the same flow and turning limit.

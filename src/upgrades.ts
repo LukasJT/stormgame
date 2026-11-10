@@ -135,53 +135,94 @@ const tornadoUpgrades = [
 ]
 
 const hurricane = [
-  ...upgradeTree('Formation', 'Ocean fuel and organization', {
-    'Warm water': [
-      ['warm', 'Warmer Water', 'Build strength faster over tropical water.', { seaGain: .045 }],
-      ['deep', 'Deep Heat', 'Draw more heat from deep warm water.', { seaGain: .065 }],
+  ...upgradeTree('Formation', 'Warm-water intensification', {
+    'Ocean heat': [
+      ['warm', 'Warmer Water', 'Strengthen faster and reach higher winds over warm water.', { seaGain: .060 }],
+      ['deep', 'Deep Heat', 'Draw on a deeper supply of warm water to strengthen further offshore.', { seaGain: .070 }],
     ],
-    'Shear resistance': [
-      ['shear', 'Low Shear', 'Reduce weakening in unfavorable water and wind shear.', { coldBuffer: .16 }],
-      ['shear-core', 'Aligned Core', 'Keep the circulation organized through changing winds.', { coldBuffer: .12 }],
+    'Ocean coupling': [
+      ['moist-inflow', 'Moist Inflow', 'Feed the circulation with moist air over warm seas.', { seaGain: .045 }],
+      ['surface-flux', 'Ocean Heat Exchange', 'Draw more energy from warm seas into the storm core.', { seaGain: .045 }],
     ],
-  }, ['marine', 'Marine Recharge', 'Strengthen more quickly over warm water and resist cooling.', { seaGain: .055, coldBuffer: .12 }]),
-  ...upgradeTree('Formation', 'Eyewall and landfall', {
+  }, ['marine', 'Marine Recharge', 'Unlock the highest sustained winds the warm-water path can support.', { seaGain: .055 }]),
+  ...upgradeTree('Formation', 'Wind shear and cooler water', {
+    Shear: [
+      ['shear', 'Low Shear', 'Reduce weakening in cooler water and wind shear.', { coldBuffer: .10 }],
+      ['shear-core', 'Aligned Core', 'Keep the circulation aligned when upper-level winds shift.', { coldBuffer: .09 }],
+    ],
+    'Cool water': [
+      ['moist-core', 'Moisture Reserve', 'Reduce strength loss after moving into cooler water.', { coldBuffer: .08 }],
+      ['cool-water', 'Cool-Water Buffer', 'Maintain the core longer as the ocean cools.', { coldBuffer: .08 }],
+    ],
+  }, ['shear-shield', 'Protected Core', 'Further resist the combined effects of shear and cooler water.', { coldBuffer: .09 }]),
+  ...upgradeTree('Formation', 'Landfall endurance', {
+    'Inner core': [
+      ['core', 'Inland Reserve', 'Reduce base weakening over land by 8%.', { inlandBuffer: .08 }],
+      ['persistent', 'Persistent Core', 'Reduce base inland weakening by another 6%.', { inlandBuffer: .06 }],
+    ],
+    'Moist inflow': [
+      ['coastal-feed', 'Coastal Feed', 'Maintain the circulation longer as it crosses onto land.', { inlandBuffer: .055 }],
+      ['inland-moisture', 'Inland Moisture', 'Slow the loss of strength over land.', { inlandBuffer: .055 }],
+    ],
+  }, ['inland-engine', 'Inland Engine', 'Reduce base inland weakening by another 7%.', { inlandBuffer: .07 }]),
+  ...upgradeTree('Impact', 'Sustained winds', {
     Eyewall: [
       ['eye', 'Tight Eye', 'Add up to 12 mph to sustained winds.', { wind: 12 }, 4],
-      ['rapid', 'Rapid Intensification', 'Add up to another 16 mph to sustained winds.', { wind: 16 }],
+      ['rapid', 'Eyewall Contraction', 'Add up to another 18 mph while the core holds together.', { wind: 18 }],
+      ['eyewall-jet', 'Eyewall Jet', 'Add up to another 25 mph to sustained winds.', { wind: 25 }],
+      ['eyewall-peak', 'Intense Eyewall', 'Add up to another 34 mph. The extra wind fades as the core weakens.', { wind: 34 }],
     ],
-    'Inland reserve': [
-      ['core', 'Inland Reserve', 'Reduce base weakening on land by 13%.', { inlandBuffer: .13 }],
-      ['persistent', 'Persistent Core', 'Reduce base inland weakening by another 10%.', { inlandBuffer: .10 }],
+  }),
+  ...upgradeTree('Impact', 'Storm size and reach', {
+    Circulation: [
+      ['bands', 'Outer Bands', 'Widen the storm by 45 km and strengthen its outer impact.', { width: 45, fringe: 1 }, 4],
+      ['broad-circulation', 'Broad Circulation', 'Widen the storm by another 50 km.', { width: 50 }],
+      ['outer-wind-field', 'Outer Wind Field', 'Extend the damaging footprint and add another 55 km of width.', { width: 55, fringe: 1 }],
+      ['expansive-circulation', 'Expansive Circulation', 'Add another 60 km of width and strengthen impact at the edges.', { width: 60, fringe: 1 }],
     ],
-  }, ['inland-engine', 'Inland Engine', 'Reduce base inland weakening by another 9%.', { inlandBuffer: .09 }]),
-  ...upgradeTree('Impact', 'Wind and rain', {
-    Wind: [
-      ['bands', 'Outer Bands', 'Widen the storm and strengthen its outer impact.', { width: 45, fringe: 1 }, 4],
-      ['gusts', 'Violent Gusts', 'Increase wind damage to property.', { gust: .24 }],
-    ],
+  }),
+  ...upgradeTree('Impact', 'Rainfall and inland flooding', {
     Rain: [
-      ['rain', 'Heavy Rain', 'Add rainfall damage across the storm footprint.', { rain: .25 }],
-      ['flood', 'Inland Flooding', 'Leave a damaging rain trail behind the storm.', { rainTrail: .23 }],
+      ['rain', 'Heavy Rain', 'Increase rainfall damage across the footprint.', { rain: .18 }],
+      ['flood', 'Inland Flooding', 'Leave a damaging rain trail behind the storm.', { rainTrail: .20 }],
+      ['training-bands', 'Training Rainbands', 'Repeated bands raise rainfall damage.', { rain: .16 }],
+      ['saturated', 'Compound Flooding', 'Increase rainfall damage and strengthen the rain trail.', { rain: .14, rainTrail: .18 }],
     ],
-  }, ['saturated', 'Compound Flooding', 'Increase rain damage and keep the rain trail damaging inland.', { rain: .15, rainTrail: .15 }]),
+  }),
   ...upgradeTree('Impact', 'Coastal surge', {
     Surge: [
       ['surge', 'Storm Surge', 'Push water ashore during sea-to-land crossings.', { surge: .08 }, 4],
-      ['surge-fan', 'Surge Fan', 'Strengthen the surge and expose more coastal districts.', { surge: .04, surgeFringe: 1 }],
-      ['coastal-inundation', 'Coastal Inundation', 'Drive a higher landfall surge across the exposed coast.', { surge: .065 }],
+      ['surge-fan', 'Surge Fan', 'Strengthen the surge and expose more coastal districts.', { surge: .035, surgeFringe: 1 }],
+      ['coastal-fetch', 'Long Coastal Fetch', 'Drive water across a wider stretch of exposed coast.', { surge: .035, surgeFringe: 1 }],
+      ['coastal-inundation', 'Coastal Inundation', 'Increase the force of landfall surge.', { surge: .055 }],
+    ],
+  }),
+  ...upgradeTree('Impact', 'Gusts and structural damage', {
+    Gusts: [
+      ['gusts', 'Convective Gusts', 'Increase property damage caused by short gusts.', { gust: .10 }],
+      ['gust-fronts', 'Rainband Gust Fronts', 'Increase damage to roofs and other exposed structures.', { gust: .12 }],
+      ['wind-loading', 'Repeated Wind Loading', 'Repeated gusts increase property damage further.', { gust: .14 }],
+      ['debris-impacts', 'Windborne Debris', 'Add damage from debris driven by strong gusts.', { gust: .17 }],
     ],
   }),
   ...upgradeTree('Disruption', 'Power and evacuation', {
     Power: [
       ['power', 'Power Outage', 'Strong impacts trigger outages and reduce shelter protection.', { outageTime: 48, power: .14 }],
-      ['broadcast', 'Broadcasting Outage', 'Slow sheltering while the power is out.', { broadcast: .32 }],
+      ['broadcast', 'Broadcasting Outage', 'Slow sheltering while power is out.', { broadcast: .32 }],
     ],
     Evacuation: [
       ['warnings', 'Delayed Advisories', 'Delay warnings in newly threatened districts.', { warningDelay: 13 }],
       ['gridlock', 'Road Gridlock', 'Increase travel time to shelter.', { gridlock: 25 }],
     ],
-  }, ['overload', 'Emergency Overload', 'Increase exposure where damage has already overwhelmed local response.', { overload: .18 }]),
+  }, ['overload', 'Emergency Overload', 'Increase exposure where damage overwhelms local response.', { overload: .18 }]),
+  ...upgradeTree('Disruption', 'Recovery setbacks', {
+    Infrastructure: [
+      ['signal', 'Repeater Outages', 'Trigger local outages and keep them active after impact.', { outageTime: 34 }],
+      ['blocked-routes', 'Blocked Access', 'Lengthen the time needed to reach shelter.', { gridlock: 16 }],
+      ['spare-capacity', 'Strained Backup Power', 'Make outages last longer and reduce shelter protection.', { outageTime: 25, power: .10 }],
+      ['supply', 'Supply Breakdown', 'Increase property damage while a local outage is active.', { supply: .22 }],
+    ],
+  }),
 ]
 
 const blizzard = [
