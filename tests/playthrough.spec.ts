@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function completeStarterFixture(page: Page) {
   await page.evaluate(() => {
-    const played = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire', 'Flooding', 'Dust Storm']
+    const played = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire', 'Dust Storm']
     localStorage.setItem('stormwake.records', JSON.stringify(Object.fromEntries(played.map(event => [event, { score: 0, deaths: 0 }]))))
   })
 }
@@ -31,9 +31,9 @@ test('starts at the main menu and requires weather and difficulty before showing
   await play.press('Enter')
   await expect(page.getByRole('heading', { name: 'Choose a weather event' })).toBeFocused()
   const events = page.getByRole('group', { name: 'Weather events' })
-  await expect(events.getByRole('button')).toHaveCount(8)
+  await expect(events.getByRole('button')).toHaveCount(7)
   await expect(events.getByRole('button').first()).toHaveAccessibleName('Tornado')
-  await expect(events.locator('button:disabled')).toHaveCount(7)
+  await expect(events.locator('button:disabled')).toHaveCount(6)
   await expect(events.getByRole('button', { name: 'Hurricane', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { name: 'Stormwake' })).toBeVisible()
@@ -463,11 +463,26 @@ test('shows the heat dome and poleward jet-stream ridge at world zoom', async ({
   await expect(dome.locator('.jet-stream-line')).toBeVisible()
 })
 
+test('rejects wildfire ignition in cells with no recorded burns', async ({ page }) => {
+  await page.goto('/')
+  await openMap(page, 'Wildfire')
+  await dropAt(page, 25, 15)
+  await expect(page.getByText('No eligible historical burning here. Choose shaded land.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Begin', exact: true })).toHaveCount(0)
+  await page.getByRole('spinbutton', { name: 'Latitude' }).fill('38.76')
+  await page.getByRole('spinbutton', { name: 'Longitude' }).fill('-120.58')
+  await page.getByRole('button', { name: 'Set drop point' }).click()
+  await expect(page.getByText('Frequent historical burning')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Begin', exact: true })).toBeEnabled()
+})
+
 test('reveals smaller cities at higher zoom and sets a precise wildfire start without moving the map', async ({ page }) => {
+  await page.clock.install()
   await page.goto('/')
   await openMap(page, 'Wildfire')
   const atlas = page.locator('.world-atlas')
-  await expect(atlas.locator('[data-city] text').getByText('Tokyo', { exact: true })).toBeVisible()
+  await expect(atlas.getByRole('img', { name: 'Historical wildfire frequency' })).toBeVisible()
+  await expect(atlas.getByRole('button', { name: /starting region/ })).toHaveCount(0)
   await expect(atlas.locator('[data-city] text').getByText('Sacramento', { exact: true })).toHaveCount(0)
   const screenPoint = async (x: number, y: number) => atlas.evaluate((svg, point) => {
     const hit = new DOMPoint(point.x, point.y).matrixTransform((svg as SVGSVGElement).getScreenCTM()!)
@@ -488,10 +503,20 @@ test('reveals smaller cities at higher zoom and sets a precise wildfire start wi
   expect(position[1]).toBeCloseTo(512.766, 0)
   await expect(page.getByRole('button', { name: 'Pause', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Begin', exact: true }).click()
-  await expect(page.getByText('Spread rate', { exact: true })).toBeVisible()
+  await expect(page.getByText('Burned area', { exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Wildfire perimeter' })).toBeVisible()
+  await expect(page.getByText('Fire perimeter', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Evolve' }).click()
-  await expect(page.getByRole('button', { name: 'Fast Spread' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Rain Resistance' })).toBeVisible()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'Movement', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Surface Gusts' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Abilities', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Active Flanks' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: /^Send embers / }).click()
+  await expect(page.locator('#controls')).toContainText('2 burning hexes')
+  await page.clock.runFor(12000)
+  await expect(page.locator('[data-fire-state="Burning"]')).toBeVisible()
 })
 
 test('drops outside suggested areas by map click or typed coordinates', async ({ page }) => {
@@ -615,7 +640,7 @@ test.describe('touch play', () => {
     await openMap(page, 'Wildfire')
     const atlas = page.locator('.world-atlas')
     const cursor = await atlas.evaluate(svg => {
-      const point = new DOMPoint(587, 515).matrixTransform((svg as SVGSVGElement).getScreenCTM()!)
+      const point = new DOMPoint(594.2, 512.4).matrixTransform((svg as SVGSVGElement).getScreenCTM()!)
       return { x: Math.round(point.x), y: Math.round(point.y) }
     })
     const location = () => atlas.evaluate((svg, cursor) => {

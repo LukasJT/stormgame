@@ -1,3 +1,4 @@
+import { canIgnite, fireColors, fireHistoryColors, fireHistoryLabels } from './wildfire'
 import { snowfallScale } from './snow-map'
 import '@fontsource/barlow-condensed/600.css'
 import '@fontsource/barlow-condensed/700.css'
@@ -20,7 +21,7 @@ import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
-import { snowfallDepth, measurementText, temperature, waterDepth, windSpeed, formatDistance } from './units'
+import { snowfallDepth, measurementText, temperature, windSpeed, formatDistance } from './units'
 import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
 
 const menu = document.querySelector<HTMLElement>('#menu')!
@@ -310,6 +311,11 @@ function worldOptions() {
 }
 
 function routeOrders(state: Run) {
+  if (state.fire) return `<div class="route-status front-orders"><div class="course-caption">
+    <strong>${state.fire.active} burning ${state.fire.active === 1 ? 'hex' : 'hexes'} · ${Math.round(state.fire.containment * 100)}% contained</strong>
+    <span>${mapFeedback || (state.fire.aircraft ? 'Ground crews and aircraft responding' : state.fire.responseAt !== null ? 'Ground crews building fireline' : 'Wind carries embers into new fuel')}</span></div>
+    <button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>Send embers</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} embers</small></button></div>`
+
   if (state.cyclone) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.name} · Drifting ${directionName(state.front!.heading)}</strong>
     <span>${conditions(state, state.at).name}</span></div>${button('history', 'Track history', undefined, 'route-choice')}</div>`
@@ -469,7 +475,7 @@ function renderPanel() {
     const tree = trees[storm]
     const tornado = storm === 'Tornado'
     const evolvingStorm = storm === 'Thunderstorm'
-    const tabs = tornado || storm === 'Blizzard' || evolvingStorm ? [tornado ? 'Tornado' : 'Storm', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
+    const tabs = tornado || storm === 'Blizzard' || storm === 'Wildfire' || evolvingStorm ? [tornado ? 'Tornado' : 'Storm', ...tornadoBranches] : ['Storm', ...branches.filter(branch => tree.some(item => item.branch === branch))]
     const choices = tree.filter(item => item.branch === evolutionTab)
     const selected = choices.find(item => item.id === selectedUpgrade) ?? choices[0]
     title = `Evolve ${storm.toLowerCase()}`
@@ -635,11 +641,14 @@ function renderWeatherPickup(state: Run | null) {
   weatherPickup.style.top = `${top}px`
 }
 
+function fireArea(km2: number) {
+  return settings.units === 'metric' ? `${km2.toFixed(1)} km²` : `${Math.round(km2 * 247.105)} acres`
+}
+
 function liveReadings(state: Run) {
   const reading = stormStats(state)
   const hazard = hazardFor(activeStorm(state))
-  const mainReading = state.theater.storm === 'Wildfire' ? ['Spread rate', state.zones[state.at].sea ? 'No fuel' : `${Math.round(travelRate(state) * 100 / hazards.Wildfire.speed)}%`]
-    : state.theater.storm === 'Flooding' ? ['Water depth', `${waterDepth(state.strength * .045)}`]
+  const mainReading = state.fire ? ['Burned area', fireArea(state.fire.areaKm2)]
     : state.theater.storm === 'Dust Storm' ? ['Visibility', `${formatDistance(2 * (1 - state.strength / 100) ** 2 + .02)}`]
     : state.theater.storm === 'Heat Dome' ? ['Temperature', `${temperature(29 + state.strength * .28 + state.effects.heatDegrees)}`]
     : ['Wind speed', `${windSpeed(reading.windMph)}`]
@@ -648,6 +657,10 @@ function liveReadings(state: Run) {
     mainReading,
     [hazard ? 'Conditions' : state.theater.storm === 'Hurricane' ? 'Category' : 'Status', reading.category],
   ]
+  if (state.fire) {
+    items[0] = ['Wind toward', ['E', 'SE', 'SW', 'W', 'NW', 'NE'][state.fire.wind]]
+    if (!opening) items.push(['Spot fires', String(state.fire.spotfires)])
+  }
   if (state.blizzardPattern) items.unshift(['Type', state.blizzardPattern])
   if (state.snow && !opening) {
     const peak = Array.from(state.snow.deposits.values()).reduce((max, report) => Math.max(max, report.cm), 0)
@@ -676,16 +689,20 @@ function render() {
   }
   const state = run
   const total = state ? totals(state) : { deaths: 0, damage: 0 }
-  const showOverlay = !!state && !state.tornado && !opening && (!state.end || !!state.snow)
+  const showOverlay = !!state && !state.tornado && !state.fire && !opening && (!state.end || !!state.snow)
   weatherToggle.hidden = !showOverlay
   weatherToggle.setAttribute('aria-pressed', String(showWeather))
   chart.dataset.weather = showWeather ? 'on' : 'off'
-  const modeled = state && ['Supercell', 'Wildfire', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
+  const modeled = state && ['Supercell', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
   const snowLayer = showOverlay && showWeather && !!state?.snow
-  weatherCredit.classList.toggle('snow-legend', snowLayer)
+  const fireLayer = !!state?.fire && !opening
+  weatherCredit.classList.toggle('snow-legend', snowLayer || fireLayer)
   weatherToggle.setAttribute('aria-label', state?.snow ? 'Snowfall overlay' : 'Weather overlay')
   weatherToggle.title = state?.snow ? 'Snowfall overlay' : 'Weather overlay'
-  if (snowLayer) {
+  if (fireLayer) {
+    replace(weatherCredit, `<strong>Fire perimeter</strong><div>${Object.entries(fireColors).map(([label, color]) =>
+      `<span style="--snow-color:${color}">${label}</span>`).join('')}</div>`)
+  } else if (snowLayer) {
     const labels = [1, 4, 8, 14, 24, 30]
     replace(weatherCredit, `<strong>Storm-total snowfall</strong><div>${labels.map(inches =>
       `<span style="--snow-color:${snowfallScale.find(([value]) => value === inches)?.[1]}">${snowfallDepth(inches * 2.54)}${inches === 30 ? '+' : ''}</span>`).join('')}</div>`)
@@ -733,7 +750,10 @@ function render() {
       ? `<h1 tabindex="-1">Drop your hurricane anywhere</h1><p><i style="--storm-color:${stormColor(storm)}"></i> Cyan areas mark suggested warm-water starts</p>`
       : storm === 'Tornado' ? `<h1 tabindex="-1">Choose where your tornado forms</h1><p>Tap anywhere. Shaded regions offer stronger inflow.</p>
         <ul class="tornado-climate-key" aria-label="Formation conditions">${[...tornadoClimateTiers].reverse().map(tier => `<li><i style="--storm-color:${tier.color}"></i>${tier.label}</li>`).join('')}</ul>`
-        : `<h1 tabindex="-1">${storm === 'Wildfire' ? 'Choose where to start your fire' : 'Choose where your storm forms'}</h1><p><i style="--storm-color:${stormColor(storm)}"></i> Tap anywhere. Highlighted regions are suggested starts.</p>`
+        : storm === 'Wildfire' ? `<h1 tabindex="-1">Choose where to start your fire</h1><p role="status">${mapFeedback || 'Choose shaded land. Fires spread more easily where burning was recorded more often.'}</p>
+          <ul class="tornado-climate-key" aria-label="Historical burn frequency">${fireHistoryLabels.map((label, index) => `<li><i style="--storm-color:${fireHistoryColors[index]}"></i>${label}</li>`).join('')}</ul>`
+        : `<h1 tabindex="-1">Choose where your storm forms</h1><p><i style="--storm-color:${stormColor(storm)}"></i> Tap anywhere. Highlighted regions are suggested starts.</p>`
+    : opening && state.fire ? `<h1>${state.zones[state.origin].name}</h1><p role="status">${mapFeedback || conditions(state, state.origin).name}</p>`
     : opening && state.blizzardPattern ? `<h1>${state.zones[state.origin].name}</h1><p>${blizzardPatterns[state.blizzardPattern].description}</p>`
     : opening ? state.theater.custom
       ? `<h1>${state.zones[state.origin].name}</h1><p>${coordinates(state.theater.places[0][1], state.theater.places[0][2])} · ${conditions(state, state.origin).name}${storm === 'Tornado' ? '' : conditions(state, state.origin).trend > 0 ? ' · Gains strength' : ' · Weakens here'}</p>`
@@ -749,6 +769,14 @@ function render() {
 
 function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: BlizzardPattern | null = null) {
   if (!difficulty) return
+  if (theater.storm === 'Wildfire') {
+    const [, lat, lon] = theater.places[origin]
+    if (!canIgnite({ x: (lon + 180) * 10, y: (90 - lat) * 10 })) {
+      mapFeedback = 'No eligible historical burning here. Choose shaded land.'
+      render()
+      return
+    }
+  }
   run = startRun(theater, origin, difficulty, seed)
   unlockedOnFinish = undefined
   if (blizzardPattern) chooseBlizzardPattern(run, blizzardPattern)
@@ -780,6 +808,10 @@ async function launch() {
   run.zones = makeZones(run.theater)
   if (run.tornado) run.tornado.startedAt = tornadoStartDate()
   opening = false
+  if (run.fire) {
+    overview = false
+    run.front?.areas.clear()
+  }
   lastFrame = performance.now()
   render()
   transport.querySelector<HTMLElement>('[data-key="pause"]')?.focus({ preventScroll: true })
@@ -788,7 +820,7 @@ async function launch() {
 function showPanel(kind: NonNullable<typeof panel>, trigger: HTMLElement) {
   panel = kind
   if (kind === 'evolve') {
-    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.snow || run?.theater.storm === 'Thunderstorm' ? 'Storm' : 'Formation'
+    evolutionTab = run?.theater.storm === 'Tornado' ? 'Tornado' : run?.snow || run?.fire || run?.theater.storm === 'Thunderstorm' ? 'Storm' : 'Formation'
     selectedUpgrade = null
   }
   panelTrigger = trigger
@@ -964,6 +996,10 @@ document.addEventListener('click', event => {
     case 'satellite': if (run) triggerSatellite(run); break
     case 'dismiss-news': dismissedHeadline = latestHeadline(); break
     case 'ability':
+      if (run?.fire) {
+        mapFeedback = useAbility(run) ? '' : 'No receptive fuel within ember range.'
+        break
+      }
       if (run?.effects.targetedBurst) return prepareMapOrder('burst')
       if (run?.front && stormAbility(run)?.tornado) {
         if (run.effects.precisionDrop) return prepareMapOrder('drop')
@@ -1048,7 +1084,7 @@ controls.addEventListener('submit', event => {
     return launch()
   }
   if (event.target.id !== 'coordinate-form') return
-  if (run || !event.target.reportValidity()) return
+  if ((run && !opening) || !event.target.reportValidity()) return
   const data = new FormData(event.target)
   chooseOrigin(makeDrop(storm, Number(data.get('latitude')), Number(data.get('longitude'))))
 })

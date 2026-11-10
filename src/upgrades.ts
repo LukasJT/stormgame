@@ -16,6 +16,7 @@ export const baseEffects = {
   tornadoEfficiency: 0, tornadoSteering: 0, precisionDrop: 0, floodPower: 0, floodLife: 0, endurance: 0,
   targetedBurst: 0, abilityReach: 0, heatDegrees: 0, tornadoSpeed: 0, rainWrap: 0, hail: 0, hailRadius: 0,
   coldTolerance: 0, heatTolerance: 0, shelterBreach: 0,
+  fireSpot: 0, fireLine: 0, fireAir: 0, fireDelay: 0,
   mesocyclone: 0, outflow: 0, newCells: 0, lightning: 0, lightningOutage: 0,
   tornadoRange: 0, tornadoLifetime: 0, satelliteChance: 0, satelliteTrigger: 0,
 }
@@ -319,63 +320,88 @@ const blizzard = [
 ]
 
 const wildfire = [
-  ...upgradeTree('Formation', 'Wind and fuel moisture', {
+  ...upgradeTree('Movement', 'Wind-driven spread', {
     Wind: [
-      ['spread', 'Fast Spread', 'Move the fire front 25% faster between zones.', { spread: .25 }],
-      ['upslope', 'Upslope Run', 'Increase forward spread as winds carry flames into unburned fuels.', { spread: .18 }],
+      ['spread', 'Surface Gusts', 'Help flames reach adjacent fuel.', { spread: .16 }, 3],
+      ['fire-wind', 'Sustained Wind', 'Increase heat transfer toward unburned ground.', { spread: .18 }, 5],
     ],
-    Fuel: [
-      ['rain-proof', 'Duff Insulation', 'Shield burning fuel from rain and slow weakening in wet conditions.', { hazardBuffer: .38 }, 4],
-      ['dry-fuels', 'Dry Fuel Beds', 'Grow faster when fuels dry out.', { hazardGain: .055 }],
+    Front: [['fire-edge', 'Fast-Moving Edge', 'Increase the rate of spread along the perimeter.', { spread: .12 }, 4]],
+  }, ['fire-run', 'Wind-Driven Run', 'Allow another patch to ignite during a spread step.', { spread: .12, fringe: 1 }, 10]),
+  ...upgradeTree('Movement', 'Fuel continuity', {
+    Surface: [
+      ['dry-fuels', 'Dry Fine Fuels', 'Dry grass and litter help fire build heat.', { hazardGain: .008 }, 3],
+      ['fire-continuity', 'Continuous Litter', 'Move more easily through connected surface fuel.', { spread: .15 }, 5],
     ],
-  }, ['deep-roots', 'Deep Fuel Reserve', 'Use available fuel more slowly and sustain burns behind the front.', { endurance: .23, persistence: 35 }]),
-  ...upgradeTree('Impact', 'Spot fires and crown fire', {
+    Reserve: [['fire-logs', 'Coarse Fuel', 'Sustain burning with a larger fuel reserve.', { endurance: .16 }, 4]],
+  }, ['deep-roots', 'Deep Fuel Reserve', 'Slow fuel exhaustion and sustain the fire edge.', { endurance: .20, spread: .10 }, 9]),
+  ...upgradeTree('Movement', 'Moisture resistance', {
+    Duff: [
+      ['rain-proof', 'Duff Insulation', 'Reduce cooling during damp weather.', { hazardBuffer: .16 }, 3],
+      ['fire-deep-duff', 'Deep Duff', 'Retain heat and fuel in damp conditions.', { hazardBuffer: .13, endurance: .10 }, 5],
+    ],
+    Drying: [['fire-drying', 'Preheated Fuel', 'Build heat faster as nearby fuel dries.', { hazardGain: .009 }, 4]],
+  }, ['fire-dry-window', 'Persistent Drying', 'Retain more heat when damp air returns.', { hazardBuffer: .18, hazardGain: .006 }, 9]),
+  ...upgradeTree('Damage', 'Crown fire', {
+    Canopy: [
+      ['crown', 'Torching Canopy', 'Build hotter flames as individual crowns ignite.', { hazardGain: .009 }, 3],
+      ['fire-ladder', 'Ladder Fuels', 'Carry fire into the canopy and increase damage.', { hazardDamage: .13, hazardGain: .006 }, 5],
+    ],
+    Heat: [
+      ['fire-radiant', 'Radiant Heat', 'Increase damage around burning fuel.', { hazardDamage: .16 }, 3],
+      ['fire-crown-front', 'Crown Fire Front', 'Sustain a hotter, more damaging crown fire.', { hazardDamage: .15, hazardGain: .009 }, 6],
+    ],
+  }, ['fire-crown-run', 'Active Crown Fire', 'Increase heat and damage across the fire front.', { hazardDamage: .22, hazardGain: .012 }, 11]),
+  ...upgradeTree('Damage', 'Ember spotting', {
     Embers: [
-      ['embers', 'Long-Range Embers', 'Generate embers faster and strengthen spot fires.', { chargeGain: .22, burstPower: .22 }],
-      ['ember-loft', 'Lofted Firebrands', 'Keep spot fires active longer after the main front moves away.', { burst: 17 }],
+      ['embers', 'Lofted Firebrands', 'Recharge the Send Embers ability faster.', { chargeGain: .18 }, 3],
+      ['ember-loft', 'Long-Range Embers', 'Reach farther downwind and let intense fire start occasional spot fires.', { fireSpot: 1 }, 6],
     ],
-    'Crown fire': [
-      ['crown', 'Crown Fire', 'Increase damage and reach a neighboring zone.', { hazardDamage: .24, fringe: 1, width: 7 }],
-      ['smolder', 'Smoldering Fuels', 'Keep burned zones active for 55 more seconds.', { persistence: 55 }],
+    Ignition: [
+      ['fire-receptive', 'Receptive Fuel', 'Give new spot fires more starting heat.', { burstPower: .18 }, 3],
+      ['fire-ember-shower', 'Ember Shower', 'Further strengthen newly ignited spot fires.', { burstPower: .18, chargeGain: .10 }, 6],
     ],
-  }, ['ember-storm', 'Ember Storm', 'Strengthen spot fires and keep them active longer.', { burst: 15, burstPower: .35 }]),
-  ...upgradeTree('Disruption', 'Evacuation and smoke', {
-    Response: [
-      ['evacuation', 'Delayed Evacuation', 'Delay evacuation orders in newly threatened areas.', { warningDelay: 15 }],
-      ['smoke-roads', 'Smoke-Choked Roads', 'Slow travel to shelter as smoke reduces visibility.', { gridlock: 26 }],
-      ['response', 'Overwhelmed Response', 'Increase exposure in districts where property damage has disrupted response.', { overload: .23 }],
+  }, ['ember-storm', 'Ember Storm', 'Extend spotting reach and start hotter spot fires.', { fireSpot: 1, burstPower: .22 }, 11]),
+  ...upgradeTree('Damage', 'Persistent heat', {
+    Fuel: [
+      ['smolder', 'Smoldering Fuels', 'Use fuel more slowly.', { endurance: .12 }, 3],
+      ['fire-coals', 'Deep Coals', 'Maintain heat and burn for longer.', { endurance: .14, hazardGain: .005 }, 5],
     ],
-  }),
-]
-
-const flooding = [
-  ...upgradeTree('Formation', 'Runoff and retention', {
-    Runoff: [
-      ['favorable', 'Saturated Soil', 'Build flood strength faster when rain falls on saturated ground.', { hazardGain: .055 }],
-      ['reserve', 'Tributary Inflow', 'Replenish runoff faster between overtopping events.', { chargeGain: .27 }],
+    Heat: [['fire-buildup', 'Heat Buildup', 'Increase damage from active fire.', { hazardDamage: .13 }, 4]],
+  }, ['fire-holdover', 'Holdover Heat', 'Extend burning and intensify damage.', { endurance: .16, hazardDamage: .16 }, 9]),
+  ...upgradeTree('Damage', 'Built exposure', {
+    Structures: [
+      ['fire-structures', 'Structure Exposure', 'Increase property damage in populated areas.', { hazardDamage: .14 }, 3],
+      ['fire-interface', 'Interface Fire', 'Increase damage at the edge of settlements.', { hazardDamage: .16 }, 5],
     ],
-    Retention: [
-      ['persistence', 'Floodplain Storage', 'Lose less strength as local water begins to drain.', { hazardBuffer: .29 }],
-      ['drainage', 'Slow Drainage', 'Keep standing water damaging for another 50 seconds behind the flood front.', { persistence: 50 }],
+    Smoke: [['fire-smoke-damage', 'Dense Smoke', 'Add to damage in affected districts.', { hazardDamage: .10 }, 4]],
+  }, ['fire-urban-edge', 'Urban Interface', 'Increase property damage where fire reaches settlements.', { hazardDamage: .20 }, 9]),
+  ...upgradeTree('Abilities', 'Ground crew resistance', {
+    Perimeter: [
+      ['fire-flanks', 'Active Flanks', 'Slow containment as crews divide across the perimeter.', { fireLine: .09 }, 3],
+      ['fire-line-hold', 'Persistent Flanks', 'Further slow crew containment.', { fireLine: .09 }, 6],
     ],
-  }, ['hazard-endurance', 'Backwater Flooding', 'Preserve watershed support and keep low-lying districts flooded longer.', { endurance: .21, persistence: 25 }]),
-  ...upgradeTree('Impact', 'Water depth and levees', {
-    'Flood depth': [
-      ['impact', 'Deeper Water', 'Increase the ongoing impact of floodwater.', { hazardDamage: .24 }],
-      ['footprint', 'Floodplain Spill', 'Widen the flood and expose an adjacent zone.', { fringe: 1, width: 12 }],
+    Front: [
+      ['fire-line-heat', 'Intense Flame Front', 'High heat limits direct attack.', { fireLine: .08 }, 3],
+      ['fire-long-edge', 'Long Perimeter', 'Increase the amount of line crews must hold.', { fireLine: .08 }, 6],
     ],
-    Levees: [
-      ['mastery', 'Levee Overtopping', 'Increase the damage of overtopping events.', { burstPower: .30 }],
-      ['bank-erosion', 'Bank Erosion', 'Keep overtopped areas under water longer.', { burst: 19 }],
+  }, ['fire-line-pressure', 'Perimeter Pressure', 'Slow progress on crew containment lines.', { fireLine: .11 }, 12]),
+  ...upgradeTree('Abilities', 'Aerial suppression resistance', {
+    Smoke: [
+      ['fire-smoke-column', 'Smoke Column', 'Reduce the effect of aerial drops.', { fireAir: .12 }, 3],
+      ['fire-low-visibility', 'Low Visibility', 'Further reduce aerial suppression.', { fireAir: .12 }, 6],
     ],
-  }, ['hazard-dominance', 'Breach Cascade', 'Increase overtopping damage and send floodwater into another neighboring zone.', { burstPower: .28, burst: 14, abilityReach: 1 }]),
-  ...upgradeTree('Disruption', 'Warnings and washed-out roads', {
-    Response: [
-      ['response', 'Rapid Rise', 'Shorten the time between detection and impact by delaying local warnings.', { warningDelay: 14 }],
-      ['grid', 'Washed-Out Roads', 'Increase the time residents need to reach shelter.', { gridlock: 30 }],
-      ['flood-substations', 'Submerged Substations', 'Flood damage interrupts local power and slows sheltering.', { outageTime: 55, broadcast: .23, power: .11 }],
+    Weather: [
+      ['fire-gusty-air', 'Gusty Air', 'Make aerial suppression less effective in the model.', { fireAir: .10 }, 3],
+      ['fire-turbulence', 'Turbulent Air', 'Reduce containment gained during a drop.', { fireAir: .10 }, 6],
     ],
-  }),
+  }, ['fire-flight-window', 'Limited Flight Window', 'Further reduce the effect of aerial suppression.', { fireAir: .12 }, 11]),
+  ...upgradeTree('Abilities', 'Warnings and evacuation', {
+    Warnings: [
+      ['evacuation', 'Late Detection', 'Give crews and evacuation warnings a later start.', { fireDelay: 8, warningDelay: 6 }, 3],
+      ['response', 'Overwhelmed Response', 'Delay additional response in damaged districts.', { fireDelay: 6, overload: .12 }, 6],
+    ],
+    Roads: [['smoke-roads', 'Smoke Over Roads', 'Slow evacuation in low visibility.', { gridlock: 14 }, 4]],
+  }, ['fire-evac-pressure', 'Evacuation Pressure', 'Extend response and evacuation delays.', { fireDelay: 7, warningDelay: 6, gridlock: 10 }, 10]),
 ]
 
 const dustStorm = [
@@ -648,7 +674,6 @@ export const trees: Record<Storm, Upgrade[]> = {
   Supercell: convectionTree('Supercell'),
   Lightning: convectionTree('Lightning'),
   Wildfire: wildfire,
-  Flooding: flooding,
   'Dust Storm': dustStorm,
   'Heat Dome': heatDome,
 }

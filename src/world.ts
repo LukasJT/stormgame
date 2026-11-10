@@ -127,20 +127,6 @@ const inlandAreas: Record<string, StartArea[]> = {
       ['Marathon area', 38.16, 23.96, 'GR'], ['Athens area', 37.98, 23.73, 'GR'], ['Chalcis area', 38.46, 23.59, 'GR'],
     ]],
   ],
-  Flooding: [
-    ['mississippi', 'Lower Mississippi', [
-      ['Upper delta', 33.5, -90.3, 'US', '28133'], ['Yazoo basin', 32.86, -90.41, 'US', '28163'],
-      ['Vicksburg area', 32.35, -90.88, 'US', '28149'], ['Natchez area', 31.56, -91.40, 'US', '28001'], ['Baton Rouge area', 30.45, -91.14, 'US', '22033'],
-    ]],
-    ['ganges', 'Ganges–Brahmaputra Delta', [
-      ['Jamuna floodplain', 24.4, 89.72, 'BD'], ['Padma floodplain', 23.67, 89.6, 'BD'],
-      ['Dhaka area', 23.81, 90.41, 'BD'], ['Chandpur area', 23.23, 90.65, 'BD'], ['Barishal area', 22.70, 90.37, 'BD'],
-    ]],
-    ['rhine', 'Lower Rhine', [
-      ['Rhine valley', 51.14, 6.87, 'DE'], ['Ruhr lowlands', 51.44, 6.78, 'DE'],
-      ['Duisburg area', 51.43, 6.76, 'DE'], ['Wesel area', 51.66, 6.62, 'DE'], ['Arnhem area', 51.99, 5.91, 'NL'],
-    ]],
-  ],
   'Dust Storm': [
     ['sonora', 'Sonoran Desert', [
       ['Sonoran flats', 32.87, -112.65, 'US', '04013'], ['Lower Gila', 32.98, -113.12, 'US', '04013'],

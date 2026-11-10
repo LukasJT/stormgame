@@ -57,6 +57,15 @@ it('counts historical completions without guessing their difficulty', async () =
   expect(profile.stormRecord('Tornado', 'Normal')).toBeUndefined()
 })
 
+it('skips the retired Flooding event while preserving its Dust Storm unlock', async () => {
+  vi.resetModules()
+  vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'stormwake.rankings'
+    ? JSON.stringify({ Flooding: { Easy: { damage: 0, deaths: 0, stars: 1 } } }) : null })
+  const profile = await import('../src/profile')
+  expect(profile.nextEvent('Wildfire')).toBe('Dust Storm')
+  expect(profile.eventUnlocked('Dust Storm')).toBe(true)
+})
+
 it('seeds irregular Momentum awards and lets weather pickups pay out only once', () => {
   const active = startRun(plains, 0, 'Easy', defaultSeed)
   const unattended = startRun(plains, 0, 'Easy', defaultSeed)

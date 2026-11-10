@@ -12,7 +12,6 @@ const stormEchoes: Partial<Record<ReturnType<typeof activeStorm>, Echo>> = {
   Pulse: { ...cell, label: 'Compact pulse cell' },
   'Storm Cell': cell,
   Lightning: { ...cell, label: 'Electrified storm cell' },
-  Flooding: { ...bow, ratio: .67, label: 'Heavy rain bands and runoff' },
 }
 
 function image(echo: Echo) {
@@ -20,8 +19,6 @@ function image(echo: Echo) {
 }
 
 const modeled = {
-  Wildfire: { label: 'Smoke plume and hotspots', color: '#c0a197',
-    shapes: '<ellipse cx=".22" cy="-.02" rx=".43" ry=".20"/><ellipse cx=".42" cy="-.09" rx=".33" ry=".16"/><circle class="weather-hotspot" r=".06"/><circle class="weather-hotspot" cx="-.09" cy=".045" r=".034"/>' },
   'Dust Storm': { label: 'Dust wall and trailing plume', color: '#e8b579',
     shapes: '<ellipse cx="-.16" rx=".47" ry=".26"/><ellipse cx=".11" rx=".26" ry=".35"/><ellipse cx=".09" rx=".14" ry=".31"/>' },
 }
@@ -71,7 +68,7 @@ export function drawWeather(run: Run) {
   const tornadic = storm === 'Supercell'
   const echo = run.cyclone ? { file: 'cyclone', ratio: 1, label: 'Tropical cyclone radar' }
     : stormEchoes[storm]
-  const physical = storm === 'Wildfire' || storm === 'Dust Storm' ? modeled[storm] : undefined
+  const physical = storm === 'Dust Storm' ? modeled[storm] : undefined
   if (!echo && !physical && !tornadic) return ''
   const strength = run.strength / 100
   const diameter = run.cyclone ? stats.widthKm * 1.65 : stats.widthKm * 1.35

@@ -57,14 +57,9 @@ export const hazards = {
     ability: { name: 'Discharge lightning', resource: 'charge', cost: 20, seconds: 4, damage: .022 },
   },
   Wildfire: {
-    color: '#ff9a60', icon: 'fire', group: 'ground', description: 'Ignite a fire, drive its spread, and keep earlier burn zones active.',
+    color: '#ff9a60', icon: 'fire', group: 'ground', description: 'Ignite on the historical burn map, grow a fire perimeter, and keep spreading as crews respond.',
     weather: ['Dry fuels and wind', 'Mixed fuel moisture', 'Rain and wet fuels'], width: 18, wind: 60, speed: .8, growth: .15, recharge: .55, passive: .003, trail: 70, warning: 'evacuation order',
     ability: { name: 'Send embers', resource: 'embers', cost: 25, seconds: 40, damage: .0033, reach: 2 },
-  },
-  Flooding: {
-    color: '#63d8ff', icon: 'rain', group: 'ground', description: 'Build runoff, overtop downstream banks, and leave standing water.',
-    weather: ['Saturated ground', 'Steady runoff', 'Draining ground'], width: 38, wind: 65, speed: .85, growth: .14, recharge: .65, passive: .0023, trail: 62, warning: 'flood warning',
-    ability: { name: 'Overtop banks', resource: 'runoff', cost: 27, seconds: 43, damage: .0047, reach: 1 },
   },
   'Dust Storm': {
     color: '#eec388', icon: 'wind', group: 'ground', description: 'Pick up dust and send a low-visibility wall into nearby areas.',

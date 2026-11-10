@@ -19,7 +19,7 @@ describe('global weather scenarios', () => {
     const area = theaters.find(theater => theater.storm === storm)!
     const run = startRun(area, 0, 'Easy', defaultSeed)
     useAbility(run)
-    expect(run.front ? run.front.funnels.length + run.front.bursts.length : run.pulses.length).toBeGreaterThan(0)
+    expect(run.fire?.spotfires ?? (run.front ? run.front.funnels.length + run.front.bursts.length : run.pulses.length)).toBeGreaterThan(0)
     expect(run.charge).toBe(35 - hazards[storm].ability.cost)
     advance(run, 6)
     expect(totals(run).damage).toBeGreaterThan(0)
@@ -271,27 +271,6 @@ describe('global weather scenarios', () => {
     expect(travelRate(run)).toBeGreaterThan(1)
     advance(run, 1)
     expect(chooseBlizzardPattern(run, 'Lake-Effect Storm')).toBe(false)
-  })
-
-  it('honors exact wildfire ignition and applies spread, rain resistance, and response upgrades', () => {
-    const exact = makeDrop('Wildfire', 38.7234, -120.82)
-    expect(exact.places[0].slice(1, 3)).toEqual([38.7234, -120.82])
-    const fire = startRun(exact, 0, 'Hard', defaultSeed)
-    const baselineRate = travelRate(fire)
-    const rainy = Array.from({ length: 30 }, (_, index) => index * 2 * leg)
-      .find(time => conditions(fire, 0, time).name === 'Rain and wet fuels')!
-    const wetTrend = conditions(fire, 0, rainy).trend
-    fire.momentum = 15
-    expect(buyUpgrade(fire, 'spread')).toBe(true)
-    expect(travelRate(fire)).toBeCloseTo(baselineRate * 1.25)
-    expect(buyUpgrade(fire, 'rain-proof')).toBe(true)
-    expect(conditions(fire, 0, rainy).trend).toBeCloseTo(wetTrend * .62)
-    expect(buyUpgrade(fire, 'evacuation')).toBe(true)
-    advance(fire, 2)
-    expect(fire.sites[0].warnedAt).toBeNull()
-    advance(fire, 85)
-    expect(fire.pulses.some(pulse => pulse.zone === 0 && pulse.kind === 'trail')).toBe(true)
-    expect(totals(fire).damage).toBeGreaterThan(0)
   })
 
   it('keeps exact custom origins on land, open water, and across the dateline', () => {

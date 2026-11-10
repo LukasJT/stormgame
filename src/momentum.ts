@@ -1,7 +1,7 @@
 import { random } from './convection'
 import type { Storm } from './world'
 
-export const usesTornadoEconomy = (storm: Storm) => storm === 'Tornado' || storm === 'Thunderstorm'
+export const usesTornadoEconomy = (storm: Storm) => storm === 'Tornado' || storm === 'Thunderstorm' || storm === 'Wildfire'
 export const startingMomentum = (storm: Storm) => usesTornadoEconomy(storm) ? 10 : 5
 const pickupLifetime = 42
 
@@ -10,7 +10,6 @@ const opportunities: Partial<Record<Storm, readonly string[]>> = {
   Hurricane: ['Warm Water', 'Moist Air', 'Deep Ocean Heat'],
   Blizzard: ['Arctic Air', 'Lake Moisture', 'Fresh Snowpack'],
   Wildfire: ['Dry Fuels', 'Gusty Winds', 'Low Humidity'],
-  Flooding: ['Heavy Rain', 'Saturated Ground', 'Upstream Runoff'],
   'Dust Storm': ['Loose Topsoil', 'Dry Ground', 'Strong Gusts'],
   'Heat Dome': ['Sinking Air', 'Clear Skies', 'Dry Soil'],
 }

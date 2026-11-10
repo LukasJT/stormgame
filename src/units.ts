@@ -13,10 +13,6 @@ export function windSpeed(mph: number) {
   return settings.units === 'metric' ? `${Math.round(mph * kilometersPerMile)} km/h` : `${Math.round(mph)} mph`
 }
 
-export function waterDepth(meters: number) {
-  return settings.units === 'metric' ? `${meters.toFixed(1)} m` : `${(meters / .3048).toFixed(1)} ft`
-}
-
 export function temperature(celsius: number) {
   return settings.units === 'metric' ? `${Math.round(celsius)} °C` : `${Math.round(celsius * 1.8 + 32)} °F`
 }

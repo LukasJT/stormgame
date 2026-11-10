@@ -708,3 +708,6 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
   .snow-legend { bottom: 62px; font-size: 9px; }
   .snow-legend span { padding-inline: 3px; }
 }
+.fire-history { pointer-events: none; opacity: .70; }
+.fire-perimeter { pointer-events: none; }
+.fire-perimeter path { fill-opacity: .88; stroke: #171415; stroke-width: .65px; stroke-linejoin: round; }

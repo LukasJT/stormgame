@@ -1,3 +1,4 @@
+import { drawWildfire, fireHistoryLayer } from './wildfire'
 import { blizzardTrack } from './blizzard'
 import { drawSnowfall } from './snow-map'
 import { formatDistance } from './units'
@@ -26,6 +27,7 @@ const reducedMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-re
 const worldX = (x: number) => x >= 0 && x <= 3600 ? x : ((x % 3600) + 3600) % 3600
 
 function motion(run: Run, fraction: number, world: boolean) {
+  if (run.fire) return { current: { ...run.fire.origin, x: world ? worldX(run.fire.origin.x) : run.fire.origin.x }, wake: '', next: '' }
   if (run.front) {
     const front = run.front
     const speed = frontSpeed(run)
@@ -88,7 +90,7 @@ const atlasStyle = (run: Run) => run.cyclone ? 'cyclone-atlas' : run.theater.sto
 export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, inspection = '', inspecting = false, targeting: Targeting = null, selectedFunnel: number | null = null) {
   const color = stormColor(run ? activeStorm(run) : storm)
   const start = pending?.zones[pending.origin]
-  const markers = run ? '' : storm === 'Tornado' ? tornadoStartAreas : theaters.filter(theater => theater.storm === storm).map(theater => {
+  const markers = run ? '' : storm === 'Wildfire' ? fireHistoryLayer() : storm === 'Tornado' ? tornadoStartAreas : theaters.filter(theater => theater.storm === storm).map(theater => {
     const { left, top, width, height } = bounds(theater)
     const cx = left + width / 2
     const cy = top + height / 2
@@ -113,7 +115,7 @@ export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, in
     <rect class="map-tone" width="3600" height="1800" fill="#115377" opacity=".55" pointer-events="none"/>
     ${markers}
     ${inspection}
-    ${run ? drawSnowfall(run, true) + drawWeather(run) : ''}
+    ${run ? drawWildfire(run.fire, true) + drawSnowfall(run, true) + drawWeather(run) : ''}
     ${pending?.snow ? `<path class="snow-preview-band" d="${motion(pending, 0, true).next}" stroke-width="${stormStats(pending).widthKm / 11.1}"/>
       <path class="projected" d="${motion(pending, 0, true).next}" data-snow-preview vector-effect="non-scaling-stroke"/>` : ''}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
@@ -123,7 +125,7 @@ export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, in
     ${start ? `<g class="start-marker" transform="translate(${worldX(start.x)} ${start.y})" pointer-events="none" role="img" aria-label="Temporary starting marker">
       <g data-camera-scaled="screen"><circle r="10"/><path d="M-15 0h8m14 0h8M0-15v8m0 14v8"/><circle class="start-dot" r="3"/></g>
     </g>` : ''}
-    ${run ? `<g data-storm-position pointer-events="none">
+    ${run && !run.fire ? `<g data-storm-position pointer-events="none">
       <g class="world-storm-marker" data-camera-scaled="screen"><circle r="8"/><circle r="3"/></g>
     </g>` : ''}
     ${choices}
@@ -195,7 +197,9 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
 }
 
 export function drawRegion(theater: Theater, run: Run, inspected: ZoneId | null, targeting: Targeting = null, selectedFunnel: number | null = null) {
-  const { left, top, width, height } = run.front
+  const { left, top, width, height } = run.fire
+    ? { left: run.fire.origin.x - 6, top: run.fire.origin.y - 4.5, width: 12, height: 9 }
+    : run.front
     ? run.cyclone ? { left: run.front.point.x - 52, top: run.front.point.y - 38, width: 104, height: 76 }
       : { left: run.front.point.x - 17, top: run.front.point.y - 13, width: 34, height: 26 }
     : bounds(theater)
@@ -234,16 +238,16 @@ export function drawRegion(theater: Theater, run: Run, inspected: ZoneId | null,
     ${regionalEarth}
     ${satelliteTiles}
     <rect class="map-tone" x="-3600" width="10800" height="1800" fill="#164561" opacity=".36" pointer-events="none"/>
-    ${drawSnowfall(run, false)}${drawWeather(run)}
+    ${drawWildfire(run.fire, false)}${drawSnowfall(run, false)}${drawWeather(run)}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
     ${zoneIds.filter(id => run.sites[id].loss > 0).map(id => `<circle cx="${run.zones[id].x}" cy="${run.zones[id].y}" r="${pin * 5}" fill="url(#impact)" pointer-events="none"/>`).join('')}
     <path data-storm-wake d="${view.wake}" class="wake" vector-effect="non-scaling-stroke"/>
     ${run.end ? '' : `<path data-storm-next d="${view.next}" class="projected" vector-effect="non-scaling-stroke"/>`}
-    <g data-storm-position transform="translate(${view.current.x} ${view.current.y})" pointer-events="none">
+    ${run.fire ? '' : `<g data-storm-position transform="translate(${view.current.x} ${view.current.y})" pointer-events="none">
       <ellipse class="wind-ring" rx="${stormStats(run).widthKm / 22.2 / Math.max(.2, Math.cos((90 - view.current.y / 10) * Math.PI / 180))}" ry="${stormStats(run).widthKm / 22.2}" vector-effect="non-scaling-stroke"/>
       ${storm === 'Tornado' ? symbol
         : `<g transform="scale(${stormSize / 45})">${symbol}</g>`}
-    </g>
+    </g>`}
     ${drawPulses(run, false)}
     ${nodes}
     ${drawFrontFeatures(run, false, targeting, selectedFunnel)}

@@ -1,3 +1,4 @@
+import { advanceWildfire, fireHistoryAt, fireHistoryLabels, spotFire, startWildfire, type Wildfire } from './wildfire'
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
@@ -48,7 +49,7 @@ type Front = ConvectiveTrack & {
 export type Run = {
   seed: number; origin: Origin; difficulty: Difficulty; time: number; strength: number; momentum: number
   name: string; support: number; cyclone: Cyclone | null; overWater: boolean
-  tornado: TornadoRecord | null; snow: Snowstorm | null
+  tornado: TornadoRecord | null; snow: Snowstorm | null; fire: Wildfire | null
   realTime: number; momentumGain: { points: number; at: number } | null
   momentumSchedule: ReturnType<typeof momentumSchedule>; pickup: WeatherPickup | null
   theater: Theater; zones: Zone[]; charge: number; whiteout: number
@@ -131,6 +132,7 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   const point = { x: zones[origin].x, y: zones[origin].y }
   const tornado = theater.storm === 'Tornado'
   const hurricane = theater.storm === 'Hurricane'
+  const fire = theater.storm === 'Wildfire' ? startWildfire(point, seed) : null
   const locality = localityAt(latitudeAt(point), longitudeAt(point))
   const overWater = !locality.code
   const city = tornado ? closestTornadoCity(point) : undefined
@@ -139,23 +141,23 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     ? { startedAt: tornadoStartDate(), lengthKm: 0, groundTicks: 0, maxWidthKm: 0, peakEf: null, places: new Set(), travelKm: 0,
       awareness: 0, deaths: 0, nextSatellite: 0, manualSatellite: 0, chaserExposure: 0 } : null
   const cyclone = hurricane ? startCyclone(point, seed, overWater && !lakeAt(latitudeAt(point), longitudeAt(point))) : null
-  const front: Front | null = tornado || hurricane || blizzardPattern || hazard?.group === 'storm'
+  const front: Front | null = tornado || hurricane || blizzardPattern || fire || hazard?.group === 'storm'
     ? { ...makeConvectiveTrack(point, seed, tornado), areas, current: frontArea(areas, point), locality, bursts: [], floods: new Map(), swath: [] }
     : null
   if (front && cyclone) front.heading = cycloneFlow(cyclone, point)
   if (front && blizzardPattern) front.heading = blizzardHeading(blizzardPattern, front.phase, 0, 0)
   return {
-    seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record,
+    seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record, fire,
     impactCredit: 0, blizzardPattern, front,
     snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0 } : null,
-    time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
+    time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : fire ? 100 * ([...fire.cells.values()][0]?.heat ?? 0) : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
     realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
     upgrades: [], effects: { ...baseEffects }, upgradePayments: new Map(), purchases: 0, refunds: 0, pulses: [],
-    detectedAt: null, sites, track: [origin], end: null, alertHeadlines: new Set(),
+    detectedAt: null, sites, track: [origin], end: fire && !fire.active ? 'Ignition unavailable here.' : null, alertHeadlines: new Set(),
     events: [{ time: 0, text: tornado ? `Rotating storms detected ${overWater ? locality.reference : city ? `near ${city}` : locality.reference}.` : theater.storm === 'Wildfire'
-      ? zones[origin].sea ? 'Ignition has no fuel over open water.' : `Wildfire ignited ${zoneReference(theater, origin)}.`
+      ? fire && !fire.active ? 'No historical burn recorded at this location.' : `Wildfire ignited ${zoneReference(theater, origin)}.`
       : hazard || blizzardPattern ? `${blizzardPattern ?? theater.storm} formed ${zoneReference(theater, origin)}.` : `Circulation formed ${zoneReference(theater, origin)}.`,
     breaking: tornado || !!hazard }],
   }
@@ -230,6 +232,10 @@ export function collectWeatherPickup(run: Run, time: number) {
 export function conditions(run: Run, id: ZoneId, time = run.time) {
   const storm = activeStorm(run)
   if (run.cyclone && run.front) return cycloneWeather(run.cyclone, run.front.point, run.effects, 2 - difficultyRules[run.difficulty].good * 3, run.strength)
+  if (run.fire) {
+    const history = fireHistoryAt(run.fire.origin)
+    return { name: history ? `${fireHistoryLabels[history - 1]} historical burning` : 'No recorded burning', trend: history ? .015 * history : 0 }
+  }
   if (run.front && storm !== 'Tornado' && !run.blizzardPattern) return frontConditions(run, time)
   const rule = difficultyRules[run.difficulty]
   const hash = Math.imul(run.seed ^ Math.imul(id + 1, 374761393) ^ Math.imul(Math.floor(time / (2 * leg)) + 1, 668265263), 1274126177)
@@ -238,7 +244,7 @@ export function conditions(run: Run, id: ZoneId, time = run.time) {
   if (hazard) {
     if (run.zones[id].sea && hazard.group === 'ground') return { name: 'Open water', trend: -.26 }
     const latitude = Math.abs(run.theater.places[id][1])
-    const adverse = roll > 1 - rule.hostile || ((storm === 'Wildfire' || storm === 'Heat Dome') && latitude > 68)
+    const adverse = roll > 1 - rule.hostile || (storm === 'Heat Dome' && latitude > 68)
     if (adverse) return { name: hazard.weather[2], trend: -.19 * (1 - run.effects.hazardBuffer) }
     if (roll < rule.good) return { name: hazard.weather[0], trend: hazard.growth + run.effects.hazardGain }
     return { name: hazard.weather[1], trend: -.025 + run.effects.hazardGain * .5 }
@@ -297,6 +303,8 @@ export function hurricaneCategory(windMph: number) {
 }
 
 export function stormStats(run: Run) {
+  if (run.fire) return { windMph: 16, widthKm: Math.round(2 * Math.sqrt(run.fire.areaKm2 / Math.PI)),
+    category: run.end ? 'Out' : run.fire.responseAt === null ? 'Growing perimeter' : 'Suppression underway' }
   const fraction = run.strength / 100
   const bonus = run.effects.wind * Math.min(1, fraction * 5)
   if (run.theater.storm === 'Hurricane') {
@@ -355,7 +363,6 @@ export function setCourse(run: Run, target: MapPoint, funnelId?: number) {
 }
 
 function abilityTargets(run: Run, reach: number) {
-  if (run.theater.storm === 'Wildfire' && run.zones[run.at].sea) return []
   return [run.at, ...run.zones[run.at].neighbors.slice(0, reach)].filter(id => !run.zones[id].sea)
 }
 
@@ -378,6 +385,12 @@ export function useAbility(run: Run, target?: MapPoint) {
   const ability = stormAbility(run)
   if (ability) {
     if (!hazardAbilityReady(run)) return
+    if (run.fire) {
+      if (!spotFire(run.fire, run.effects, run.time)) return false
+      run.charge -= abilityCost(run)
+      log(run, 'Windborne embers start a new spot fire.')
+      return true
+    }
     if (run.front) {
       if (ability.tornado) {
         const maxEf = run.theater.storm === 'Thunderstorm' && activeStorm(run) !== 'Supercell' ? 2 : 5
@@ -562,8 +575,7 @@ function impactWind(run: Run) {
   if (run.theater.storm === 'Thunderstorm') return wind
   if (run.front) return wind + run.effects.hazardDamage * 35
   // Convert non-wind hazards to severity bands for the shared exposure model.
-  const severity = storm === 'Wildfire' ? 1.35 : storm === 'Flooding' ? 1.16 : 1.02
-  return Math.max(wind, 55 + run.strength * severity)
+  return Math.max(wind, 55 + run.strength * 1.02)
 }
 
 function impact(run: Run, id: ZoneId, intensity: number, rain = 0, wind = impactWind(run)) {
@@ -620,6 +632,7 @@ function sampledAreas(front: Front, center: MapPoint, radius: number) {
 }
 
 export function frontSpeed(run: Run) {
+  if (run.fire) return 0
   return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? Math.max(.23 * (1 + run.effects.tornadoSpeed), (180 + run.effects.tornadoRange) / 960) : run.blizzardPattern ? travelRate(run) : 1.15 * travelRate(run)
 }
 
@@ -1034,13 +1047,35 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
   }
 }
 
+function tickWildfire(run: Run, front: Front, fire: Wildfire) {
+  run.charge = Math.min(100, run.charge + .44 + run.effects.chargeGain)
+  if (run.time % 4 !== 0) return
+  const resistance = { Easy: .73, Normal: 1, Hard: 1.23, Expert: 1.44 }[run.difficulty]
+  if (fire.responseAt === null && run.time >= 36 / resistance + run.effects.fireDelay) {
+    fire.responseAt = run.time
+    log(run, 'Fire crews deploy and begin building containment lines.', true)
+  }
+  if (fire.responseAt !== null && !fire.aircraft && run.time >= fire.responseAt + 40 / resistance) {
+    fire.aircraft = true
+    log(run, 'Aircraft begin dropping retardant along the fire perimeter.', true)
+  }
+  const active = advanceWildfire(fire, run.effects, run.time, resistance)
+  run.strength = 100 * active.reduce((peak, cell) => Math.max(peak, cell.heat), 0)
+  const threatened = new Set<ImpactArea>()
+  for (const cell of active) threatened.add(frontArea(front.areas, cell.point))
+  updateFrontWarnings(run, front, threatened, fire.responseAt !== null)
+  for (const cell of active) {
+    const { zone, site } = frontArea(front.areas, cell.point)
+    applyImpact(run, zone, site, .005 * cell.heat ** 2 * (1 + run.effects.hazardDamage), 55 + cell.heat * 86)
+  }
+  if (!fire.active) run.end = fire.containment >= .6 ? 'Crews contained the fire.' : 'The fire burned out.'
+}
+
 export function travelRate(run: Run) {
   if (run.blizzardPattern) return blizzardPatterns[run.blizzardPattern].speed * (1 + run.effects.spread)
   const hazard = hazardFor(activeStorm(run))
   if (!hazard) return 1
-  if (run.theater.storm === 'Wildfire' && run.zones[run.at].sea) return .15
-  const wet = run.theater.storm === 'Wildfire' && conditions(run, run.at).name === hazard.weather[2]
-  return hazard.speed * (1 + run.effects.spread) * (wet ? .65 + .35 * run.effects.hazardBuffer : 1)
+  return hazard.speed * (1 + run.effects.spread)
 }
 
 export function tick(run: Run) {
@@ -1052,6 +1087,7 @@ export function tick(run: Run) {
   if (award) gainMomentum(run, award.points)
   if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
   run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
+  if (run.fire && run.front) return tickWildfire(run, run.front, run.fire)
   if (run.front && run.blizzardPattern) return tickBlizzard(run, run.front, run.blizzardPattern)
   if (run.front) return run.cyclone ? tickCyclone(run, run.front, run.cyclone) : hazard ? tickFront(run, run.front, hazard) : tickTornado(run, run.front)
   run.pulses = run.pulses.filter(pulse => pulse.until >= run.time)
@@ -1073,14 +1109,10 @@ export function tick(run: Run) {
   if (hazard) {
     const strength = (run.strength / 100) ** 2
     const intensity = hazard.passive * strength * (1 + run.effects.hazardDamage)
-    if (storm !== 'Wildfire' || !run.zones[run.at].sea) {
-      for (const id of footprint(run, run.at)) impact(run, id, intensity * (id === run.at ? 1 : .38))
-    }
+    for (const id of footprint(run, run.at)) impact(run, id, intensity * (id === run.at ? 1 : .38))
     for (const pulse of run.pulses) impact(run, pulse.zone, pulse.damage * strength)
   }
-  if (run.strength === 0) run.end = storm === 'Wildfire' ? 'The fire went out.'
-    : storm === 'Flooding' ? 'Floodwaters receded.'
-      : storm === 'Heat Dome' ? 'The heat dome broke.' : 'The storm dissipated.'
+  if (run.strength === 0) run.end = storm === 'Heat Dome' ? 'The heat dome broke.' : 'The storm dissipated.'
 }
 
 export function totals(run: Run) {

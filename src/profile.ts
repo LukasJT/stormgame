@@ -9,9 +9,10 @@ const rankingsKey = 'stormwake.rankings'
 
 type Settings = { startingSpeed: 1 | 2; breakingNews: boolean; units: 'imperial' | 'metric' }
 type RecordTotals = { damage: number; deaths: number }
-type Records = Partial<Record<Storm, RecordTotals | { score: number; deaths: number }>>
+type StoredEvent = CampaignEvent | 'Flooding'
+type Records = Partial<Record<Storm | 'Flooding', RecordTotals | { score: number; deaths: number }>>
 type Ranking = RecordTotals & { stars: number }
-type Rankings = Partial<Record<CampaignEvent, Partial<Record<Difficulty, Ranking>>>>
+type Rankings = Partial<Record<StoredEvent, Partial<Record<Difficulty, Ranking>>>>
 
 function readStorage<T extends object>(key: string): Partial<T> {
   try {
@@ -43,14 +44,14 @@ export function saveSettings() {
 
 const rankings = readStorage<Rankings>(rankingsKey)
 
-function validRecord(record: Records[Storm]): RecordTotals | undefined {
+function validRecord(record: Records[Storm | 'Flooding']): RecordTotals | undefined {
   if (!record || typeof record !== 'object') return
   const damage = 'damage' in record ? record.damage : record.score * 100_000
   if (Number.isSafeInteger(damage) && Number.isSafeInteger(record.deaths)
     && damage >= 0 && record.deaths >= 0) return { damage, deaths: record.deaths }
 }
 
-export function legacyRecord(storm: CampaignEvent) {
+export function legacyRecord(storm: StoredEvent) {
   const records = readStorage<Records>(recordsKey)
   const names = storm === 'Thunderstorm' ? thunderstormTypes : [storm]
   let totals: RecordTotals | undefined
@@ -61,7 +62,7 @@ export function legacyRecord(storm: CampaignEvent) {
   return totals
 }
 
-export function stormRecord(storm: CampaignEvent, difficulty: Difficulty) {
+export function stormRecord(storm: StoredEvent, difficulty: Difficulty) {
   const record = rankings[storm]?.[difficulty]
   if (record && Number.isInteger(record.stars) && record.stars >= 1 && record.stars <= 5
     && validRecord(record)) return record
@@ -71,13 +72,13 @@ export function difficultyUnlocked(storm: CampaignEvent, difficulty: Difficulty)
   return difficulty !== 'Expert' || (stormRecord(storm, 'Hard')?.stars ?? 0) >= 3
 }
 
-function hasCompletion(storm: CampaignEvent) {
+function hasCompletion(storm: StoredEvent) {
   return difficulties.some(difficulty => stormRecord(storm, difficulty)) || !!legacyRecord(storm)
 }
 
 export function eventUnlocked(storm: CampaignEvent) {
   const index = campaign.indexOf(storm)
-  return index === 0 || hasCompletion(campaign[index - 1]) || hasCompletion(storm)
+  return index === 0 || hasCompletion(campaign[index - 1]) || hasCompletion(storm) || (storm === 'Dust Storm' && hasCompletion('Flooding'))
 }
 
 export const nextEvent = (storm: CampaignEvent): CampaignEvent | undefined => campaign[campaign.indexOf(storm) + 1]
