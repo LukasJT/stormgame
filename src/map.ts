@@ -31,7 +31,11 @@ function motion(run: Run, fraction: number, world: boolean) {
   if (run.front) {
     const front = run.front
     const speed = frontSpeed(run)
-    const current = movePoint(front.point, front.heading, (run.end ? 0 : fraction) * speed)
+    const progress = run.end ? 0 : fraction
+    const snowTrack = run.blizzardPattern
+    const current = snowTrack && progress > 0
+      ? blizzardTrack(front.point, snowTrack, front.phase, run.time, progress, run.effects, run.snow?.steering).point
+      : movePoint(front.point, front.heading, progress * speed)
     const next = [current]
     if (run.cyclone) {
       let projected = { point: current, heading: front.heading }
@@ -39,10 +43,10 @@ function motion(run: Run, fraction: number, world: boolean) {
         projected = cycloneTrack(run.cyclone, projected.point, projected.heading, 12)
         next.push(projected.point)
       }
-    } else if (run.blizzardPattern) {
+    } else if (snowTrack) {
       let projected = current
       for (let step = 0; step < 8; step++) {
-        projected = blizzardTrack(projected, run.blizzardPattern, front.phase, run.time + step * 20, 20, run.effects).point
+        projected = blizzardTrack(projected, snowTrack, front.phase, run.time + progress + step * 20, 20, run.effects, run.snow?.steering).point
         next.push(projected)
       }
     } else next.push(movePoint(current, front.heading, speed * 72))

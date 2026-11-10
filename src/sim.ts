@@ -3,7 +3,7 @@ import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, typ
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
 import { hazardFor, hazards } from './hazards'
-import { blizzardHeading, blizzardOptions, blizzardPatterns, blizzardTrack, type BlizzardPattern } from './blizzard'
+import { blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
@@ -38,6 +38,7 @@ type ImpactArea = { zone: Zone; site: Site; country?: string }
 type Snowstorm = {
   deposits: Map<ImpactArea, SnowReport>
   waterMoisture: number; source: string | null; rate: number; visibilityMiles: number; longestWhiteout: number
+  steering: BlizzardSteering
 }
 type Front = ConvectiveTrack & {
   areas: Map<string, ImpactArea>; current: ImpactArea
@@ -123,6 +124,12 @@ export function chooseBlizzardPattern(run: Run, pattern: BlizzardPattern) {
   return true
 }
 
+export function setBlizzardCourse(run: Run, course: BlizzardCourse) {
+  const snow = run.snow
+  if (!snow || run.end || snow.steering.course === course) return
+  snow.steering = { course, from: blizzardSteeringOffset(snow.steering, run.time), since: run.time }
+}
+
 export function startRun(theater: Theater, origin: Origin, difficulty: Difficulty, seed: number): Run {
   const zones = makeZones(theater)
   const hazard = hazardFor(theater.storm)
@@ -149,7 +156,8 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
   return {
     seed, origin, difficulty, theater, zones, charge: blizzardPattern ? 42 : 35, whiteout: 0, name, support: 100, cyclone, overWater, tornado: record, fire,
     impactCredit: 0, blizzardPattern, front,
-    snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0 } : null,
+    snow: blizzardPattern ? { deposits: new Map(), waterMoisture: 0, source: null, rate: 0, visibilityMiles: 10, longestWhiteout: 0,
+      steering: { course: 'natural', from: 0, since: 0 } } : null,
     time: 0, strength: hurricane ? 31 : tornado ? 58 : blizzardPattern ? 48 : fire ? 100 * ([...fire.cells.values()][0]?.heat ?? 0) : front ? 17 : origin === 1 ? 38 : 43, momentum: startingMomentum(theater.storm),
     realTime: 0, momentumGain: null,
     momentumSchedule: momentumSchedule(seed, theater.storm), pickup: null,
@@ -660,7 +668,7 @@ function updateFrontWarnings(run: Run, front: Front, threatened: Set<ImpactArea>
 
 function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   const snow = run.snow!
-  const next = blizzardTrack(front.point, patternName, front.phase, run.time - 1, 1, run.effects)
+  const next = blizzardTrack(front.point, patternName, front.phase, run.time - 1, 1, run.effects, snow.steering)
   front.point = next.point
   front.heading = next.heading
   if (run.time % 5 === 0) front.path.push(front.point)
@@ -997,13 +1005,14 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
   front.heading = next.heading
   if (run.time % 5 === 0) front.path.push(front.point)
   const distance = distanceKm(previous, next.point)
-  cyclone.travelKm += distance
   const surface = landAt(front.point)
   const wasOcean = cyclone.ocean
   cyclone.ocean = !surface.code && surface.name === 'Open water'
+  cyclone.oceanKm = cyclone.ocean ? cyclone.oceanKm + distance : 0
   cyclone.inlandKm = cyclone.ocean ? 0 : cyclone.inlandKm + distance
   const current = frontArea(front.areas, front.point, surface)
   const landfall = wasOcean && !!surface.code
+  const returnedToOcean = !wasOcean && cyclone.ocean
   if (current !== front.current || wasOcean !== cyclone.ocean) {
     front.current = current
     front.locality = localityAt(latitudeAt(front.point), longitudeAt(front.point), surface)
@@ -1016,10 +1025,12 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
   if (run.strength <= 7) run.end = `${run.name || 'The cyclone'} dissipated.`
   const category = run.end ? 'Dissipated' : stats.category
   const change = category !== cyclone.stage
-  if (landfall || change || weather.name !== cyclone.environment) {
-    const reason = landfall ? 'Landfall · ocean heat supply cut off' : weather.name
+  if (landfall || returnedToOcean || change || weather.name !== cyclone.environment) {
+    const reason = landfall ? 'Landfall · ocean heat supply cut off'
+      : returnedToOcean ? `Returned to open water · ${weather.name.toLowerCase()}` : weather.name
     cyclone.history.push({ time: run.time, category, wind: stats.windMph, reason, location: front.locality.name })
     if (landfall) log(run, `${run.name || 'The storm'} makes landfall ${front.locality.reference}.`, true)
+    else if (returnedToOcean && weather.trend > 0) log(run, `${run.name || 'The storm'} starts rebuilding over warm water.`, true)
     else if (change && run.name) log(run, run.end ?? `${run.name} is now a ${category.toLowerCase()} ${front.locality.reference}.`)
     cyclone.stage = category
     cyclone.environment = weather.name

@@ -54,6 +54,22 @@ it('supports separate wind and warm-water builds while keeping unupgraded hurric
   expect(trees.Hurricane).toHaveLength(trees.Tornado.length)
 })
 
+it.each([
+  [29, -89.7, 'marine'],
+  [27.6, -89.5, 'marine'],
+] as const)('can buy hurricane upgrades before Gulf landfall from (%s, %s)', (lat, lon, target) => {
+  const run = startRun(makeHurricaneDrop(lat, lon), 0, 'Normal', defaultSeed)
+  const formation = trees.Hurricane.filter(upgrade => upgrade.group === 'Warm-water intensification')
+  expect(run.cyclone!.ocean).toBe(true)
+  while (run.cyclone!.ocean && !run.end && run.time < 150) {
+    if (run.pickup) collectWeatherPickup(run, run.pickup.time)
+    for (const upgrade of formation) buyUpgrade(run, upgrade.id)
+    tick(run)
+  }
+  expect(run.cyclone!.ocean).toBe(false)
+  expect(run.upgrades).toContain(target)
+})
+
 
 it('matches the tornado tree size and Momentum economy', () => {
   const groups = (storm: Storm) => new Set(trees[storm].map(upgrade => upgrade.group)).size

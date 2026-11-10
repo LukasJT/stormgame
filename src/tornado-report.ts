@@ -1,3 +1,5 @@
+import { stormClock } from './storm-clock'
+
 export const tornadoTickSeconds = 15
 
 export type TornadoRecord = {
@@ -7,8 +9,6 @@ export type TornadoRecord = {
 }
 
 const longDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' })
-const shortDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' })
-const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' })
 
 export function tornadoStartDate(today = new Date()) {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15).getTime()
@@ -17,8 +17,7 @@ export function tornadoStartDate(today = new Date()) {
 export const tornadoDate = (startedAt: number) => longDate.format(startedAt)
 
 export function tornadoClock(startedAt: number, ticks: number) {
-  const stamp = startedAt + ticks * tornadoTickSeconds * 1000
-  return { date: shortDate.format(stamp), time: time.format(stamp) }
+  return stormClock(startedAt, ticks, tornadoTickSeconds)
 }
 
 export function tornadoDuration(ticks: number) {

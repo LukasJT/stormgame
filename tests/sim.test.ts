@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
+import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, setBlizzardCourse, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
 import { makeZones, theaters, type Storm } from '../src/world'
 import { lakeAt, loadLocalities, makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { hazardNames, hazards } from '../src/hazards'
@@ -273,6 +273,25 @@ describe('global weather scenarios', () => {
     expect(chooseBlizzardPattern(run, 'Lake-Effect Storm')).toBe(false)
   })
 
+  it('curves blizzards gradually to either side of the natural track', () => {
+    const theater = makeDrop('Blizzard', 49, -115)
+    const natural = startRun(theater, 0, 'Normal', defaultSeed)
+    const left = startRun(theater, 0, 'Normal', defaultSeed)
+    const right = startRun(theater, 0, 'Normal', defaultSeed)
+    setBlizzardCourse(left, 'left')
+    setBlizzardCourse(right, 'right')
+    expect(left.front!.heading).toBe(natural.front!.heading)
+    for (const run of [natural, left, right]) advance(run, 1)
+    expect(natural.front!.heading - left.front!.heading).toBeLessThan(.03)
+    for (const run of [natural, left, right]) advance(run, 60)
+    expect(left.front!.point.y).toBeLessThan(natural.front!.point.y)
+    expect(right.front!.point.y).toBeGreaterThan(natural.front!.point.y)
+    expect(right.front!.heading - natural.front!.heading).toBeLessThanOrEqual(Math.PI / 10)
+    setBlizzardCourse(right, 'natural')
+    for (const run of [natural, right]) advance(run, 140)
+    expect(right.front!.heading).toBeCloseTo(natural.front!.heading, 2)
+  })
+
   it('keeps exact custom origins on land, open water, and across the dateline', () => {
     const plains = startRun(makeHurricaneDrop(39, -97), 0, 'Normal', defaultSeed)
     expect(plains.theater.places[0].slice(1, 3)).toEqual([39, -97])
@@ -330,8 +349,53 @@ describe('global weather scenarios', () => {
     expect(run.cyclone!.inlandKm).toBeGreaterThan(100)
   })
 
+  it('can strengthen after crossing Cuba and returning to warm water', () => {
+    const run = startRun(makeHurricaneDrop(16, -72), 0, 'Normal', defaultSeed)
+    const cyclone = run.cyclone!
+    expect(nameHurricane(run, 'Hazel')).toBe(true)
+    run.momentum = 100
+    for (const id of ['warm', 'deep', 'moist-inflow', 'surface-flux', 'marine']) expect(buyUpgrade(run, id)).toBe(true)
+
+    while (cyclone.ocean && !run.end && run.time < 750) tick(run)
+    expect(cyclone.ocean).toBe(false)
+    expect(conditions(run, run.at).trend).toBeLessThan(0)
+    const landfallWind = stormStats(run).windMph
+
+    while (!cyclone.ocean && !run.end && run.time < 750) tick(run)
+    expect(cyclone.ocean).toBe(true)
+    expect(stormStats(run).windMph).toBeLessThan(landfallWind)
+    const exitWind = stormStats(run).windMph
+    advance(run, run.time + 20)
+    expect(stormStats(run).windMph).toBeGreaterThan(exitWind)
+    expect(cyclone.history.some(stage => stage.reason === 'Returned to open water · warm ocean water')).toBe(true)
+  })
+
+  it('lets a hurricane recover over the Gulf Stream north of 29°', () => {
+    const run = startRun(makeHurricaneDrop(32, -81.2), 0, 'Normal', defaultSeed)
+    const cyclone = run.cyclone!
+    const front = run.front!
+    // Drive an eastward crossing from coastal Georgia to isolate the water-temperature change.
+    cyclone.initial = 0
+    cyclone.bias = 0
+    cyclone.turnLatitude = 90
+    front.heading = 0
+    expect(cyclone.ocean).toBe(false)
+    while (!cyclone.ocean && !run.end && run.time < 100) tick(run)
+    expect(cyclone.ocean).toBe(true)
+    while (conditions(run, run.at).trend < 0 && !run.end && run.time < 100) tick(run)
+    expect(conditions(run, run.at)).toMatchObject({ name: 'Warm ocean water' })
+    const offshoreStrength = run.strength
+    advance(run, run.time + 30)
+    expect(run.strength).toBeGreaterThan(offshoreStrength)
+
+    const cooler = startRun(makeHurricaneDrop(32, -48), 0, 'Normal', defaultSeed)
+    expect(cooler.cyclone!.ocean).toBe(true)
+    expect(conditions(cooler, cooler.at).trend).toBeLessThan(0)
+  })
+
   it('extends the footprint only after an affordable purchase', () => {
     const run = startRun(gulf, 0, 'Normal', defaultSeed)
+    run.momentum = 5
     expect(buyUpgrade(run, 'warm')).toBe(true)
     expect(buyUpgrade(run, 'bands')).toBe(false)
     advance(run, leg * 2)

@@ -8,14 +8,14 @@ import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
-import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, setCourse, startRun, steer, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, setBlizzardCourse, setCourse, startRun, steer, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
 import { makeZones, stormColor, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards } from './hazards'
 import { blizzardOptions, blizzardPatterns, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
 import { countries, countryAt, drawInspection, inspectedTotals, type Inspection } from './inspection'
 import { getRegions } from './regions'
-import { difficultyUnlocked, eventUnlocked, legacyRecord, nextEvent, recordRun, saveSettings, settings, stormRecord } from './profile'
+import { difficultyUnlocked, eventUnlocked, legacyRecord, nextEvent, playbackSpeeds, recordRun, saveSettings, settings, stormRecord } from './profile'
 import { campaign, difficulties, difficultyLabel, earnedStars, isCampaignEvent, type CampaignEvent } from './campaign'
 import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
@@ -23,6 +23,8 @@ import { escapeName } from './cities'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
 import { snowfallDepth, measurementText, temperature, windSpeed, formatDistance } from './units'
 import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
+import { cycloneTickSeconds, type Cyclone } from './cyclone'
+import { stormClock } from './storm-clock'
 
 const menu = document.querySelector<HTMLElement>('#menu')!
 const game = document.querySelector<HTMLElement>('.game')!
@@ -109,7 +111,7 @@ let loadingExposure: Run | null = null
 let showWeather = true
 let hurricaneName = ''
 let inspected: ZoneId | null = null
-let speed = 1
+let speed: typeof settings.startingSpeed = 1
 let panel: 'pause' | 'pause-settings' | 'evolve' | 'region' | 'news' | 'history' | 'clipping' | null = null
 let evolutionTab: Branch | 'Storm' | 'Tornado' = 'Formation'
 let selectedUpgrade: string | null = null
@@ -124,6 +126,15 @@ const camera = new MapCamera(map, mapTools, render)
 
 function clock(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+function cycloneTimestamp(cyclone: Cyclone, ticks: number) {
+  return cyclone.startedAt === null ? null : stormClock(cyclone.startedAt, ticks, cycloneTickSeconds)
+}
+
+function cycloneEventTime(cyclone: Cyclone, ticks: number) {
+  const stamp = cycloneTimestamp(cyclone, ticks)
+  return stamp ? `<time class="calendar-entry"><small>${stamp.date}</small>${stamp.time}</time>` : `<time>${clock(ticks)}</time>`
 }
 
 function replace(element: HTMLElement, html: string) {
@@ -160,8 +171,7 @@ function settingsContent() {
   return `<div class="menu-setting">
           <label for="starting-speed">Starting speed</label>
           <select id="starting-speed" aria-describedby="speed-help">
-            <option value="1" ${settings.startingSpeed === 1 ? 'selected' : ''}>1×</option>
-            <option value="2" ${settings.startingSpeed === 2 ? 'selected' : ''}>2×</option>
+            ${playbackSpeeds.map(rate => `<option value="${rate}" ${settings.startingSpeed === rate ? 'selected' : ''}>${rate}×</option>`).join('')}
           </select>
           <p id="speed-help">You can still change the speed during a run.</p>
         </div>
@@ -316,13 +326,21 @@ function routeOrders(state: Run) {
     <span>${mapFeedback || (state.fire.aircraft ? 'Ground crews and aircraft responding' : state.fire.responseAt !== null ? 'Ground crews building fireline' : 'Wind carries embers into new fuel')}</span></div>
     <button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>Send embers</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} embers</small></button></div>`
 
-  if (state.cyclone) return `<div class="route-status front-orders"><div class="course-caption">
-    <strong>${state.name} · Drifting ${directionName(state.front!.heading)}</strong>
-    <span>${conditions(state, state.at).name}</span></div>${button('history', 'Track history', undefined, 'route-choice')}</div>`
-  if (state.snow) return `<div class="route-status"><div class="course-caption">
+  if (state.cyclone) {
+    const weather = conditions(state, state.at)
+    const trend = weather.trend > .005 ? 'Strengthening' : weather.trend < -.005 ? 'Weakening' : 'Steady'
+    return `<div class="route-status front-orders"><div class="course-caption">
+      <strong>${state.name} · Drifting ${directionName(state.front!.heading)}</strong>
+      <span>${weather.name} · ${trend}</span></div>${button('history', 'Track history', undefined, 'route-choice')}</div>`
+  }
+  if (state.snow) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.blizzardPattern} · Drifting ${directionName(state.front!.heading)}</strong>
     <span>${state.whiteout ? 'Whiteout conditions' : state.snow.source === 'ocean' ? 'Ocean moisture feeding the band'
-      : state.snow.source ? `Moisture from ${escapeName(state.snow.source)}` : conditions(state, state.at).name}</span></div></div>`
+      : state.snow.source ? `Moisture from ${escapeName(state.snow.source)}` : conditions(state, state.at).name}</span></div>
+    <div class="orders blizzard-steering" role="group" aria-label="Blizzard course">
+      ${([['left', 'Curve left'], ['natural', 'Natural track'], ['right', 'Curve right']] as const).map(([course, label]) =>
+        `<button class="route-choice" data-key="blizzard-course-${course}" data-action="blizzard-course" data-value="${course}" aria-pressed="${state.snow?.steering.course === course}">${label}</button>`).join('')}
+    </div></div>`
   if (state.front && state.theater.storm !== 'Tornado') return frontOrders(state)
   const { zones } = state
   const inTransit = state.progress > 0
@@ -488,14 +506,18 @@ function renderPanel() {
       <div class="panel-status"><strong>${run.momentum} Momentum</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
   } else if (panel === 'history' && run.cyclone) {
     title = `${run.name} · Track history`
-    const history = run.cyclone.history
-    const peak = run.cyclone.peakWind
+    const cyclone = run.cyclone
+    const peak = cyclone.peakWind
     content = `<p>Peak intensity ${hurricaneCategory(peak)} · ${windSpeed(peak)} sustained wind.</p>
-      <ol class="cyclone-history">${history.map(stage => `<li><time>${clock(stage.time)}</time><div><strong>${stage.category}</strong><span>${windSpeed(stage.wind)} · ${stage.location}</span><small>${stage.reason}</small></div></li>`).join('')}</ol>`
+      <ol class="cyclone-history">${cyclone.history.map(stage => `<li>${cycloneEventTime(cyclone, stage.time)}<div><strong>${stage.category}</strong><span>${windSpeed(stage.wind)} · ${stage.location}</span><small>${stage.reason}</small></div></li>`).join('')}</ol>`
   } else if (panel === 'news') {
     title = 'Storm news'
-    const record = run.tornado
-    content = `<ol class="news-list">${run.events.map(event => `<li><time>${record ? tornadoClock(record.startedAt, event.time).time : clock(event.time)}</time><span>${eventText(event)}</span></li>`).join('')}</ol>`
+    const { tornado, cyclone } = run
+    content = `<ol class="news-list">${run.events.map(event => {
+      const timestamp = cyclone ? cycloneEventTime(cyclone, event.time)
+        : `<time>${tornado ? tornadoClock(tornado.startedAt, event.time).time : clock(event.time)}</time>`
+      return `<li>${timestamp}<span>${eventText(event)}</span></li>`
+    }).join('')}</ol>`
   } else {
     const id = inspected ?? run.at
     const zone = run.front?.current.zone ?? run.zones[id]
@@ -720,10 +742,11 @@ function render() {
       <button class="map-tab" data-key="overview" data-action="overview" aria-label="${overview && !opening ? 'Storm view' : 'World map'}" ${!state || opening ? 'disabled' : ''}>${icon('globe')}<strong>${overview && !opening ? 'Storm view' : 'World'}</strong></button>
       <div class="metric deaths"><span>${icon('deaths')} Total deaths</span><strong>${num.format(total.deaths)}</strong></div>
       <button class="dock-action region" data-key="region" data-action="region" ${!state || opening ? 'disabled' : ''}>${icon('map')}<span><strong>Region</strong><small>${label}</small></span></button>`)
-    const timestamp = state?.tornado && !opening ? tornadoClock(state.tornado.startedAt, state.time) : null
+    const timestamp = !state || opening ? null : state.cyclone ? cycloneTimestamp(state.cyclone, state.time)
+      : state.tornado ? tornadoClock(state.tornado.startedAt, state.time) : null
     const clockFace = timestamp ? `<span class="clock storm-calendar" aria-label="Storm date and time"><small>${timestamp.date}</small><span>${timestamp.time}</span></span>`
       : state && !opening && !state.end ? `<span class="clock" aria-label="Elapsed time">${clock(state.time)}</span>` : ''
-    replace(transport, state && !opening && (!state.end || state.tornado)
+    replace(transport, state && !opening && (!state.end || timestamp)
       ? clockFace + (state.end ? '' : `<button class="icon-button" data-key="pause" data-action="pause" aria-label="Pause" aria-haspopup="dialog">${icon('pause')}</button><button class="speed" data-key="speed" data-action="speed" aria-label="Speed ${speed}×">${speed}×</button>`)
       : `<span class="run-settings">${storm} · ${difficultyLabel(difficulty)}</span>${!state ? button('main-menu', 'Main menu', undefined, 'speed') : ''}`)
     if (!camera.interacting) {
@@ -806,6 +829,7 @@ async function launch() {
   if (loadingExposure === forecast) loadingExposure = null
   if (screen !== 'map' || run !== forecast || !opening) return
   run.zones = makeZones(run.theater)
+  if (run.cyclone) run.cyclone.startedAt = Date.now()
   if (run.tornado) run.tornado.startedAt = tornadoStartDate()
   opening = false
   if (run.fire) {
@@ -969,12 +993,17 @@ document.addEventListener('click', event => {
       closeClipping()
       return showScreen('results')
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
+    case 'blizzard-course':
+      if (run && !opening && (value === 'left' || value === 'natural' || value === 'right')) setBlizzardCourse(run, value)
+      break
     case 'launch': return launch()
     case 'restart': {
       if (!run || panel !== 'pause') return
       closePause()
-      chooseOrigin(run.theater, run.origin, run.blizzardPattern)
-      return launch()
+      run = null
+      opening = false
+      mapFeedback = ''
+      return showScreen('map')
     }
     case 'retry':
       if (!run) return
@@ -1017,7 +1046,7 @@ document.addEventListener('click', event => {
       dialog.querySelector<HTMLElement>('#panel-title')?.focus()
       return
     case 'pause-back': return backToPause()
-    case 'speed': speed = speed === 1 ? 2 : 1; break
+    case 'speed': speed = playbackSpeeds[(playbackSpeeds.indexOf(speed) + 1) % playbackSpeeds.length]; break
     case 'evolve':
     case 'region':
     case 'history':
@@ -1049,7 +1078,7 @@ function updateSettings({ target }: Event) {
   if (target instanceof HTMLSelectElement && target.id === 'units-setting') {
     settings.units = target.value === 'metric' ? 'metric' : 'imperial'
   } else if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
-    settings.startingSpeed = target.value === '2' ? 2 : 1
+    settings.startingSpeed = playbackSpeeds.find(rate => String(rate) === target.value) ?? 1
   } else if (target instanceof HTMLInputElement && target.id === 'breaking-news-setting') {
     settings.breakingNews = target.checked
   } else return

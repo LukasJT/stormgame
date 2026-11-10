@@ -2,7 +2,7 @@ import { random } from './convection'
 import type { Storm } from './world'
 
 export const usesTornadoEconomy = (storm: Storm) => storm === 'Tornado' || storm === 'Thunderstorm' || storm === 'Wildfire'
-export const startingMomentum = (storm: Storm) => usesTornadoEconomy(storm) ? 10 : 5
+export const startingMomentum = (storm: Storm) => storm === 'Hurricane' ? 20 : usesTornadoEconomy(storm) ? 10 : 5
 const pickupLifetime = 42
 
 const opportunities: Partial<Record<Storm, readonly string[]>> = {
@@ -22,6 +22,23 @@ export function momentumSchedule(seed: number, storm: Storm) {
   for (const letter of storm) salt = Math.imul(salt, 31) + letter.charCodeAt(0)
   const roll = random(seed ^ salt)
   const labels = opportunities[storm] ?? thunderstormOpportunities
+  if (storm === 'Hurricane') {
+    // The first four minutes fund formation upgrades before short offshore tracks reach land.
+    const earlyAwards = 15
+    const awards = Array.from({ length: earlyAwards + 15 }, (_, index) => {
+      const early = index < earlyAwards
+      const time = early ? 5 + index * 16 + Math.floor(roll() * 8) : 243 + (index - earlyAwards) * 57 + Math.floor(roll() * 35)
+      return { time, points: early ? 5 + Number(roll() < .35) : 2 + Number(roll() < .22) }
+    })
+    const pickups = Array.from({ length: 12 }, (_, index): WeatherPickup => {
+      const early = index < 5
+      const time = early ? 11 + index * 48 + Math.floor(roll() * 6) : 260 + (index - 5) * 103 + Math.floor(roll() * 37)
+      const label = labels[Math.floor(roll() * labels.length)]
+      const points = early ? 6 + Number(roll() < .35) : 3 + Number(roll() < .25)
+      return { time, expires: time + pickupLifetime, label, points }
+    })
+    return { awards, pickups }
+  }
   if (usesTornadoEconomy(storm)) {
     const awards = Array.from({ length: 40 }, (_, index) => ({
       time: 12 + index * 23 + Math.floor(roll() * 15),

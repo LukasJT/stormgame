@@ -224,6 +224,9 @@ dialog[data-view=clipping] { width: min(650px, calc(100vw - 24px)); }
 .news-list, .region-stats { list-style: none; padding: 0 16px 16px; }
 .news-list li, .region-stats div { display: flex; gap: 12px; align-items: baseline; border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
 .news-list time { color: var(--red); font-variant-numeric: tabular-nums; }
+.calendar-entry { display: grid; gap: 3px; font-size: 13px; }
+.calendar-entry small { white-space: nowrap; }
+.news-list .calendar-entry { flex: 0 0 84px; }
 .region-stats div { justify-content: space-between; }
 .region-stats dd { margin: 0; }
 @media (max-width: 720px) {
@@ -326,6 +329,7 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .origin-switch { margin-bottom: 6px; }
 .origin-switch .quiet[aria-pressed=true] { border-color: var(--blue); background: #26394c; }
 .route-choice.ability { border-color: var(--red); background: var(--crimson); }
+.blizzard-steering .route-choice[aria-pressed=true] { color: var(--blue); border-color: var(--blue); background: #26394c; }
 .regional-atlas .storm { stroke: var(--storm-color); }
 .regional-atlas .marker.damaged .pin { fill: #ff7362; }
 .regional-atlas .marker text { font-size: 16px; stroke-width: 4px; }
@@ -355,7 +359,8 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .hurricane-name-form label { font: 700 20px/1 var(--display); }
 .hurricane-name-form input { min-height: 43px; min-width: 110px; flex: 1; background: var(--instrument); color: #eff8fa; border: 1px solid #9cbdc5; border-radius: 4px; padding: 6px 10px; font: inherit; }
 .cyclone-history { margin: 0; padding: 0 16px 16px; list-style: none; }
-.cyclone-history li { display: grid; grid-template-columns: 46px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid #66808b; }
+.cyclone-history li { display: grid; grid-template-columns: 84px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid #66808b; }
+.cyclone-history .calendar-entry { align-self: start; }
 .cyclone-history time { color: #a9deeb; font-variant-numeric: tabular-nums; }
 .cyclone-history li div { display: grid; gap: 2px; }
 .cyclone-history strong { font: 700 21px/1 var(--display); }

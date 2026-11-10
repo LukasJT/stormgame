@@ -15,6 +15,8 @@ export const blizzardPatterns = {
 } as const
 
 export type BlizzardPattern = keyof typeof blizzardPatterns
+export type BlizzardCourse = 'left' | 'natural' | 'right'
+export type BlizzardSteering = { course: BlizzardCourse; from: number; since: number }
 
 export function blizzardOptions([, lat, lon]: Place): readonly BlizzardPattern[] {
   const west = ((lon + 180) % 360 + 360) % 360 - 180
@@ -32,15 +34,21 @@ export function blizzardOptions([, lat, lon]: Place): readonly BlizzardPattern[]
 }
 
 
+export function blizzardSteeringOffset({ course, from, since }: BlizzardSteering, time: number) {
+  const target = course === 'left' ? -Math.PI / 10 : course === 'right' ? Math.PI / 10 : 0
+  return target + (from - target) * Math.exp(-Math.max(0, time - since) / 16)
+}
+
 export function blizzardHeading(pattern: BlizzardPattern, phase: number, time: number, stability: number) {
   const { heading, curve } = blizzardPatterns[pattern]
   return heading + curve * Math.min(1, time / 540) + .10 * (1 - Math.min(1, stability)) * Math.sin(time / 180 + phase)
 }
 
-export function blizzardTrack(point: MapPoint, pattern: BlizzardPattern, phase: number, time: number, seconds: number, effects: Effects) {
-  const heading = blizzardHeading(pattern, phase, time + seconds / 2, effects.trackStability)
+export function blizzardTrack(point: MapPoint, pattern: BlizzardPattern, phase: number, time: number, seconds: number, effects: Effects, steering?: BlizzardSteering) {
+  const headingAt = (at: number) => blizzardHeading(pattern, phase, at, effects.trackStability)
+    + (steering ? blizzardSteeringOffset(steering, at) : 0)
   return {
-    point: movePoint(point, heading, blizzardPatterns[pattern].speed * (1 + effects.spread) * seconds),
-    heading: blizzardHeading(pattern, phase, time + seconds, effects.trackStability),
+    point: movePoint(point, headingAt(time + seconds / 2), blizzardPatterns[pattern].speed * (1 + effects.spread) * seconds),
+    heading: headingAt(time + seconds),
   }
 }

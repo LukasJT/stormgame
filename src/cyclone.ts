@@ -3,10 +3,14 @@ import type { Effects } from './upgrades'
 
 export type CycloneStage = { time: number; category: string; wind: number; reason: string; location: string }
 export type Cyclone = {
+  startedAt: number | null
   initial: number; turnLatitude: number; hemisphere: number; bias: number
-  inlandKm: number; travelKm: number; ocean: boolean; stage: string; environment: string; peakWind: number; radarAngle: number
+  inlandKm: number; oceanKm: number; ocean: boolean; stage: string; environment: string; peakWind: number; radarAngle: number
   history: CycloneStage[]
 }
+
+// At 1.65–2.4 km per tick, six minutes puts forward motion at 16.5–24 km/h.
+export const cycloneTickSeconds = 6 * 60
 
 export const latitudeAt = (point: MapPoint) => 90 - point.y / 10
 export const longitudeAt = (point: MapPoint) => worldX(point.x) / 10 - 180
@@ -22,7 +26,7 @@ export function startCyclone(point: MapPoint, seed: number, ocean: boolean): Cyc
   const bias = (random(seed ^ 0x1B5E461)() - .5) * .32
   const initial = gulf ? -1.70 : bay ? -1.77 : eastAustralia || mozambique ? -2.9 : -2.67
   const turnLatitude = gulf ? 30 : bay ? 26 : 30
-  return { initial, turnLatitude, hemisphere, bias, inlandKm: 0, travelKm: 0, ocean, stage: '', environment: '', peakWind: 0, radarAngle: 0, history: [] }
+  return { startedAt: null, initial, turnLatitude, hemisphere, bias, inlandKm: 0, oceanKm: 0, ocean, stage: '', environment: '', peakWind: 0, radarAngle: 0, history: [] }
 }
 
 export const radarSpin = (cyclone: Cyclone, wind: number) => -cyclone.hemisphere * wind * .095
@@ -37,6 +41,17 @@ export function cycloneSpeed(point: MapPoint) {
   return 1.65 + Math.min(.75, Math.abs(latitudeAt(point)) / 52)
 }
 
+function hasWarmWater(point: MapPoint) {
+  const lat = latitudeAt(point)
+  if (Math.abs(lat) < 29) return true
+  const lon = longitudeAt(point)
+  // Approximate warm-season conditions in the Gulf and along the Gulf Stream to Cape Hatteras.
+  const northernGulf = lat <= 31 && lat >= 29 && lon >= -98 && lon <= -82
+  const streamLongitude = -80 + (lat - 29) * .55 + Math.max(0, lat - 32) * .35
+  const gulfStream = lat >= 29 && lat < 36 && Math.abs(lon - streamLongitude) <= 2.8
+  return northernGulf || gulfStream
+}
+
 export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effects, difficulty: number, strength: number) {
   const lat = Math.abs(latitudeAt(point))
   if (!cyclone.ocean) {
@@ -46,14 +61,17 @@ export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effec
   }
   const buffer = 1 - Math.min(.44, effects.coldBuffer)
   if (lat < 5) return { name: 'Weak rotation near the equator', trend: -.14 * buffer }
-  if (lat >= 34) return { name: 'Cold water and wind shear', trend: -(.16 + Math.min(.22, (lat - 34) * .014)) * buffer }
-  if (lat >= 29) return { name: 'Cooler water and wind shear', trend: (-.042 - difficulty * .024) * buffer }
-  const shear = Math.min(.78, Math.max(0, cyclone.travelKm - 850) / 1100)
+  if (!hasWarmWater(point)) {
+    if (lat >= 34) return { name: 'Cold water and wind shear', trend: -(.16 + Math.min(.22, (lat - 34) * .014)) * buffer }
+    return { name: 'Cooler water and wind shear', trend: (-.042 - difficulty * .024) * buffer }
+  }
+  const shear = Math.min(.78, Math.max(0, cyclone.oceanKm - 850) / 1100)
   const potential = Math.min(100, 43 + effects.seaGain * 220)
   const approach = (potential - strength) * .012
   const growth = Math.min(.075 - difficulty * .012 + effects.seaGain, approach)
-  return { name: shear > .27 ? 'Increasing wind shear over warm water' : 'Warm ocean water',
-    trend: growth - shear * (1 - Math.min(.28, effects.coldBuffer)) }
+  const trend = growth - shear * (1 - Math.min(.28, effects.coldBuffer))
+  const sheared = shear > .27 || (shear > 0 && growth >= 0 && trend < 0)
+  return { name: sheared ? 'Increasing wind shear over warm water' : 'Warm ocean water', trend }
 }
 
 // Points for the short map projection. The simulation uses the same flow and turning limit.
