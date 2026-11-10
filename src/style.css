@@ -61,6 +61,12 @@ svg { display: block; }
 .map-tools button[hidden] { display: none; }
 .map-tools button[data-action="weather-layer"][aria-pressed="true"] { color: #174433; background: #c5efcb; }
 .chart[data-weather="off"] .weather-layer { display: none; }
+.heat-dome-isobars ellipse { fill: none; stroke: #ffc297; stroke-width: 1; stroke-dasharray: 3 4; opacity: .72; vector-effect: non-scaling-stroke; }
+.heat-dome-layer path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.jet-stream-halo { stroke: #093747; stroke-width: 6; opacity: .78; }
+.jet-stream-line { stroke: url(#heat-dome-jet); stroke-width: 2.4; }
+.jet-stream-arrow { stroke: #d8faff; stroke-width: 1.7; }
+.heat-dome-pressure { fill: #fff0ca; stroke: #712b27; stroke-width: 1; paint-order: stroke; vector-effect: non-scaling-stroke; font: 700 .25px var(--display); }
 .weather-hotspot { fill: #ff8a45; stroke: #ffd094; stroke-width: .012; }
 .weather-electric { fill: none; stroke: #fff0af; stroke-width: .022; opacity: .75; }
 .map-caption-bar { position: absolute; inset: 15px 20px auto; z-index: 1; display: flex; justify-content: space-between; pointer-events: none; color: #d8d4c9; font: 600 15px var(--display); text-transform: uppercase; letter-spacing: .08em; }

@@ -433,6 +433,22 @@ test('shows the local blizzard options at the marker and uses the selected type 
   await expect(page.locator('#storm-stats').getByText('Frontal Snowstorm', { exact: true })).toBeVisible()
 })
 
+test('shows the heat dome and poleward jet-stream ridge at world zoom', async ({ page }) => {
+  await page.goto('/')
+  await openMap(page, 'Heat Dome', 'Easy')
+  await dropAt(page, 35, -98)
+  await page.getByRole('button', { name: 'Begin', exact: true }).click()
+  const dome = page.getByRole('img', { name: 'Heat dome beneath a poleward bend in the jet stream' })
+  const weatherToggle = page.getByRole('button', { name: 'Weather overlay' })
+  await expect(dome.locator('.jet-stream-line')).toBeVisible()
+  await expect(dome.locator('[data-jet-ridge]')).toHaveAttribute('transform', 'scale(1 1)')
+  await expect(dome.locator('[data-weather-scale]')).not.toHaveAttribute('opacity', '0.000')
+  await weatherToggle.click()
+  await expect(dome).toBeHidden()
+  await weatherToggle.click()
+  await expect(dome.locator('.jet-stream-line')).toBeVisible()
+})
+
 test('reveals smaller cities at higher zoom and sets a precise wildfire start without moving the map', async ({ page }) => {
   await page.goto('/')
   await openMap(page, 'Wildfire')

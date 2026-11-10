@@ -134,7 +134,9 @@ export class MapCamera {
       const sizeFade = clamp((y / unitsPerPixel - 2.5) / 8.5, 0, 1)
       const zoomFade = clamp((26 - kmPerPixel) / 14, 0, 1)
       weather.setAttribute('transform', `scale(${x} ${y})`)
-      weather.setAttribute('opacity', (sizeFade * zoomFade).toFixed(3))
+      const heatDome = weather.parentElement?.getAttribute('data-weather-kind') === 'heat-dome'
+      const opacity = heatDome ? Math.max(.68, sizeFade * zoomFade) : sizeFade * zoomFade
+      weather.setAttribute('opacity', opacity.toFixed(3))
     }
     drawCities(this.svg, box, this.surface.clientWidth)
     drawSatelliteTiles(this.svg, box, this.surface.clientWidth)

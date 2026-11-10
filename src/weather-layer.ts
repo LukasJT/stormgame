@@ -39,8 +39,42 @@ const modeled = {
     shapes: '<ellipse cx=".22" cy="-.02" rx=".43" ry=".20"/><ellipse cx=".42" cy="-.09" rx=".33" ry=".16"/><circle class="weather-hotspot" r=".06"/><circle class="weather-hotspot" cx="-.09" cy=".045" r=".034"/>' },
   'Dust Storm': { label: 'Dust wall and trailing plume', color: '#e8b579',
     shapes: '<ellipse cx="-.16" rx=".47" ry=".26"/><ellipse cx=".11" rx=".26" ry=".35"/><ellipse cx=".09" rx=".14" ry=".31"/>' },
-  'Heat Dome': { label: 'Surface heat field', color: '#ed7551',
-    shapes: '<ellipse rx=".52" ry=".39"/><ellipse rx=".34" ry=".27"/><ellipse rx=".2" ry=".16"/>' },
+}
+
+const jetStream = 'M -2.1 -.08 C -1.62 .10 -1.30 .31 -.97 .05 C -.66 -.20 -.53 -.84 -.08 -.86 C .43 -.88 .64 -.12 .97 .09 C 1.31 .30 1.63 .10 2.1 -.11'
+
+function drawHeatDome(run: Run, width: number) {
+  const { y } = position(run)
+  const poleward = y <= 900 ? 1 : -1
+  const strength = run.strength / 100
+  return `<g class="weather-layer heat-dome-layer" data-weather-position data-weather-kind="heat-dome"
+    role="img" aria-label="Heat dome beneath a poleward bend in the jet stream" pointer-events="none">
+    <g data-weather-scale="${width * 1.35}" data-weather-y="${y}">
+      <defs>
+        <radialGradient id="heat-dome-warmth">
+          <stop stop-color="#ffb86c" stop-opacity="${.38 + strength * .47}"/>
+          <stop offset=".57" stop-color="#f46c43" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#d93b35" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="heat-dome-jet">
+          <stop stop-color="#9fe9ff" stop-opacity=".28"/>
+          <stop offset=".28" stop-color="#bcf6ff"/>
+          <stop offset=".72" stop-color="#bcf6ff"/>
+          <stop offset="1" stop-color="#9fe9ff" stop-opacity=".28"/>
+        </linearGradient>
+      </defs>
+      <ellipse rx=".66" ry=".47" fill="url(#heat-dome-warmth)"/>
+      <g class="heat-dome-isobars" aria-hidden="true">
+        <ellipse rx=".47" ry=".31"/><ellipse rx=".33" ry=".22"/>
+      </g>
+      <g data-jet-ridge transform="scale(1 ${poleward})" aria-hidden="true">
+        <path class="jet-stream-halo" d="${jetStream}"/>
+        <path class="jet-stream-line" d="${jetStream}"/>
+        <path class="jet-stream-arrow" d="M -.20 -.94 L -.08 -.86 L -.20 -.77 M 1.37 .12 L 1.48 .15 L 1.39 .24"/>
+      </g>
+      <text class="heat-dome-pressure" y="-.08" text-anchor="middle" aria-hidden="true">H</text>
+    </g>
+  </g>`
 }
 
 export function drawWeather(run: Run) {
@@ -48,10 +82,11 @@ export function drawWeather(run: Run) {
   const storm = activeStorm(run)
   if (storm === 'Tornado') return ''
   const stats = stormStats(run)
+  if (storm === 'Heat Dome') return drawHeatDome(run, stats.widthKm)
   const tornadic = storm === 'Thunderstorm' || storm === 'Supercell'
   const echo = run.cyclone ? { file: 'cyclone', ratio: 1, label: 'Tropical cyclone radar' }
     : run.blizzardPattern ? snow[run.blizzardPattern] : stormEchoes[storm]
-  const physical = storm === 'Wildfire' || storm === 'Dust Storm' || storm === 'Heat Dome' ? modeled[storm] : undefined
+  const physical = storm === 'Wildfire' || storm === 'Dust Storm' ? modeled[storm] : undefined
   if (!echo && !physical && !tornadic) return ''
   const strength = run.strength / 100
   const diameter = run.cyclone ? stats.widthKm * 1.65 : stats.widthKm * 1.35

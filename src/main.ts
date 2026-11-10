@@ -680,7 +680,7 @@ function render() {
   weatherToggle.setAttribute('aria-pressed', String(showWeather))
   chart.dataset.weather = showWeather ? 'on' : 'off'
   const modeled = state && ['Thunderstorm', 'Supercell', 'Wildfire', 'Dust Storm', 'Heat Dome'].includes(activeStorm(state))
-  weatherCredit.textContent = showOverlay && showWeather ? modeled ? 'Modeled weather layer' : 'NOAA archive · weather template' : ''
+  weatherCredit.textContent = showOverlay && showWeather ? state?.theater.storm === 'Heat Dome' ? 'Modeled jet stream and surface heat' : modeled ? 'Modeled weather layer' : 'NOAA archive · weather template' : ''
   const status = !state ? 'Select an origin' : state.end ? 'Forecast ended' : opening ? 'Ready to form' : state.detectedAt === null ? 'Unnoticed' : 'Detected'
   const label = state ? state.front && !opening ? state.front.locality.name : state.zones[inspected ?? state.at].name : 'World'
   map.classList.toggle('is-inspecting', inspectMode)
