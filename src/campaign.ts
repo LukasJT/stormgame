@@ -1,7 +1,7 @@
 import type { Difficulty } from './sim'
 import type { Storm } from './world'
 
-export const campaign = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire', 'Dust Storm', 'Heat Dome'] as const
+export const campaign = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire'] as const
 export type CampaignEvent = typeof campaign[number]
 export const difficulties: Difficulty[] = ['Easy', 'Normal', 'Hard', 'Expert']
 
@@ -23,12 +23,6 @@ const targets: Record<CampaignEvent, Record<Exclude<Difficulty, 'Expert'>, reado
   },
   Wildfire: {
     Easy: [1800, 8500, 55000, 190000], Normal: [1000, 6000, 40000, 145000], Hard: [650, 3500, 26000, 100000],
-  },
-  'Dust Storm': {
-    Easy: [3500, 5500, 16500, 16976], Normal: [2800, 4500, 9000, 16976], Hard: [2300, 3200, 6500, 16600],
-  },
-  'Heat Dome': {
-    Easy: [91000, 93000, 97000, 100000], Normal: [85000, 92000, 97000, 99500], Hard: [18000, 55000, 75000, 94000],
   },
 }
 

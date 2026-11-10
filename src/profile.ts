@@ -10,10 +10,9 @@ const rankingsKey = 'stormwake.rankings'
 export const playbackSpeeds = [1, 2, 4] as const
 type Settings = { startingSpeed: typeof playbackSpeeds[number]; breakingNews: boolean; units: 'imperial' | 'metric' }
 type RecordTotals = { damage: number; deaths: number }
-type StoredEvent = CampaignEvent | 'Flooding'
 type Records = Partial<Record<Storm | 'Flooding', RecordTotals | { score: number; deaths: number }>>
 type Ranking = RecordTotals & { stars: number }
-type Rankings = Partial<Record<StoredEvent, Partial<Record<Difficulty, Ranking>>>>
+type Rankings = Partial<Record<CampaignEvent, Partial<Record<Difficulty, Ranking>>>>
 
 function readStorage<T extends object>(key: string): Partial<T> {
   try {
@@ -52,7 +51,7 @@ function validRecord(record: Records[Storm | 'Flooding']): RecordTotals | undefi
     && damage >= 0 && record.deaths >= 0) return { damage, deaths: record.deaths }
 }
 
-export function legacyRecord(storm: StoredEvent) {
+export function legacyRecord(storm: CampaignEvent) {
   const records = readStorage<Records>(recordsKey)
   const names = storm === 'Thunderstorm' ? thunderstormTypes : [storm]
   let totals: RecordTotals | undefined
@@ -63,7 +62,7 @@ export function legacyRecord(storm: StoredEvent) {
   return totals
 }
 
-export function stormRecord(storm: StoredEvent, difficulty: Difficulty) {
+export function stormRecord(storm: CampaignEvent, difficulty: Difficulty) {
   const record = rankings[storm]?.[difficulty]
   if (record && Number.isInteger(record.stars) && record.stars >= 1 && record.stars <= 5
     && validRecord(record)) return record
@@ -73,13 +72,13 @@ export function difficultyUnlocked(storm: CampaignEvent, difficulty: Difficulty)
   return difficulty !== 'Expert' || (stormRecord(storm, 'Hard')?.stars ?? 0) >= 3
 }
 
-function hasCompletion(storm: StoredEvent) {
+function hasCompletion(storm: CampaignEvent) {
   return difficulties.some(difficulty => stormRecord(storm, difficulty)) || !!legacyRecord(storm)
 }
 
 export function eventUnlocked(storm: CampaignEvent) {
   const index = campaign.indexOf(storm)
-  return index === 0 || hasCompletion(campaign[index - 1]) || hasCompletion(storm) || (storm === 'Dust Storm' && hasCompletion('Flooding'))
+  return index === 0 || hasCompletion(campaign[index - 1]) || hasCompletion(storm)
 }
 
 export const nextEvent = (storm: CampaignEvent): CampaignEvent | undefined => campaign[campaign.indexOf(storm) + 1]

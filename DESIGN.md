@@ -1,6 +1,6 @@
 # Stormwake interface
 
-The title screen centers the Stormwake emblem and a silver Play button on a crimson satellite chart. How to Play, Storm Records, and Settings sit below Play. The event picker lays out eight spaced emblems with descriptions underneath. Tornado comes first. Each lock badge names the previous event that opens it. Difficulty has its own screen with separate star records. The second Play opens the map with the chosen settings.
+The title screen centers the Stormwake emblem and a silver Play button on a crimson satellite chart. How to Play, Storm Records, and Settings sit below Play. The event picker lays out five spaced emblems with descriptions underneath, with three in the first row and two centered below. Tornado comes first. Each lock badge names the previous event that opens it. Difficulty has its own screen with separate star records. The second Play opens the map with the chosen settings.
 
 The satellite map is the game board. The pale blue news ticker and dark clock frame its top edge. The bottom status bar uses silver Evolve and Region controls around dark Damage score, World and Total deaths tiles. Momentum and detection sit at the lower corners of the map. Weather bubbles appear briefly on the map. Course choices sit between the map and status bar. Amber stars carry through setup, the report and records. The same layout fits desktop and phone.
 

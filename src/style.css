@@ -453,20 +453,16 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
   width: min(100%, 560px); border: 1px solid #b693a0; border-radius: 7px;
   background: linear-gradient(#33202d, #21151e); color: #fff3f2; overflow: hidden;
 }
-.weather-select { width: min(100%, 900px); padding: 12px 0 20px; text-align: center; }
+.weather-select { width: min(100%, 700px); padding: 12px 0 20px; text-align: center; }
 .weather-select-header { position: relative; padding: 4px 80px 27px; }
 .weather-select-header .menu-back { position: absolute; top: 6px; left: 0; color: #6d1726; }
 .weather-select-header h1 { margin: 0; font: 700 clamp(37px, 6vw, 58px)/.98 var(--display); color: #fff3f1; }
 .weather-select-header p { margin: 11px auto 0; color: #efd1d8; font-size: 14px; }
-.event-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px 24px; padding: 12px 0 0; }
-@media (width > 600px) {
-  .event-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-  .event-choice { grid-column: span 2; }
-  .event-choice:nth-child(5) { grid-column: 2 / span 2; }
-  .event-choice:nth-child(6) { grid-column: 4 / span 2; }
-  .event-choice:nth-child(7) { grid-column: 6 / span 2; }
-}
+.event-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 36px 20px; padding: 12px 0 0; }
+.event-choice:nth-child(4) { grid-column: 2 / span 2; }
+.event-choice:nth-child(5) { grid-column: 4 / span 2; }
 .event-choice {
+  grid-column: span 2;
   display: grid; justify-items: center; align-content: start; gap: 7px; min-width: 0; padding: 4px;
   border: 0; border-radius: 8px; background: transparent; text-align: center; color: #fff1f0;
 }
@@ -493,10 +489,10 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
   .weather-select-header { padding: 52px 0 14px; }
   .weather-select-header .menu-back { top: 0; }
   .weather-select-header p { max-width: 290px; margin-top: 5px; font-size: 13px; }
-  .event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19px 12px; }
+  .event-grid { gap: 24px 6px; }
   .event-emblem { width: 60px; margin-bottom: 1px; }
   .event-emblem > svg { width: 29px; }
-  .event-choice strong { font-size: 23px; }
+  .event-choice strong { font-size: clamp(17px, 5.2vw, 23px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .event-emblem { transition: none; }

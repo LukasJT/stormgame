@@ -57,13 +57,17 @@ it('counts historical completions without guessing their difficulty', async () =
   expect(profile.stormRecord('Tornado', 'Normal')).toBeUndefined()
 })
 
-it('skips the retired Flooding event while preserving its Dust Storm unlock', async () => {
+it('ends the campaign at Wildfire even when saved rankings contain retired events', async () => {
   vi.resetModules()
-  vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'stormwake.rankings'
-    ? JSON.stringify({ Flooding: { Easy: { damage: 0, deaths: 0, stars: 1 } } }) : null })
+  const retired = { Easy: { damage: 0, deaths: 0, stars: 1 } }
+  const saved = { Flooding: retired, 'Dust Storm': retired, 'Heat Dome': retired }
+  const storage = new Map([['stormwake.rankings', JSON.stringify(saved)]])
+  vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key), setItem: storage.set.bind(storage) })
   const profile = await import('../src/profile')
-  expect(profile.nextEvent('Wildfire')).toBe('Dust Storm')
-  expect(profile.eventUnlocked('Dust Storm')).toBe(true)
+  expect(profile.nextEvent('Wildfire')).toBeUndefined()
+  expect(campaign.filter(profile.eventUnlocked)).toEqual(['Tornado'])
+  profile.recordRun('Tornado', 'Easy', { damage: 0, deaths: 0 })
+  expect(JSON.parse(storage.get('stormwake.rankings')!)).toMatchObject(saved)
 })
 
 it('seeds irregular Momentum awards and lets weather pickups pay out only once', () => {

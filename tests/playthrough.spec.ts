@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function completeStarterFixture(page: Page) {
   await page.evaluate(() => {
-    const played = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire', 'Dust Storm']
+    const played = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm']
     localStorage.setItem('stormwake.records', JSON.stringify(Object.fromEntries(played.map(event => [event, { score: 0, deaths: 0 }]))))
   })
 }
@@ -31,9 +31,22 @@ test('starts at the main menu and requires weather and difficulty before showing
   await play.press('Enter')
   await expect(page.getByRole('heading', { name: 'Choose a weather event' })).toBeFocused()
   const events = page.getByRole('group', { name: 'Weather events' })
-  await expect(events.getByRole('button')).toHaveCount(7)
-  await expect(events.getByRole('button').first()).toHaveAccessibleName('Tornado')
-  await expect(events.locator('button:disabled')).toHaveCount(6)
+  const cards = events.getByRole('button')
+  const names = ['Tornado', 'Hurricane', 'Blizzard', 'Thunderstorm', 'Wildfire']
+  await expect(cards).toHaveCount(names.length)
+  for (const [index, name] of names.entries()) await expect(cards.nth(index)).toHaveAccessibleName(name)
+  await expect(events.locator('button:disabled')).toHaveCount(4)
+  const desktop = page.viewportSize()!
+  for (const viewport of [desktop, { width: 320, height: 700 }]) {
+    await page.setViewportSize(viewport)
+    const bounds = await cards.evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().toJSON()))
+    const [first, second, third, fourth, fifth] = bounds
+    expect([second.top, third.top]).toEqual([first.top, first.top])
+    expect(fourth.top).toBeGreaterThan(first.top)
+    expect(fifth.top).toBe(fourth.top)
+    expect((fourth.left + fifth.right) / 2).toBeCloseTo((first.left + third.right) / 2, 0)
+  }
+  await page.setViewportSize(desktop)
   await expect(events.getByRole('button', { name: 'Hurricane', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { name: 'Stormwake' })).toBeVisible()
@@ -59,6 +72,7 @@ test('sandbox opens all events with free upgrades and leaves campaign records al
   const play = page.getByRole('button', { name: 'Play', exact: true })
   await page.getByRole('button', { name: 'Sandbox', exact: true }).click()
   const events = page.getByRole('group', { name: 'Weather events' })
+  await expect(events.getByRole('button')).toHaveCount(5)
   await expect(events.locator('button:disabled')).toHaveCount(0)
   await events.getByRole('button', { name: 'Tornado', exact: true }).click()
   await page.getByRole('button', { name: /^Expert / }).click()
@@ -554,22 +568,6 @@ test('shows the local blizzard options at the marker and uses the selected type 
   await expect(layer).toBeHidden()
   await toggle.click()
   await expect(layer.locator('path').first()).toBeVisible()
-})
-
-test('shows the heat dome and poleward jet-stream ridge at world zoom', async ({ page }) => {
-  await page.goto('/')
-  await openMap(page, 'Heat Dome', 'Easy')
-  await dropAt(page, 35, -98)
-  await page.getByRole('button', { name: 'Begin', exact: true }).click()
-  const dome = page.getByRole('img', { name: 'Heat dome beneath a poleward bend in the jet stream' })
-  const weatherToggle = page.getByRole('button', { name: 'Weather overlay' })
-  await expect(dome.locator('.jet-stream-line')).toBeVisible()
-  await expect(dome.locator('[data-jet-ridge]')).toHaveAttribute('transform', 'scale(1 1)')
-  await expect(dome.locator('[data-weather-scale]')).not.toHaveAttribute('opacity', '0.000')
-  await weatherToggle.click()
-  await expect(dome).toBeHidden()
-  await weatherToggle.click()
-  await expect(dome.locator('.jet-stream-line')).toBeVisible()
 })
 
 test('rejects wildfire ignition in cells with no recorded burns', async ({ page }) => {
