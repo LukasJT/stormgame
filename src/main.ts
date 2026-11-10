@@ -386,6 +386,7 @@ function frontOrders(state: Run) {
 
 function results(state: Run) {
   if (state.tornado) return `<div class="report-heading"><strong>${state.name} · Forecast ended</strong></div>
+    <p class="report-summary">Pan or zoom to inspect the damage track.</p>
     <div class="orders">${button('clipping', 'Read news', undefined, 'order')}
     ${button('view-results', 'Next', undefined, 'order hot')}${button('retry', 'Retry', undefined, 'order')}</div>`
   const total = totals(state)
@@ -396,6 +397,7 @@ function results(state: Run) {
   const snowfall = state.snow ? snowfallSummary(state.snow) : ''
   return `<div class="report-heading"><strong>${state.name || kind} · ${difficultyLabel(state.difficulty)}</strong>${stars(rating, state.difficulty)}</div>
     <p class="report-summary">${state.end} ${formatDamage(total.damage)} in property lost.</p>${snowfall}
+    <p class="report-summary">Pan or zoom to inspect the final map.${total.damage && !state.fire ? ' Amber dots mark recorded property damage.' : ''}</p>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
     <div class="orders">${state.cyclone ? button('history', 'Track history', undefined, 'order') : ''}${upcoming && eventUnlocked(upcoming) ? button('next-event', `Next: ${upcoming}`, upcoming, 'order hot') : ''}
     ${button('retry', 'Retry same forecast', undefined, 'order')}${button('new', 'New forecast', undefined, 'order')}</div>`
@@ -444,7 +446,7 @@ function tornadoResults(state: Run) {
     <dl class="forecast-stat-sheet">${tornadoReportStats(state).map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
     <div class="forecast-places"><strong>Cities and towns affected</strong><p>${places.length ? places.join(' · ') : 'None reported'}</p></div>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
-    <footer>${button('retry', 'Retry', undefined, 'order hot')}${button('main-menu', 'Exit', undefined, 'order')}</footer>
+    <footer>${button('explore-damage', 'Explore damage', undefined, 'order')}${button('retry', 'Retry', undefined, 'order hot')}${button('main-menu', 'Exit', undefined, 'order')}</footer>
   </section>`
 }
 
@@ -465,7 +467,7 @@ function tornadoClipping(state: Run) {
     <p>${state.name} formed on ${tornadoDate(record.startedAt)} and lasted ${tornadoDuration(state.time)}. It ${record.peakEf === null
       ? 'remained over water' : `reached EF${record.peakEf} and cut a ${formatDistance(record.lengthKm)} path on land`}.${record.maxWidthKm ? ` At its widest, it measured ${formatDistance(record.maxWidthKm)} across.` : ''}</p>
     <p>${where} The storm caused ${num.format(total.deaths)} deaths and ${num.format(total.injured)} injuries, with property losses estimated at ${formatDamage(total.damage)}.</p>
-    <footer>${button('retry', 'Retry', undefined, 'order')}${button('view-results', 'Next', undefined, 'order hot')}</footer>
+    <footer>${button('explore-damage', 'Explore damage', undefined, 'order')}${button('retry', 'Retry', undefined, 'order')}${button('view-results', 'Next', undefined, 'order hot')}</footer>
   </article>`
 }
 
@@ -992,6 +994,13 @@ document.addEventListener('click', event => {
       if (!run?.tornado || !run.end) return
       closeClipping()
       return showScreen('results')
+    case 'explore-damage':
+      if (!run?.end) return
+      closeClipping()
+      screen = 'map'
+      render()
+      map.focus({ preventScroll: true })
+      return
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
     case 'blizzard-course':
       if (run && !opening && value && Object.hasOwn(blizzardCourses, value)) setBlizzardCourse(run, value as BlizzardCourse)

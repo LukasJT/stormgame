@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { makeHurricaneDrop } from '../src/free-drop'
+import { makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { momentumSchedule, startingMomentum } from '../src/momentum'
 import { thunderstormTypes } from '../src/hazards'
 import { abilityCost, activeStorm, buyUpgrade, collectWeatherPickup, defaultSeed, startRun, stormStats, tick, useAbility } from '../src/sim'
@@ -91,6 +91,13 @@ it('matches the tornado tree size and Momentum economy', () => {
     expect([3, 4, 5]).toContain(pickup.points)
   })
 })
+
+it('lets an unupgraded Plains thunderstorm persist longer before dissipating', () => {
+  const run = startRun(makeDrop('Thunderstorm', 39, -97), 0, 'Normal', defaultSeed)
+  while (!run.end && run.time < 1900) tick(run)
+  expect(run.end).toBeTruthy()
+  expect(run.time).toBeGreaterThan(1300)
+}, 20000)
 
 it.each([
   ['Easy', 'Bowing Line', 'Squall'],

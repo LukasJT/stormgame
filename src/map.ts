@@ -2,7 +2,7 @@ import { drawWildfire, fireHistoryLayer } from './wildfire'
 import { blizzardTrack } from './blizzard'
 import { drawSnowfall } from './snow-map'
 import { formatDistance } from './units'
-import { activeStorm, burstRange, footprint, frontSpeed, leg, routeOptions, stormAbility, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
+import { activeStorm, burstRange, footprint, frontSpeed, impactAreas, leg, routeOptions, stormAbility, stormStats, tornadoRadius, trackPoints, travelRate, type Run } from './sim'
 import { bounds, stormColor, theaters, zoneIds, type Storm, type Theater, type ZoneId } from './world'
 import { alongTrack, pathFor } from './track'
 import { hazardFor } from './hazards'
@@ -119,7 +119,7 @@ export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, in
     <rect class="map-tone" width="3600" height="1800" fill="#115377" opacity=".55" pointer-events="none"/>
     ${markers}
     ${inspection}
-    ${run ? drawWildfire(run.fire, true) + drawSnowfall(run, true) + drawWeather(run) : ''}
+    ${run ? drawWildfire(run.fire, true) + drawSnowfall(run, true) + drawWeather(run) + drawRecordedDamage(run, true) : ''}
     ${pending?.snow ? `<path class="snow-preview-band" d="${motion(pending, 0, true).next}" stroke-width="${stormStats(pending).widthKm / 11.1}"/>
       <path class="projected" d="${motion(pending, 0, true).next}" data-snow-preview vector-effect="non-scaling-stroke"/>` : ''}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
@@ -200,6 +200,16 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
   return water + area + drawSwath(front.swath, world) + funnels
 }
 
+function drawRecordedDamage(run: Run, world: boolean) {
+  if (!run.end || run.tornado || run.fire) return ''
+  const reference = run.front?.point.x ?? run.zones[run.origin].x
+  const marks = impactAreas(run).filter(({ site }) => site.loss > 0).map(({ zone }) => {
+    const x = world ? worldX(zone.x) : zone.x + Math.round((reference - zone.x) / 3600) * 3600
+    return `M${x.toFixed(3)} ${zone.y.toFixed(3)}h.001`
+  }).join('')
+  return marks ? `<path class="recorded-damage" d="${marks}" vector-effect="non-scaling-stroke" role="img" aria-label="Recorded property damage"/>` : ''
+}
+
 export function drawRegion(theater: Theater, run: Run, inspected: ZoneId | null, targeting: Targeting = null, selectedFunnel: number | null = null) {
   const { left, top, width, height } = run.fire
     ? { left: run.fire.origin.x - 6, top: run.fire.origin.y - 4.5, width: 12, height: 9 }
@@ -242,7 +252,7 @@ export function drawRegion(theater: Theater, run: Run, inspected: ZoneId | null,
     ${regionalEarth}
     ${satelliteTiles}
     <rect class="map-tone" x="-3600" width="10800" height="1800" fill="#164561" opacity=".36" pointer-events="none"/>
-    ${drawWildfire(run.fire, false)}${drawSnowfall(run, false)}${drawWeather(run)}
+    ${drawWildfire(run.fire, false)}${drawSnowfall(run, false)}${drawWeather(run)}${drawRecordedDamage(run, false)}
     <g class="city-layer" data-city-layer aria-hidden="true"></g>
     ${zoneIds.filter(id => run.sites[id].loss > 0).map(id => `<circle cx="${run.zones[id].x}" cy="${run.zones[id].y}" r="${pin * 5}" fill="url(#impact)" pointer-events="none"/>`).join('')}
     <path data-storm-wake d="${view.wake}" class="wake" vector-effect="non-scaling-stroke"/>

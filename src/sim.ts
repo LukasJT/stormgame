@@ -682,7 +682,8 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   }
 
   const pattern = blizzardPatterns[patternName]
-  const cold = Math.max(0, Math.min(1, (Math.abs(latitudeAt(front.point)) - 25) / 12 + run.effects.coldTolerance))
+  const latitude = Math.abs(latitudeAt(front.point))
+  const cold = Math.max(0, Math.min(1, (latitude - 25) / 12 + run.effects.coldTolerance))
   const lake = !surface.code && surface.name !== 'Open water'
   const water = !surface.code && cold > .3
   if (water) {
@@ -696,9 +697,15 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   const clipper = patternName === 'Alberta Clipper'
   const lakeFeed = clipper && water && greatLakes.has(surface.name)
     ? run.effects.lakeMoisture * cold * Math.min(1, snow.waterMoisture / 20) : 0
+  const coastal = patternName === "Nor'easter"
+  // Coastal inflow buys time on the way north, then tapers as the storm enters the North Atlantic.
+  const coastalSupport = coastal && water && !lake
+    ? .03 * Math.min(1, snow.waterMoisture / 50) * Math.max(0, Math.min(1, (48 - latitude) / 4)) : 0
+  const atlanticFade = coastal ? Math.min(.20, Math.max(0, latitude - 44) * .035) : 0
   const weather = conditions(run, run.at)
   const priorStrength = run.strength
-  develop(run, weather.trend + lakeFeed * .85, lakeFeed * .55, clipper ? run.effects.endurance * .28 : 0)
+  develop(run, weather.trend + lakeFeed * .85 - atlanticFade, lakeFeed * .55 + coastalSupport,
+    clipper ? run.effects.endurance * .28 : coastal ? .5 : 0)
   const lakeHeadline = `clipper-recovery-${surface.name}`
   if (lakeFeed > .08 && run.strength > priorStrength && !run.alertHeadlines.has(lakeHeadline)) {
     run.alertHeadlines.add(lakeHeadline)
@@ -926,7 +933,9 @@ function advanceTrackedFunnels(run: Run, front: Front, threatened: Set<ImpactAre
 function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof hazardFor>>) {
   moveFront(run, front)
   const weather = frontConditions(run, run.time)
-  develop(run, weather.trend)
+  const thunderstorm = run.theater.storm === 'Thunderstorm'
+  const trend = thunderstorm && weather.trend < 0 ? weather.trend * .8 : weather.trend
+  develop(run, trend, 0, thunderstorm ? .38 : 0)
   run.charge = Math.max(0, Math.min(100, run.charge + hazard.recharge + weather.trend * 1.8 + run.effects.chargeGain))
   const width = stormStats(run).widthKm
   const core = sampledAreas(front, front.point, width * .28)

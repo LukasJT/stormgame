@@ -172,7 +172,7 @@ dialog[data-view=clipping] { width: min(650px, calc(100vw - 24px)); }
 .tornado-clipping h3 { font: 700 clamp(28px, 5.5vw, 47px)/1.02 Georgia, serif; letter-spacing: -.035em; margin: 16px 0 8px; }
 .tornado-clipping p { color: inherit; font: 16px/1.48 Georgia, serif; margin: 10px 0; }
 .tornado-clipping .clipping-byline { font-family: 'DM Sans', sans-serif; margin: 0 0 13px; }
-.tornado-clipping footer, .forecast-results footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.tornado-clipping footer, .forecast-results footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; margin-top: 18px; }
 .tornado-clipping footer { padding-top: 14px; border-top: 1px solid #ae967f; }
 .tornado-clipping footer button { color: #fff4eb; }
 .tornado-clipping footer button, .forecast-results footer button { min-width: 90px; text-align: center; }
@@ -716,6 +716,7 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 }
 
 .snowfall-layer { opacity: .82; }
+.recorded-damage { fill: none; stroke: #ffad63; stroke-width: 3px; stroke-linecap: round; opacity: .82; pointer-events: none; }
 .snow-preview-band { fill: none; stroke: #a598fc; stroke-linecap: round; opacity: .25; pointer-events: none; }
 .snow-legend { left: 50%; bottom: 5px; transform: translateX(-50%); text-align: center; white-space: nowrap; }
 .snow-legend strong { display: block; margin-bottom: 2px; }

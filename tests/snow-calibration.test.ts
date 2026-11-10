@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import { lakeAt, makeDrop } from '../src/free-drop'
 import { latitudeAt, longitudeAt } from '../src/cyclone'
+import { landAt } from '../src/convection'
 import { buyUpgrade, collectWeatherPickup, defaultSeed, startRun, tick } from '../src/sim'
 import { trees } from '../src/upgrades'
 
@@ -66,4 +67,23 @@ it('lets an Alberta Clipper buy persistence with earned points and rebuild over 
   expect(upgraded.strength).toBeGreaterThan(arrival + 3)
   expect(upgraded.support).toBeGreaterThan(support)
   expect(upgraded.events.some(event => event.text.includes('Alberta Clipper rebuilds over Lake Superior'))).toBe(true)
+}, 20000)
+
+it('takes a weakening Nor’easter from New England to Newfoundland', () => {
+  const run = startRun(makeDrop('Blizzard', 41.7, -70.3), 0, 'Normal', defaultSeed)
+  expect(run.blizzardPattern).toBe("Nor'easter")
+  const atNewfoundland = () => {
+    const point = run.front!.point
+    const lat = latitudeAt(point)
+    const lon = longitudeAt(point)
+    return lat >= 47.1 && lat <= 51.7 && lon >= -59.6 && lon <= -52.5 && landAt(point).code === 'CA'
+  }
+  let peak = run.strength
+  while (!run.end && !atNewfoundland() && run.time < 1400) {
+    peak = Math.max(peak, run.strength)
+    tick(run)
+  }
+  expect(atNewfoundland()).toBe(true)
+  expect(run.end).toBeNull()
+  expect(run.strength).toBeLessThan(peak)
 }, 20000)

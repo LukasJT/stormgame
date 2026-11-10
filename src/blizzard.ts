@@ -4,7 +4,7 @@ import type { Effects } from './upgrades'
 
 export const blizzardPatterns = {
   'Alberta Clipper': { description: 'A fast prairie storm that can reach the Great Lakes with Persistence upgrades.', favorable: 'Cold prairie air', speed: 1.32, growth: .08, snow: -.06, width: 60, heading: 0.18, curve: 0.04 },
-  "Nor'easter": { description: 'A broad coastal storm that climbs northeast along the Atlantic seaboard.', favorable: 'Cold Atlantic moisture', speed: .87, growth: .14, snow: .13, width: 230, heading: -0.84, curve: 0.3 },
+  "Nor'easter": { description: 'A broad coastal storm that climbs northeast toward Newfoundland.', favorable: 'Cold Atlantic moisture', speed: 1.22, growth: .14, snow: .13, width: 230, heading: -0.84, curve: 0.3 },
   'Lake-Effect Storm': { description: 'A narrow band that builds snowpack quickly.', favorable: 'Moist lake inflow', speed: .91, growth: .12, snow: .19, width: 42, heading: 0.08, curve: 0.03 },
   'Snow Squall': { description: 'A quick, narrow burst with short whiteouts.', favorable: 'Arctic front', speed: 1.2, growth: .11, snow: .12, width: 35, heading: 0.27, curve: 0.05 },
   'Colorado Low': { description: 'A broad snow shield that builds strength over the plains.', favorable: 'Moist upslope flow', speed: .94, growth: .15, snow: .09, width: 150, heading: -0.36, curve: 0.25 },
@@ -31,7 +31,7 @@ export function blizzardCourseAvailable(course: BlizzardCourse, pattern: Blizzar
   return pattern === "Nor'easter" || blizzardCourses[course].degrees >= -36
 }
 
-const atlanticTrack = [[31, -80], [35, -75.3], [38, -73.9], [40.5, -72.4], [42, -70], [44, -66], [47, -60], [54, -45]]
+const atlanticTrack = [[31, -80], [35, -75.3], [38, -73.9], [40.5, -72.4], [42, -70], [44, -66], [47, -60], [48.7, -56.8], [54, -45]]
 const clipperTrack = [[-123, 52.3], [-114, 51], [-108, 49.8], [-101, 48.3], [-95, 47.5], [-91, 47.45],
   [-87, 47.05], [-82, 45.3], [-77, 43.4], [-71, 41.5]]
 
