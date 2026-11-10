@@ -449,6 +449,13 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 .weather-select-header h1 { margin: 0; font: 700 clamp(37px, 6vw, 58px)/.98 var(--display); color: #fff3f1; }
 .weather-select-header p { margin: 11px auto 0; color: #efd1d8; font-size: 14px; }
 .event-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px 24px; padding: 12px 0 0; }
+@media (width > 600px) {
+  .event-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .event-choice { grid-column: span 2; }
+  .event-choice:nth-child(5) { grid-column: 2 / span 2; }
+  .event-choice:nth-child(6) { grid-column: 4 / span 2; }
+  .event-choice:nth-child(7) { grid-column: 6 / span 2; }
+}
 .event-choice {
   display: grid; justify-items: center; align-content: start; gap: 7px; min-width: 0; padding: 4px;
   border: 0; border-radius: 8px; background: transparent; text-align: center; color: #fff1f0;
