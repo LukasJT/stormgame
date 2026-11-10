@@ -281,6 +281,9 @@ describe('global weather scenarios', () => {
     const right = startRun(theater, 0, 'Normal', defaultSeed)
     const farLeft = startRun(theater, 0, 'Normal', defaultSeed)
     const farRight = startRun(theater, 0, 'Normal', defaultSeed)
+    for (const run of [natural, left, right, farLeft, farRight]) {
+      expect(chooseBlizzardPattern(run, 'Frontal Snowstorm')).toBe(true)
+    }
     setBlizzardCourse(left, 'left')
     setBlizzardCourse(right, 'right')
     setBlizzardCourse(farLeft, 'far-left')
