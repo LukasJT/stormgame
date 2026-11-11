@@ -46,6 +46,8 @@ const inspector = document.querySelector<HTMLElement>('#inspection')!
 const breakingNews = document.querySelector<HTMLElement>('#breaking-news')!
 const weatherPickup = document.querySelector<HTMLElement>('#weather-pickup')!
 const dialog = document.querySelector<HTMLDialogElement>('#panel')!
+const refundDialog = document.querySelector<HTMLDialogElement>('#refund-confirmation')!
+const refundMessage = document.querySelector<HTMLElement>('#refund-message')!
 const num = new Intl.NumberFormat('en-US')
 
 const icons = {
@@ -600,7 +602,7 @@ function upgradeDetails(state: Run, id: string) {
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
     ${required ? `<p class="requirement">Requires both ${required.join(' and ')}</p>` : ''}
     ${installed
-      ? `<button class="order" data-key="refund" data-action="refund" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade${state.sandbox ? '' : ` · ${refund} Momentum back`}</button>
+      ? `<button class="order" data-key="refund" data-action="refund" aria-haspopup="dialog" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade${state.sandbox ? '' : ` · ${refund} Momentum back`}</button>
         ${!state.end && !canRemoveUpgrade(state, id) ? '<p class="requirement">Remove dependent upgrades first.</p>' : ''}`
       : `<button class="order hot" data-key="buy" data-action="buy" data-value="${id}" ${locked || state.momentum < price || state.end ? 'disabled' : ''}>${cost}</button>`}
   </div>`
@@ -1078,9 +1080,28 @@ document.addEventListener('click', event => {
     case 'evolution-tab': evolutionTab = value as typeof evolutionTab; selectedUpgrade = null; break
     case 'select-upgrade': selectedUpgrade = value ?? null; break
     case 'buy': if (run && value) buyUpgrade(run, value); break
-    case 'refund':
-      if (run && value && removeUpgrade(run, value)) mapOrder = null
-      break
+    case 'refund': {
+      if (!run || panel !== 'evolve' || !value || !canRemoveUpgrade(run, value)) return
+      const upgrade = trees[run.theater.storm].find(item => item.id === value)
+      if (!upgrade) return
+      const refund = run.sandbox ? '' : ` You’ll get ${upgradeRefund(run, value)} Momentum back.`
+      refundMessage.textContent = `Are you sure you want to remove ${upgrade.name}?${refund}`
+      refundDialog.dataset.upgrade = value
+      target.focus({ preventScroll: true })
+      refundDialog.showModal()
+      return
+    }
+    case 'cancel-refund': return refundDialog.close()
+    case 'confirm-refund': {
+      if (!refundDialog.open) return
+      const id = refundDialog.dataset.upgrade
+      refundDialog.close()
+      if (!run || panel !== 'evolve' || !id || !removeUpgrade(run, id)) return
+      mapOrder = null
+      render()
+      dialog.querySelector<HTMLElement>('[data-action="buy"]')?.focus({ preventScroll: true })
+      return
+    }
     case 'weather-pickup':
       if (run && !opening && collectWeatherPickup(run, Number(value))) {
         render()
