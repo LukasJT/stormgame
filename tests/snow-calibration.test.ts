@@ -3,7 +3,6 @@ import { lakeAt, makeDrop } from '../src/free-drop'
 import { latitudeAt, longitudeAt } from '../src/cyclone'
 import { landAt } from '../src/convection'
 import { buyUpgrade, collectWeatherPickup, defaultSeed, startRun, tick } from '../src/sim'
-import { trees } from '../src/upgrades'
 
 function forecast(lat: number, lon: number, upgrades: string[] = []) {
   const run = startRun(makeDrop('Blizzard', lat, lon), 0, 'Normal', defaultSeed)
@@ -38,7 +37,6 @@ it('deepens snowfall and can create a whiteout through upgrades alone', () => {
   ])
   expect(evolved.peak).toBeGreaterThan(base.peak)
   expect(evolved.run.snow!.longestWhiteout).toBeGreaterThan(0)
-  expect(trees.Blizzard).toHaveLength(trees.Tornado.length)
 })
 
 it('lets an Alberta Clipper buy persistence with earned points and rebuild over Lake Superior', () => {

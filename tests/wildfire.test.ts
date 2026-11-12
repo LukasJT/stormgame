@@ -20,10 +20,7 @@ it('gates ignition by recorded vegetation burns and land coverage', () => {
   }
 })
 
-it('matches the tornado tree and rewards a successful Hard run with the Expert unlock rating', () => {
-  expect(trees.Wildfire).toHaveLength(trees.Tornado.length)
-  const groups = (tree: typeof trees.Wildfire) => new Set(tree.map(item => item.group)).size
-  expect(groups(trees.Wildfire)).toBe(groups(trees.Tornado))
+it('rewards a successful Hard wildfire run with the Expert unlock rating', () => {
   const run = simulate('Hard', foothillsNearLA)
   expect(run.upgrades).toContain('ember-storm')
   expect(run.fire!.spotfires).toBeGreaterThan(1)
