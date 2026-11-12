@@ -10,18 +10,52 @@ const effects = {
   finish: [350, 175, .50],
 } as const
 let context: AudioContext | undefined
+let music: HTMLAudioElement | undefined
+let musicGain: GainNode | undefined
+let enabled = false
 let voices = 0
 const lastPlayed = new Map<keyof typeof effects, number>()
 
 export function enableAudio() {
-  if (document.hidden || settings.muted || typeof AudioContext === 'undefined') return
-  try {
-    context ??= new AudioContext()
-    if (context.state !== 'running') void context.resume().catch(() => {})
-  } catch { /* Audio is optional. */ }
+  enabled = true
+  syncAudio()
+}
+
+export function syncAudio() {
+  if (!enabled || document.hidden || settings.muted) {
+    hideAudio()
+    return
+  }
+  if (typeof AudioContext !== 'undefined') {
+    try {
+      context ??= new AudioContext()
+      if (context.state !== 'running') void context.resume().catch(() => {})
+    } catch { /* Some browsers limit Web Audio. */ }
+  }
+
+  const volume = settings.masterVolume * settings.musicVolume
+  if (!volume) {
+    music?.pause()
+    return
+  }
+  if (!music) {
+    music = new Audio(`${import.meta.env.BASE_URL}institutional-tension.mp3`)
+    music.loop = true
+    if (context) {
+      try {
+        const gain = context.createGain()
+        context.createMediaElementSource(music).connect(gain).connect(context.destination)
+        musicGain = gain
+      } catch { /* Fall back to the media element's volume control. */ }
+    }
+  }
+  if (musicGain) musicGain.gain.value = volume
+  else music.volume = volume
+  if (music.paused && !music.error) void music.play().catch(() => {})
 }
 
 export function hideAudio() {
+  music?.pause()
   if (context?.state === 'running') void context.suspend().catch(() => {})
 }
 

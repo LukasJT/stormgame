@@ -21,7 +21,7 @@ import { campaign, difficulties, difficultyLabel, earnedStars, isCampaignEvent, 
 import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
-import { enableAudio, hideAudio, playSound } from './audio'
+import { enableAudio, playSound, syncAudio } from './audio'
 import { NewsPresentation } from './news'
 import { chooseLocale, getLocale, languages, localizedNumber, setLocale, translateMarkup } from './i18n'
 import { applyCommand, commonMetrics, createForecast, eventMetrics, metricLabels, prepareForecast, summarizeRun,
@@ -237,7 +237,9 @@ function settingsContent() {
         <div class="menu-setting">
           <label for="master-volume">Master volume</label>
           <input id="master-volume" type="range" min="0" max="100" value="${Math.round(settings.masterVolume * 100)}">
-          <label for="effects-volume">Effects volume</label>
+          <label for="music-volume">Music volume</label>
+          <input id="music-volume" type="range" min="0" max="100" value="${Math.round(settings.musicVolume * 100)}">
+          <label for="effects-volume">Sound effects volume</label>
           <input id="effects-volume" type="range" min="0" max="100" value="${Math.round(settings.effectsVolume * 100)}">
         </div>`
 }
@@ -1367,7 +1369,25 @@ document.addEventListener('click', event => {
   if (action === 'change-origin') prompt.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true })
 })
 
-function updateSettings({ target }: Event) {
+const volumeControls = {
+  'master-volume': 'masterVolume',
+  'music-volume': 'musicVolume',
+  'effects-volume': 'effectsVolume',
+} as const
+
+function updateVolume({ target }: Event) {
+  if (!(target instanceof HTMLInputElement) || !Object.hasOwn(volumeControls, target.id)) return false
+  settings[volumeControls[target.id as keyof typeof volumeControls]] = target.valueAsNumber / 100
+  syncAudio()
+  return true
+}
+
+function updateSettings(event: Event) {
+  if (updateVolume(event)) {
+    saveSettings()
+    return
+  }
+  const { target } = event
   if (target instanceof HTMLSelectElement && target.id === 'units-setting') {
     settings.units = target.value === 'metric' ? 'metric' : 'imperial'
   } else if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
@@ -1381,15 +1401,15 @@ function updateSettings({ target }: Event) {
     document.documentElement.lang = settings.locale
   } else if (target instanceof HTMLInputElement && target.id === 'mute-setting') {
     settings.muted = target.checked
-    if (!settings.muted) enableAudio()
-  } else if (target instanceof HTMLInputElement && (target.id === 'master-volume' || target.id === 'effects-volume')) {
-    settings[target.id === 'master-volume' ? 'masterVolume' : 'effectsVolume'] = Number(target.value) / 100
+    syncAudio()
   } else return
   saveSettings()
   render()
 }
 menu.addEventListener('change', updateSettings)
 dialog.addEventListener('change', updateSettings)
+menu.addEventListener('input', updateVolume)
+dialog.addEventListener('input', updateVolume)
 menu.addEventListener('change', event => {
   if (!(event.target instanceof HTMLSelectElement) || !event.target.dataset.scoreFilter) return
   const { scoreFilter } = event.target.dataset
@@ -1543,8 +1563,7 @@ document.addEventListener('keyup', event => { if (event.code === 'Space') releas
 window.addEventListener('blur', releaseInteraction)
 document.addEventListener('visibilitychange', () => {
   lastFrame = performance.now()
-  if (document.hidden) hideAudio()
-  else enableAudio()
+  syncAudio()
 })
 
 function frame(now: number) {

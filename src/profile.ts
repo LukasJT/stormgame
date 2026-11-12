@@ -12,7 +12,7 @@ const rankingsKey = 'stormwake.rankings'
 export const playbackSpeeds = [1, 2, 4] as const
 type Settings = {
   startingSpeed: typeof playbackSpeeds[number]; newsMode: NewsMode; units: 'imperial' | 'metric'
-  locale: Locale; muted: boolean; masterVolume: number; effectsVolume: number
+  locale: Locale; muted: boolean; masterVolume: number; effectsVolume: number; musicVolume: number
 }
 type RecordTotals = { damage: number; deaths: number }
 type Records = Partial<Record<Storm | 'Flooding', RecordTotals | { score: number; deaths: number }>>
@@ -48,6 +48,7 @@ export const settings: Settings = {
   muted: storedSettings.muted === true,
   masterVolume: volume(storedSettings.masterVolume, .55),
   effectsVolume: volume(storedSettings.effectsVolume, .65),
+  musicVolume: volume(storedSettings.musicVolume, .30),
 }
 
 export function saveSettings() {

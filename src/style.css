@@ -567,6 +567,7 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 .menu-setting p { grid-column: 1 / -1; margin: 0; }
 .menu-setting select { min-height: 44px; padding: 6px; background: #321a28; border: 1px solid #a37381; border-radius: 4px; color: #ffeff1; }
 .menu-setting input { width: 23px; height: 23px; margin: 0 8px; accent-color: #efb5bd; cursor: pointer; }
+.menu-setting input[type=range] { width: clamp(96px, 27vw, 210px); height: 32px; margin: 0; }
 .menu-setting label { cursor: pointer; }
 .run-settings { color: #e4f2f6; font: 600 18px/1 var(--display); white-space: nowrap; }
 @media (max-width: 430px) {
