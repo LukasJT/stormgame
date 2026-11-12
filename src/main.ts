@@ -1547,7 +1547,8 @@ function frame(now: number) {
         if (replay) {
           replay.ticks = run.time
           finishedRun = summarizeRun(run, replay.placement, replay.startedAt)
-          finishedRunId = ticket?.id ?? crypto.randomUUID()
+          finishedRunId = ticket?.id ?? Array.from(crypto.getRandomValues(new Uint32Array(4)),
+            value => value.toString(16).padStart(8, '0')).join('')
         }
         mapOrder = null
         if (!run.sandbox && isCampaignEvent(run.theater.storm)) {
