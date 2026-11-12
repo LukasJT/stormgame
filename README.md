@@ -61,6 +61,10 @@ Open `http://127.0.0.1:4174`. From the same checkout, run `node scripts/check-sc
 
 On a public Node host, supply `STORMWAKE_SECRET` through the host's secret manager, `STORMWAKE_DB` on a persistent disk, and `PORT` if required. Back up SQLite and preserve the secret across restarts to retain guest identities. For a static frontend on another origin, set `VITE_LEADERBOARD_URL` to the public HTTPS API base ending in `/api` at build time. Set `STORMWAKE_ORIGINS` on the API to the comma-separated frontend origins, for example `https://lukasjt.github.io`. The static deployment serves campaign and Sandbox with local records when the API is absent.
 
+The included `render.yaml` can provision the Node service with a persistent disk and generated secret. [Open the Blueprint in Render](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLukasJT%2Fstormgame%2Ftree%2Ftornado-gameplay), connect the repo, and review the paid instance and disk before creating them. After deploy, the Render URL serves the game and global scores together. To enable global scores on GitHub Pages as well, rebuild Pages with the Render URL plus `/api` in `VITE_LEADERBOARD_URL`. Check `/api/health` and run `scripts/check-scores.mjs` against a staging deployment before opening the board to players.
+
+When the public API is unavailable at the start of a forecast, completed campaign runs can be saved under a chosen name on that device. The device board ranks those runs by event, difficulty, and metric. A public run requires a ticket issued by the shared API at the start of the forecast.
+
 Competitive runs receive signed tickets. The service checks the origin and seed, reconstructs the run from commands, and calculates the result. This verifies legal play and permits deterministic challenges. Automated players can also submit legal command sequences. The service currently verifies one replay at a time and returns a retryable response while busy. Keep older version IDs and data when introducing new scoring seasons.
 
 ### Game checks

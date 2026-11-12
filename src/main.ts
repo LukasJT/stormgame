@@ -25,7 +25,7 @@ import { NewsPresentation } from './news'
 import { chooseLocale, getLocale, languages, localizedNumber, setLocale, translateMarkup } from './i18n'
 import { applyCommand, commonMetrics, createForecast, eventMetrics, metricLabels, prepareForecast, summarizeRun,
   type Command, type Metric, type Placement, type Replay, type RunSummary, type Ticket } from './replay'
-import { getChallenge, getScores, issueTicket, pendingScore, savedDisplayName, submitScore,
+import { getChallenge, getDeviceScores, getScores, issueTicket, pendingScore, saveDeviceScore, savedDisplayName, sharedScoresConfigured, submitScore,
   type Challenge, type ScoreFilters, type ScoreRow } from './scores'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
 import { snowfallDepth, measurementText, temperature, windSpeed, formatDistance } from './units'
@@ -138,6 +138,7 @@ let interactionInProgress = false
 let ticket: Ticket | undefined
 let replay: Replay | undefined
 let finishedRun: RunSummary | undefined
+let finishedRunId: string | undefined
 let scoreMessage = ''
 let scoreSubmitting = false
 let scoreAccepted = false
@@ -147,6 +148,7 @@ let boardLoading = false
 let boardError = ''
 let boardRows: ScoreRow[] = []
 let boardRequest = 0
+let boardScope: 'shared' | 'device' = sharedScoresConfigured ? 'shared' : 'device'
 const filters: ScoreFilters = { event: 'Tornado', difficulty: 'Normal', metric: 'damage', period: 'all' }
 const camera = new MapCamera(map, mapTools, render)
 
@@ -335,8 +337,8 @@ function menuContent() {
 
 function scoreButton(state: Run) {
   if (state.sandbox || !finishedRun) return ''
-  if (!ticket) return button('leaderboards', 'Leaderboards', undefined, 'order')
-  return button('score', scoreAccepted ? 'Score submitted.' : 'Submit score', undefined, 'order')
+  if (scoreAccepted) return button('leaderboards', 'Leaderboards', undefined, 'order')
+  return button('score', ticket ? 'Submit score' : 'Save score', undefined, 'order')
 }
 
 function scoreValue(metric: Metric, value: number) {
@@ -351,6 +353,9 @@ function leaderboardContent() {
       `<option value="${value}" ${filters[key] === value ? 'selected' : ''}>${display(value)}</option>`).join('')}</select></label>`
   return `<section class="setup-screen score-screen" aria-labelledby="menu-title">
     <header class="setup-header">${button('menu-back', `${icon('back')} Back`, 'home', 'menu-back')}<h1 id="menu-title" tabindex="-1">Leaderboards</h1></header>
+    ${sharedScoresConfigured ? `<div class="score-filters">${(['shared', 'device'] as const).map(scope =>
+      `<button class="order" data-action="score-scope" data-key="score-scope-${scope}" data-value="${scope}" aria-pressed="${scope === boardScope}">${scope === 'shared' ? 'Global' : 'This device'}</button>`).join('')}</div>` : ''}
+    ${boardScope === 'device' ? '<p>Scores saved on this device</p>' : ''}
     <div class="score-filters">
       ${select('event', 'Event', campaign, event => event)}
       ${select('difficulty', 'Difficulty', difficulties, difficultyLabel)}
@@ -361,10 +366,10 @@ function leaderboardContent() {
     </div>
     <div class="orders">${boardChallenge && eventUnlocked(filters.event) && difficultyUnlocked(filters.event, filters.difficulty)
       ? button('play-challenge', 'Play daily challenge', undefined, 'order') : ''}
-      ${pendingScore() ? button('retry-score', 'Retry submission', undefined, 'order') : ''}</div>
+      ${boardScope === 'shared' && pendingScore() ? button('retry-score', 'Retry submission', undefined, 'order') : ''}</div>
     <p role="status">${boardLoading ? 'Loading…' : escapeName(boardError) || (boardRows.length ? '' : 'No ranked runs yet.')}</p>
     ${boardRows.length ? `<div class="score-table"><table><thead><tr><th>Rank</th><th>Player</th><th>Score</th><th>Origin</th></tr></thead><tbody>
-      ${boardRows.map((row, index) => `<tr><td>${localizedNumber(index + 1)}</td><td data-player-text>${escapeName(row.name)} <small>· ${escapeName(row.player)}</small></td>
+      ${boardRows.map((row, index) => `<tr><td>${localizedNumber(index + 1)}</td><td data-player-text>${escapeName(row.name)}${row.player ? ` <small>· ${escapeName(row.player)}</small>` : ''}</td>
         <td>${scoreValue(filters.metric, row.score)}</td><td>${coordinates(row.summary.placement.lat, row.summary.placement.lon)}</td></tr>`).join('')}
     </tbody></table></div>` : ''}
   </section>`
@@ -372,6 +377,14 @@ function leaderboardContent() {
 
 async function refreshScores() {
   const request = ++boardRequest
+  if (boardScope === 'device') {
+    boardLoading = false
+    boardError = ''
+    boardChallenge = undefined
+    boardRows = getDeviceScores(filters)
+    render()
+    return
+  }
   boardLoading = true
   boardError = ''
   boardRows = []
@@ -402,7 +415,7 @@ async function sendScore(submission: Parameters<typeof submitScore>[0], fromBoar
   } finally {
     scoreSubmitting = false
     if (fromBoard && screen === 'leaderboards') { boardError = scoreMessage; render() }
-    else if (panel === 'score') renderPanel()
+    else if (panel === 'score') { render(); renderPanel() }
   }
 }
 
@@ -638,12 +651,13 @@ function renderPanel() {
     content = tornadoClipping(run)
   } else if (panel === 'score' && finishedRun) {
     const { placement, metrics } = finishedRun
-    title = 'Submit score'
+    title = ticket ? 'Submit score' : 'Save score'
     content = `<form id="score-form" class="score-submit">
       <dl class="region-stats"><div><dt>Event</dt><dd>${placement.event}</dd></div><div><dt>Difficulty</dt><dd>${difficultyLabel(placement.difficulty)}</dd></div>
         <div><dt>Damage</dt><dd>${formatDamage(metrics.damage ?? 0)}</dd></div><div><dt>Deaths</dt><dd>${num.format(metrics.deaths ?? 0)}</dd></div></dl>
       <label for="score-name">Display name</label><input id="score-name" name="displayName" data-key="score-name" required maxlength="48" value="${escapeName(savedDisplayName())}">
-      <button class="order hot" type="submit" ${scoreSubmitting || scoreAccepted ? 'disabled' : ''}>Submit score</button>
+      ${!ticket ? '<p>Scores saved on this device</p>' : ''}
+      <button class="order hot" type="submit" ${scoreSubmitting || scoreAccepted ? 'disabled' : ''}>${title}</button>
       <p role="status">${escapeName(scoreMessage)}</p></form>`
   } else if (panel === 'evolve') {
     const storm = run.theater.storm
@@ -962,6 +976,7 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
   ticket = undefined
   replay = undefined
   finishedRun = undefined
+  finishedRunId = undefined
   runChallenge = undefined
   scoreMessage = ''
   scoreAccepted = false
@@ -1148,7 +1163,19 @@ document.addEventListener('click', event => {
   const { action, value } = target.dataset
   switch (action) {
     case 'leaderboards':
+      if (finishedRun && run?.end && screen !== 'leaderboards') {
+        filters.event = finishedRun.placement.event
+        filters.difficulty = finishedRun.placement.difficulty
+        filters.metric = 'damage'
+        filters.challenge = undefined
+        filters.period = 'all'
+        boardScope = ticket && scoreAccepted ? 'shared' : 'device'
+      }
       showScreen('leaderboards')
+      return void refreshScores()
+    case 'score-scope':
+      boardScope = value === 'shared' ? 'shared' : 'device'
+      filters.challenge = undefined
       return void refreshScores()
     case 'play-challenge':
       if (!boardChallenge || !eventUnlocked(filters.event) || !difficultyUnlocked(filters.event, filters.difficulty)) return
@@ -1166,7 +1193,7 @@ document.addEventListener('click', event => {
       return
     }
     case 'score':
-      if (finishedRun && ticket && !run?.sandbox) return showPanel('score', target)
+      if (finishedRun && !run?.sandbox) return showPanel('score', target)
       break
     case 'menu-play':
     case 'menu-sandbox':
@@ -1358,14 +1385,22 @@ menu.addEventListener('change', event => {
 dialog.addEventListener('submit', event => {
   if (!(event.target instanceof HTMLFormElement) || event.target.id !== 'score-form') return
   event.preventDefault()
-  if (!ticket || !replay || !finishedRun || scoreAccepted || scoreSubmitting) return
+  if (!finishedRun || !finishedRunId || scoreAccepted || scoreSubmitting) return
   const displayName = String(new FormData(event.target).get('displayName') ?? '').normalize('NFC').trim()
   if ([...displayName].length < 2 || [...displayName].length > 24 || /[\p{Cc}\p{Cf}]/u.test(displayName)) {
     scoreMessage = 'Use 2 to 24 characters for the display name.'
     renderPanel()
     return
   }
-  void sendScore({ ticket, replay, displayName })
+  const saved = saveDeviceScore(finishedRunId, displayName, finishedRun)
+  if (ticket && replay) {
+    void sendScore({ ticket, replay, displayName })
+  } else {
+    scoreAccepted = saved
+    scoreMessage = saved ? 'Score saved on this device.' : 'This browser could not save the score.'
+    render()
+    renderPanel()
+  }
 })
 
 inspector.addEventListener('change', event => {
@@ -1513,6 +1548,7 @@ function frame(now: number) {
         if (replay) {
           replay.ticks = run.time
           finishedRun = summarizeRun(run, replay.placement, replay.startedAt)
+          finishedRunId = ticket?.id ?? crypto.randomUUID()
         }
         mapOrder = null
         if (!run.sandbox && isCampaignEvent(run.theater.storm)) {

@@ -3,10 +3,12 @@ import type { CampaignEvent } from './campaign'
 import type { Difficulty } from './sim'
 
 const configured = import.meta.env.VITE_LEADERBOARD_URL as string | undefined
-const sameOrigin = import.meta.env.BASE_URL === '/' && !location.hostname.endsWith('.chatgpt.site')
+const sameOrigin = !import.meta.env.DEV && import.meta.env.BASE_URL === '/' && !location.hostname.endsWith('.chatgpt.site')
 const base = (configured || (sameOrigin ? new URL('api/', document.baseURI).href : '')).replace(/\/$/, '')
+export const sharedScoresConfigured = !!base
 const pendingKey = 'stormwake.pendingScore'
 const nameKey = 'stormwake.displayName'
+const deviceKey = 'stormwake.deviceScores'
 let guest = ''
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
@@ -43,6 +45,58 @@ export type ScoreFilters = { event: CampaignEvent; difficulty: Difficulty; metri
 export type ScoreRow = { id: string; name: string; player: string; score: number; submitted: number; summary: RunSummary }
 export const getScores = (filters: ScoreFilters) => request<{ rows: ScoreRow[]; version: string }>(
   '/leaderboards?' + new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined)))
+
+type DeviceEntry = Omit<ScoreRow, 'score' | 'player'>
+
+function deviceEntries(): DeviceEntry[] {
+  try {
+    const entries: unknown = JSON.parse(read(deviceKey) ?? '[]')
+    return Array.isArray(entries) ? entries.filter(entry => entry?.summary?.mode === 'campaign' &&
+      typeof entry.id === 'string' && typeof entry.name === 'string' && Number.isFinite(entry.submitted) &&
+      entry.summary.placement && entry.summary.metrics) : []
+  } catch { return [] }
+}
+
+export function saveDeviceScore(id: string, name: string, summary: RunSummary) {
+  if (summary.mode !== 'campaign') return false
+  const entries = deviceEntries()
+  if (entries.some(entry => entry.id === id)) return true
+  const entry = { id, name, summary, submitted: Date.now() }
+  try {
+    localStorage.setItem(deviceKey, JSON.stringify([entry, ...entries].slice(0, 250)))
+    write(nameKey, name)
+    return true
+  } catch { return false }
+}
+
+export function getDeviceScores(filters: ScoreFilters): ScoreRow[] {
+  const now = new Date()
+  const since = filters.period === 'month' ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) : 0
+  const eligible = deviceEntries().filter(entry => entry.summary.rulesVersion === rulesVersion && entry.submitted >= since)
+  if (filters.metric === 'mastery') {
+    const byName = new Map<string, { entry: DeviceEntry; best: Map<string, number> }>()
+    for (const entry of eligible) {
+      const { event, difficulty } = entry.summary.placement
+      const key = event + ':' + difficulty
+      const player = byName.get(entry.name) ?? { entry, best: new Map<string, number>() }
+      player.best.set(key, Math.max(player.best.get(key) ?? 0, entry.summary.stars))
+      byName.set(entry.name, player)
+    }
+    return orderScores([...byName.values()].map(({ entry, best }) => ({
+      ...entry, player: '', score: [...best.values()].reduce((sum, stars) => sum + stars, 0),
+    })))
+  }
+  return orderScores(eligible.flatMap(entry => {
+    const { event, difficulty } = entry.summary.placement
+    const score = entry.summary.metrics[filters.metric]
+    return event === filters.event && difficulty === filters.difficulty && score !== undefined && Number.isFinite(score)
+      ? [{ ...entry, player: '', score }] : []
+  }))
+}
+
+function orderScores(rows: ScoreRow[]) {
+  return rows.sort((a, b) => b.score - a.score || a.submitted - b.submitted || a.id.localeCompare(b.id)).slice(0, 50)
+}
 
 export type Submission = { ticket: Ticket; replay: Replay; displayName: string }
 export function pendingScore(): Submission | null {

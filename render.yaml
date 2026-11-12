@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: stormwake-leaderboards
+    runtime: node
+    branch: tornado-gameplay
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build && npm run build:score-engine
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: stormwake-scores
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.13.1
+      - key: STORMWAKE_SECRET
+        generateValue: true
+      - key: STORMWAKE_DB
+        value: /var/data/stormwake.sqlite
+      - key: STORMWAKE_ORIGINS
+        value: https://lukasjt.github.io
