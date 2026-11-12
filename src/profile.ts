@@ -2,13 +2,18 @@ import type { Storm } from './world'
 import { campaign, difficulties, earnedStars, type CampaignEvent } from './campaign'
 import { thunderstormTypes } from './hazards'
 import type { Difficulty } from './sim'
+import { chooseLocale, type Locale } from './i18n'
+import type { NewsMode } from './news'
 
 const settingsKey = 'stormwake.settings'
 const recordsKey = 'stormwake.records'
 const rankingsKey = 'stormwake.rankings'
 
 export const playbackSpeeds = [1, 2, 4] as const
-type Settings = { startingSpeed: typeof playbackSpeeds[number]; breakingNews: boolean; units: 'imperial' | 'metric' }
+type Settings = {
+  startingSpeed: typeof playbackSpeeds[number]; newsMode: NewsMode; units: 'imperial' | 'metric'
+  locale: Locale; muted: boolean; masterVolume: number; effectsVolume: number
+}
 type RecordTotals = { damage: number; deaths: number }
 type Records = Partial<Record<Storm | 'Flooding', RecordTotals | { score: number; deaths: number }>>
 type Ranking = RecordTotals & { stars: number }
@@ -31,11 +36,18 @@ function writeStorage(key: string, data: object) {
   }
 }
 
-const storedSettings = readStorage<Settings>(settingsKey)
+const storedSettings = readStorage<Settings & { breakingNews: boolean }>(settingsKey)
+const volume = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value)
+  ? Math.max(0, Math.min(1, value)) : fallback
 export const settings: Settings = {
   units: storedSettings.units === 'metric' ? 'metric' : 'imperial',
   startingSpeed: playbackSpeeds.find(speed => speed === storedSettings.startingSpeed) ?? 1,
-  breakingNews: storedSettings.breakingNews !== false,
+  newsMode: storedSettings.newsMode === 'quiet' || storedSettings.newsMode === 'major' ? storedSettings.newsMode
+    : storedSettings.breakingNews === false ? 'quiet' : 'standard',
+  locale: chooseLocale(storedSettings.locale ?? globalThis.navigator?.language),
+  muted: storedSettings.muted === true,
+  masterVolume: volume(storedSettings.masterVolume, .55),
+  effectsVolume: volume(storedSettings.effectsVolume, .65),
 }
 
 export function saveSettings() {

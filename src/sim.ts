@@ -2,17 +2,19 @@ import { advanceWildfire, fireHistoryAt, fireHistoryLabels, spotFire, startWildf
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { alongTrack } from './track'
-import { hazardFor, hazards } from './hazards'
+import { hazardFor, hazards, type Ability } from './hazards'
 import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
 import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, windBand } from './impact'
-import { momentumSchedule, startingMomentum, usesTornadoEconomy, type WeatherPickup } from './momentum'
+import { lateMomentum, momentumSchedule, startingMomentum, usesTornadoEconomy, type WeatherPickup } from './momentum'
 import { cycloneFlow, cycloneSpeed, cycloneTrack, cycloneWeather, latitudeAt, longitudeAt, radarSpin, startCyclone, type Cyclone } from './cyclone'
 import { markSwath, tornadoStrips, type Swath } from './swath'
 import { tornadoClimate } from './tornado-climate'
 import { tornadoStartDate, type TornadoRecord } from './tornado-report'
+import { appendNews, type NewsItem, type SnowReport } from './news'
+import { withRegionScope } from './regions'
 export type { ZoneId } from './world'
 export type Difficulty = 'Easy' | 'Normal' | 'Hard' | 'Expert'
 export type Origin = 0 | 1
@@ -20,8 +22,8 @@ export type Origin = 0 | 1
 export const difficultyRules = {
   Easy: { shelter: 0, good: 0.65, hostile: 0.1, description: 'Favorable weather · low initial sheltering' },
   Normal: { shelter: 0.5, good: 0.45, hostile: 0.2, description: 'Mixed weather · 50% baseline sheltering' },
-  Hard: { shelter: 0.9, good: 0.25, hostile: 0.35, description: 'Fewer favorable conditions · 90% baseline sheltering' },
-  Expert: { shelter: 0.98, good: 0.12, hostile: 0.48, description: 'Harsh weather · 98% baseline sheltering' },
+  Hard: { shelter: 0.8, good: 0.25, hostile: 0.35, description: 'Fewer favorable conditions · 80% baseline sheltering' },
+  Expert: { shelter: 0.92, good: 0.12, hostile: 0.48, description: 'Harsh weather · 92% baseline sheltering' },
 }
 export const leg = 70
 export const defaultSeed = 80417
@@ -31,8 +33,6 @@ type Site = {
   deaths: number; injured: number; loss: number; warnedAt: number | null; threatAt: number | null
   clearedAt: number | null; sheltered: number; carry: number; injuryCarry: number; outageUntil: number; reportedWarning: boolean
 }
-type SnowReport = { place: string; cm: number }
-type Event = { time: number; text: string; breaking?: boolean; snowfall?: SnowReport }
 type Pulse = { zone: ZoneId; until: number; damage: number; kind: 'ability' | 'trail' }
 type ImpactArea = { zone: Zone; site: Site; country?: string }
 type Snowstorm = {
@@ -60,8 +60,14 @@ export type Run = {
   upgrades: string[]; effects: Effects
   upgradePayments: Map<string, number>; purchases: number; refunds: number
   pulses: Pulse[]
-  detectedAt: number | null; sites: Record<ZoneId, Site>; track: ZoneId[]; events: Event[]
+  detectedAt: number | null; sites: Record<ZoneId, Site>; track: ZoneId[]; events: NewsItem[]
   alertHeadlines: Set<string>
+  exposureCountries?: ReadonlySet<string>
+  boostUntil: number
+  peakOutbreak: number
+  surgeDamage: number; majorHurricaneTicks: number
+  hailDamage: number; floodDamage: number; windDamage: number; rainDamage: number
+  peakFirePerimeterKm2: number
   end: string | null
 }
 
@@ -110,7 +116,10 @@ export function stormOrganization(run: Run) {
   return form === 'Thunderstorm' ? 'Developing cell' : form === 'Squall' ? 'Squall line' : form === 'Multicell' ? 'Multicell cluster' : form
 }
 
-export function stormAbility(run: Run) {
+export function stormAbility(run: Run): Ability | undefined {
+  if (run.tornado && run.effects.wind > 0) return { name: 'Concentrate inflow', resource: 'inflow', cost: 14, seconds: 35, damage: 0 }
+  if (run.cyclone) return { name: 'Ocean heat pulse', resource: 'ocean heat', cost: 40, seconds: 45, damage: 0 }
+  if (run.snow) return { name: 'Snowburst', resource: 'moisture', cost: 30, seconds: 35, damage: 0 }
   const form = activeStorm(run)
   return run.theater.storm === 'Thunderstorm' && form !== 'Supercell'
     ? hazards.Thunderstorm.ability : hazardFor(form)?.ability
@@ -164,7 +173,9 @@ export function startRun(theater: Theater, origin: Origin, difficulty: Difficult
     at: origin, to: zones[origin].neighbors[0], queued: null, progress: 0,
     upgrades: [], effects: { ...baseEffects }, upgradePayments: new Map(), purchases: 0, refunds: 0, pulses: [],
     detectedAt: null, sites, track: [origin], end: fire && !fire.active ? 'Ignition unavailable here.' : null, alertHeadlines: new Set(),
-    events: [{ time: 0, text: tornado ? `Rotating storms detected ${overWater ? locality.reference : city ? `near ${city}` : locality.reference}.` : theater.storm === 'Wildfire'
+    boostUntil: 0, peakOutbreak: 0, surgeDamage: 0, peakFirePerimeterKm2: 0, majorHurricaneTicks: 0,
+    hailDamage: 0, floodDamage: 0, windDamage: 0, rainDamage: 0,
+    events: [{ id: 0, time: 0, text: tornado ? `Rotating storms detected ${overWater ? locality.reference : city ? `near ${city}` : locality.reference}.` : theater.storm === 'Wildfire'
       ? fire && !fire.active ? 'No historical burn recorded at this location.' : `Wildfire ignited ${zoneReference(theater, origin)}.`
       : hazard || blizzardPattern ? `${blizzardPattern ?? theater.storm} formed ${zoneReference(theater, origin)}.` : `Circulation formed ${zoneReference(theater, origin)}.`,
     breaking: tornado || !!hazard }],
@@ -191,7 +202,7 @@ function gainMomentum(run: Run, points: number) {
 }
 
 export function satelliteCooldown(run: Run) {
-  return Math.max(0, Math.ceil(((run.tornado?.manualSatellite ?? 0) - run.realTime) / 1000))
+  return Math.max(0, (run.tornado?.manualSatellite ?? 0) - run.time)
 }
 
 function spawnSatellite(run: Run) {
@@ -205,6 +216,7 @@ function spawnSatellite(run: Run) {
     id, ef: 0, peakEF, wind: 65, width: .02, peakWidth: Math.min(.35, Math.max(.025, widthKm * .25)),
     start: run.time, life: 18 + Math.floor(roll() * 12), point: front.point, path: [front.point],
     swath: [], heading, naturalHeading: heading, preference: null, speed: .18 + roll() * .15, phase: roll() * 6.28,
+    groundKm: 0, damage: 0, reachedEF: 0,
   })
   log(run, 'A weaker satellite tornado splits from the main circulation.')
 }
@@ -212,7 +224,7 @@ function spawnSatellite(run: Run) {
 export function triggerSatellite(run: Run) {
   if (!run.tornado || run.end || run.overWater || !run.effects.satelliteTrigger || satelliteCooldown(run)) return false
   spawnSatellite(run)
-  run.tornado.manualSatellite = run.realTime + 60_000
+  run.tornado.manualSatellite = run.time + 60
   return true
 }
 
@@ -304,6 +316,25 @@ function frontConditions(run: Run, time: number) {
   return { name: hazard.weather[1], trend: .018 + run.effects.hazardGain * .45 }
 }
 
+export function environmentOutlook(run: Run) {
+  if (run.cyclone && run.front) {
+    let { point, heading } = run.front
+    for (let step = 0; step < 4; step++) ({ point, heading } = cycloneTrack(run.cyclone, point, heading, 8))
+    const surface = landAt(point)
+    const ocean = !surface.code && surface.name === 'Open water'
+    if (ocean !== run.cyclone.ocean) return ocean ? 'Open water ahead' : 'Land ahead'
+    const next = cycloneWeather({ ...run.cyclone, ocean }, point, run.effects, 2 - difficultyRules[run.difficulty].good * 3, run.strength)
+    if (next.trend < -.025 && next.name !== conditions(run, run.at).name) return next.name + ' ahead'
+  }
+  if (run.snow && run.time > 1080 && run.support < 50) return 'Cold air supply fading'
+  if (run.tornado && run.support < 25) return 'Inflow running low'
+  if (run.theater.storm === 'Thunderstorm' && run.front) {
+    if (run.support < 25) return 'Updraft support running low'
+    const next = frontConditions(run, run.time + 25)
+    if (next.trend < -.035 && next.name !== frontConditions(run, run.time).name) return next.name + ' ahead'
+  }
+}
+
 export function hurricaneCategory(windMph: number) {
   const limits = [157, 130, 111, 96, 74]
   const index = limits.findIndex(limit => windMph >= limit)
@@ -359,7 +390,7 @@ export const tornadoRadius = (run: Run) => dropRadius(stormStats(run).widthKm)
 export const burstRange = (run: Run) => Math.max(25, stormStats(run).widthKm * .55)
 export const abilityCost = (run: Run) => {
   const ability = stormAbility(run)
-  return ability ? ability.cost - (ability.tornado ? run.effects.tornadoEfficiency : 0) : 0
+  return ability ? Math.max(1, ability.cost - (ability.tornado ? run.effects.tornadoEfficiency : 0)) : 0
 }
 
 export function setCourse(run: Run, target: MapPoint, funnelId?: number) {
@@ -376,7 +407,10 @@ function abilityTargets(run: Run, reach: number) {
 
 export function hazardAbilityReady(run: Run) {
   const ability = stormAbility(run)
-  return !!ability && !run.end && run.charge >= abilityCost(run) &&
+  const environmentAllows = (!run.cyclone || conditions(run, run.at).name === 'Warm ocean water') && (!run.tornado || !run.overWater)
+  const offCooldown = !(run.snow || run.cyclone || run.tornado) || run.time >= run.boostUntil
+  const available = run.tornado ? run.support - 15 : run.charge
+  return !!ability && !run.end && environmentAllows && offCooldown && available >= abilityCost(run) &&
     (!!run.front || abilityTargets(run, (ability.reach ?? 0) + run.effects.abilityReach).length > 0)
 }
 
@@ -393,8 +427,15 @@ export function useAbility(run: Run, target?: MapPoint) {
   const ability = stormAbility(run)
   if (ability) {
     if (!hazardAbilityReady(run)) return
+    if (run.cyclone || run.snow || run.tornado) {
+      if (target) return false
+      if (run.tornado) run.support -= abilityCost(run)
+      else run.charge -= abilityCost(run)
+      run.boostUntil = run.time + ability.seconds
+      return true
+    }
     if (run.fire) {
-      if (!spotFire(run.fire, run.effects, run.time)) return false
+      if (!spotFire(run.fire, run.effects, run.time, target)) return false
       run.charge -= abilityCost(run)
       log(run, 'Windborne embers start a new spot fire.')
       return true
@@ -404,8 +445,11 @@ export function useAbility(run: Run, target?: MapPoint) {
         const maxEf = run.theater.storm === 'Thunderstorm' && activeStorm(run) !== 'Supercell' ? 2 : 5
         const funnel = createFunnel(run.front, run.seed, run.time, tornadoRadius(run), run.effects, run.strength, ability.seconds, target, maxEf)
         if (!funnel) return
+        run.peakOutbreak = Math.max(run.peakOutbreak, run.front.funnels.filter(item => isActive(item, run.time)).length)
         const where = localityAt(90 - funnel.point.y / 10, funnel.point.x / 10 - 180)
-        log(run, `Tornado touches down ${where.reference}.`, true)
+        const violent = funnel.peakEF >= 4 && !run.alertHeadlines.has('violent-funnel')
+        if (violent) run.alertHeadlines.add('violent-funnel')
+        log(run, `Tornado touches down ${where.reference}.`, violent, undefined, 'touchdown', where.name)
       } else {
         if (target && (!run.effects.targetedBurst || distanceKm(run.front.point, target) > burstRange(run) || !landAt(target).code)) return
         const point = target ?? movePoint(run.front.point, run.front.heading, (ability.reach ?? 0) * 11)
@@ -446,14 +490,14 @@ export function upgradeLocked(run: Run, upgrade: Upgrade) {
 }
 
 const upgradeEconomy = {
-  Easy: { increase: 0, refund: .50, decay: .20 },
-  Normal: { increase: .5, refund: .35, decay: .35 },
-  Hard: { increase: 1, refund: .25, decay: .50 },
-  Expert: { increase: 2, refund: 0, decay: 0 },
+  Easy: { multiplier: 1, refund: .50, decay: .20 },
+  Normal: { multiplier: 1.10, refund: .35, decay: .35 },
+  Hard: { multiplier: 1.20, refund: .25, decay: .50 },
+  Expert: { multiplier: 1.35, refund: 0, decay: 0 },
 }
 
 export function upgradeCost(run: Run, upgrade: Upgrade) {
-  return run.sandbox ? 0 : upgrade.cost + Math.floor(run.purchases * upgradeEconomy[run.difficulty].increase)
+  return run.sandbox ? 0 : Math.round(upgrade.cost * upgradeEconomy[run.difficulty].multiplier)
 }
 
 export function upgradeRefund(run: Run, id: string) {
@@ -495,9 +539,7 @@ export function buyUpgrade(run: Run, id: string) {
   run.upgradePayments.set(id, cost)
   run.purchases++
   run.upgrades.push(id)
-  const before = activeStorm(run)
   applyUpgradeEffects(run, upgrade)
-  if (activeStorm(run) !== before) log(run, `Thunderstorm reorganizes as a ${stormOrganization(run).toLowerCase()} ${run.front!.locality.reference}.`, true)
   return true
 }
 
@@ -513,9 +555,8 @@ export function position(run: Run) {
   return run.front?.point ?? alongTrack(trackPoints(run), run.track.length - 1, run.progress / leg)
 }
 
-function log(run: Run, message: string, breaking = false, snowfall?: SnowReport) {
-  run.events.unshift({ time: run.time, text: message, breaking, snowfall })
-  if (run.events.length > 12) run.events.splice(run.tornado ? -2 : -1, 1)
+function log(run: Run, message: string, breaking = false, snowfall?: SnowReport, kind?: string, locality?: string) {
+  appendNews(run.events, { time: run.time, text: message, breaking, snowfall, kind, locality })
 }
 
 function updateWarnings(run: Run) {
@@ -600,6 +641,7 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const breach = funnel && wind >= 111 ? effects.shelterBreach : 0
   const protectedShare = living ? Math.min(1, site.sheltered / living) * (1 - Math.min(.65, breach + (outage ? effects.power : 0))) : 0
   const preparedness = difficultyRules[run.difficulty].shelter
+  // Preparedness was calibrated against one minute per 60 gameplay ticks.
   const leadMinutes = site.warnedAt === null || !preparedness ? 0 : (run.time - site.warnedAt) / 60
   const rate = fatalityRate(wind, protectedShare, leadMinutes, preparedness)
   const casualtyRate = share * rate * (1 + overload + effects.panic)
@@ -704,7 +746,10 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   const atlanticFade = coastal ? Math.min(.20, Math.max(0, latitude - 44) * .035) : 0
   const weather = conditions(run, run.at)
   const priorStrength = run.strength
-  develop(run, weather.trend + lakeFeed * .85 - atlanticFade, lakeFeed * .55 + coastalSupport,
+  // Gradual depletion of the synoptic air mass eventually outpaces local moisture recovery.
+  const aging = lakeFeed > .08 && run.time < 1520 ? 0 : Math.min(.45, Math.max(0, run.time - 1080) * .00085)
+  develop(run, weather.trend + lakeFeed * .85 - atlanticFade - aging,
+    lakeFeed * .55 + coastalSupport - aging * .5,
     clipper ? run.effects.endurance * .28 : coastal ? .5 : 0)
   const lakeHeadline = `clipper-recovery-${surface.name}`
   if (lakeFeed > .08 && run.strength > priorStrength && !run.alertHeadlines.has(lakeHeadline)) {
@@ -715,7 +760,8 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
     - (water ? 0 : .31 * snow.rate)))
   run.charge = moisture
   const strength = run.strength / 100
-  snow.rate = cold * strength * (.27 + moisture * .006 + snow.waterMoisture * .013) * (1 + run.effects.snowRate)
+  snow.rate = cold * strength * (.27 + moisture * .006 + snow.waterMoisture * .013) *
+    (1 + run.effects.snowRate) * (run.time < run.boostUntil ? 1.65 : 1)
   const { windMph, widthKm } = stormStats(run)
   const groundSnow = snow.deposits.get(area)?.cm ?? 0
   const blowing = Math.min(.95, groundSnow * .021) * (1 + run.effects.drift) * cold
@@ -777,7 +823,7 @@ function reportSnowfall(run: Run, place: string, cm: number) {
   const source = run.snow!.source
   const text = source === 'ocean' ? 'as an ocean-fed snow band passes.'
     : source ? `as lake-effect snow streams off ${escapeName(source)}.` : 'as the snow band moves through.'
-  log(run, text, milestone >= 15, { place, cm })
+  log(run, text, false, { place, cm }, 'snowfall', place)
 }
 
 function tickTornado(run: Run, front: Front) {
@@ -800,7 +846,8 @@ function tickTornado(run: Run, front: Front) {
   const draw = (.153 + exposure * .34 + difficulty) / (1 + run.effects.endurance * .67)
   run.support = Math.max(0, run.support - draw)
   const exhausted = Math.max(0, 1 - run.support / 24) * .52
-  run.strength = Math.max(0, run.strength + weather.trend - exhausted)
+  const inflowPulse = run.time < run.boostUntil && !run.overWater ? .11 : 0
+  run.strength = Math.max(0, Math.min(58, run.strength + weather.trend - exhausted + inflowPulse))
   const ahead = movePoint(front.point, front.heading, 15 + record.awareness * 35)
   const threatened = new Set([front.current, ...sampledAreas(front, ahead, record.awareness * 10)])
   const { windMph, widthKm } = stormStats(run)
@@ -813,14 +860,14 @@ function tickTornado(run: Run, front: Front) {
     run.detectedAt = run.time
     log(run, 'Weather station confirms a tornado on the ground.', true)
   }
-  if (run.effects.satelliteChance && run.realTime >= record.nextSatellite) {
-    record.nextSatellite = run.realTime + 70_000
+  if (run.effects.satelliteChance && run.time >= record.nextSatellite) {
+    record.nextSatellite = run.time + 70
     if (!run.overWater && random(run.seed ^ run.time ^ 0x7115)() < run.effects.satelliteChance) spawnSatellite(run)
   }
   const satellites = advanceTrackedFunnels(run, front, threatened)
   updateFrontWarnings(run, front, threatened, false)
-  for (const { funnel, distance } of satellites) {
-    applyTornadoSweep(run, front, funnel.point, funnel.heading, distance, funnel.width, funnel.wind)
+  for (const { funnel, distance, point } of satellites) {
+    funnel.damage += applyTornadoSweep(run, front, point, funnel.heading, distance, funnel.width, funnel.wind)
   }
   record.maxWidthKm = Math.max(record.maxWidthKm, widthKm)
   const ground = groundSegment(previous, front.point, wasWater, run.overWater)
@@ -866,7 +913,7 @@ function tornadoHeadlines(run: Run, front: Front, wind: number, width: number) {
     const city = nearbyCity(latitudeAt(front.point), longitudeAt(front.point), front.current.country, undefined, radius)
     if (city && city.population >= 3_000 && !run.alertHeadlines.has(city.name)) {
       run.alertHeadlines.add(city.name)
-      log(run, `${escapeName(city.name)} residents ordered to shelter as ${wind >= 166 ? 'a violent' : 'a'} tornado passes nearby.`, true)
+      log(run, `${escapeName(city.name)} residents ordered to shelter as ${wind >= 166 ? 'a violent' : 'a'} tornado passes nearby.`, false, undefined, 'shelter', city.name)
     }
   }
   if (wind >= 166 && record.chaserExposure >= 0) {
@@ -906,12 +953,15 @@ function noteTornadoPlaces(record: TornadoRecord, point: MapPoint, country: stri
 }
 
 function applyTornadoSweep(run: Run, front: Front, point: MapPoint, heading: number, distance: number, width: number, wind: number, multiplier = 1, rain = 0) {
+  let total = 0
   for (const strip of tornadoStrips(wind, width)) {
     const center = strip.offset === 0 ? point : movePoint(point, heading + Math.PI / 2, strip.offset)
     const { zone, site, country } = frontArea(front.areas, center)
     const loss = applyImpact(run, zone, site, sweptShare(distance, strip.width, zone.area) * multiplier, strip.wind, rain, true)
+    total += loss
     if (loss && run.tornado && country) noteTornadoPlaces(run.tornado, center, country, strip.width / 2)
   }
+  return total
 }
 
 function advanceTrackedFunnels(run: Run, front: Front, threatened: Set<ImpactArea>) {
@@ -922,9 +972,14 @@ function advanceTrackedFunnels(run: Run, front: Front, threatened: Set<ImpactAre
     advanceFunnel(funnel, run.time)
     const area = frontArea(front.areas, funnel.point)
     threatened.add(area)
-    if (landAt(funnel.point).code) {
-      if (landAt(previous).code) markSwath(funnel.swath, previous, funnel.point, funnel.wind, funnel.width)
-      sweeps.push({ funnel, distance: distanceKm(previous, funnel.point) })
+    const ground = groundSegment(previous, funnel.point, !landAt(previous).code, !landAt(funnel.point).code)
+    if (ground) {
+      const [from, to] = ground
+      const distance = distanceKm(from, to)
+      markSwath(funnel.swath, from, to, funnel.wind, funnel.width)
+      funnel.groundKm += distance
+      funnel.reachedEF = Math.max(funnel.reachedEF, funnel.ef)
+      sweeps.push({ funnel, distance, point: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 } })
     }
   }
   return sweeps
@@ -967,8 +1022,8 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
   const wind = impactWind(run)
   for (const { zone, site } of core) applyImpact(run, zone, site, passive * 5, wind)
   if (run.theater.storm === 'Thunderstorm') thunderstormImpacts(run, front, force)
-  for (const { funnel, distance } of sweeps) {
-    applyTornadoSweep(run, front, funnel.point, funnel.heading, distance, funnel.width, funnel.wind, 1, run.effects.burstPower)
+  for (const { funnel, distance, point } of sweeps) {
+    funnel.damage += applyTornadoSweep(run, front, point, funnel.heading, distance, funnel.width, funnel.wind, 1, run.effects.burstPower)
   }
   for (const { burst, areas } of bursts) {
     for (const { zone, site } of areas) {
@@ -980,7 +1035,7 @@ function tickFront(run: Run, front: Front, hazard: NonNullable<ReturnType<typeof
   }
   for (const [area, until] of front.floods) {
     if (until < run.time) front.floods.delete(area)
-    else applyImpact(run, area.zone, area.site, .00275 * run.effects.floodPower * force, 55 + run.strength * .85 + run.effects.floodPower * 15, .42)
+    else run.floodDamage += applyImpact(run, area.zone, area.site, .00275 * run.effects.floodPower * force, 55 + run.strength * .85 + run.effects.floodPower * 15, .42)
   }
   finishMovingStorm(run)
 }
@@ -989,7 +1044,7 @@ function thunderstormImpacts(run: Run, front: Front, force: number) {
   const { hail, hailRadius, lightning, lightningOutage } = run.effects
   if (hail && run.time % 4 === 0) {
     for (const { zone, site } of sampledAreas(front, front.point, hailRadius)) {
-      applyImpact(run, zone, site, .008 * hail * force, 75, 0, false, true)
+      run.hailDamage += applyImpact(run, zone, site, .008 * hail * force, 75, 0, false, true)
     }
   }
   if (!lightning || run.time % 8 !== 0) return
@@ -1038,9 +1093,14 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
     front.locality = localityAt(latitudeAt(front.point), longitudeAt(front.point), surface)
   }
   const weather = conditions(run, run.at)
-  run.strength = Math.max(0, Math.min(100, run.strength + weather.trend))
+  const warmWater = weather.name === 'Warm ocean water'
+  if (warmWater) run.charge = Math.min(100, run.charge + .32 + run.effects.seaGain)
+  else run.charge = Math.max(0, run.charge - .20)
+  const heatPulse = warmWater && run.time < run.boostUntil ? .075 : 0
+  run.strength = Math.max(0, Math.min(100, run.strength + weather.trend + heatPulse))
   const stats = stormStats(run)
   cyclone.peakWind = Math.max(cyclone.peakWind, stats.windMph)
+  if (stats.windMph >= 111) run.majorHurricaneTicks++
   cyclone.radarAngle = (cyclone.radarAngle + radarSpin(cyclone, stats.windMph)) % 360
   if (run.strength <= 7) run.end = `${run.name || 'The cyclone'} dissipated.`
   const category = run.end ? 'Dissipated' : stats.category
@@ -1061,18 +1121,22 @@ function tickCyclone(run: Run, front: Front, cyclone: Cyclone) {
   updateFrontWarnings(run, front, threatened, stats.windMph >= 66 || [...core].some(area => area.zone.population > 800))
   if (run.end) return
   const intensity = (stats.windMph / 155) ** 2 * .018
-  for (const { zone, site } of core) applyImpact(run, zone, site, intensity, stats.windMph, run.effects.rain)
+  const impact = ({ zone, site }: ImpactArea, share: number) => {
+    run.windDamage += applyImpact(run, zone, site, share, stats.windMph)
+    if (run.effects.rain) run.rainDamage += applyImpact(run, zone, site, share * run.effects.rain, stats.windMph, 0, false, true)
+  }
+  for (const area of core) impact(area, intensity)
   for (const area of fringe) if (!core.has(area)) {
-    applyImpact(run, area.zone, area.site, intensity * (.22 + run.effects.fringe * .13), stats.windMph, run.effects.rain)
+    impact(area, intensity * (.22 + run.effects.fringe * .13))
   }
   if (run.effects.rainTrail) {
     const tail = frontArea(front.areas, movePoint(front.point, front.heading + Math.PI, stats.widthKm * .34))
-    if (!threatened.has(tail)) applyImpact(run, tail.zone, tail.site, intensity * run.effects.rainTrail, stats.windMph, run.effects.rain)
+    if (!threatened.has(tail)) run.rainDamage += applyImpact(run, tail.zone, tail.site, intensity * run.effects.rainTrail, stats.windMph, run.effects.rain, false, true)
   }
   if (landfall && run.effects.surge) {
     const targets = [...sampledAreas(front, front.point, stats.widthKm * .13)].filter(area => !area.zone.sea)
     for (const { zone, site } of targets.slice(0, 3 + run.effects.surgeFringe * 3)) {
-      applyImpact(run, zone, site, run.effects.surge * (stats.windMph / 155), Math.max(111, stats.windMph), .5)
+      run.surgeDamage += applyImpact(run, zone, site, run.effects.surge * (stats.windMph / 155), Math.max(111, stats.windMph), .5)
     }
     log(run, `Storm surge reported ${front.locality.reference}.`)
   }
@@ -1091,13 +1155,16 @@ function tickWildfire(run: Run, front: Front, fire: Wildfire) {
     log(run, 'Aircraft begin dropping retardant along the fire perimeter.', true)
   }
   const active = advanceWildfire(fire, run.effects, run.time, resistance)
+  run.peakFirePerimeterKm2 = Math.max(run.peakFirePerimeterKm2, active.length * Math.sqrt(3) * 1.5 * 2.5 ** 2)
   run.strength = 100 * active.reduce((peak, cell) => Math.max(peak, cell.heat), 0)
-  const threatened = new Set<ImpactArea>()
-  for (const cell of active) threatened.add(frontArea(front.areas, cell.point))
-  updateFrontWarnings(run, front, threatened, fire.responseAt !== null)
+  const exposure = new Map<ImpactArea, number>()
   for (const cell of active) {
-    const { zone, site } = frontArea(front.areas, cell.point)
-    applyImpact(run, zone, site, .005 * cell.heat ** 2 * (1 + run.effects.hazardDamage), 55 + cell.heat * 86)
+    const area = frontArea(front.areas, cell.point)
+    exposure.set(area, Math.max(exposure.get(area) ?? 0, cell.heat))
+  }
+  updateFrontWarnings(run, front, new Set(exposure.keys()), fire.responseAt !== null)
+  for (const [{ zone, site }, heat] of exposure) {
+    applyImpact(run, zone, site, .005 * heat ** 2 * (1 + run.effects.hazardDamage), 55 + heat * 86)
   }
   if (!fire.active) run.end = fire.containment >= .6 ? 'Crews contained the fire.' : 'The fire burned out.'
 }
@@ -1110,15 +1177,20 @@ export function travelRate(run: Run) {
 }
 
 export function tick(run: Run) {
+  withRegionScope(run.exposureCountries, () => advanceTick(run))
+}
+
+function advanceTick(run: Run) {
   if (run.end) return
   run.time++
   const storm = activeStorm(run)
   const hazard = hazardFor(storm)
   if (!run.sandbox) {
     const award = run.momentumSchedule.awards.find(item => item.time === run.time)
-    if (award) gainMomentum(run, award.points)
+    const late = lateMomentum(run.seed, run.theater.storm, run.time)
+    if (award || late.points) gainMomentum(run, award?.points ?? late.points ?? 0)
     if (run.pickup && run.time >= run.pickup.expires) run.pickup = null
-    run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? null
+    run.pickup ??= run.momentumSchedule.pickups.find(item => item.time === run.time) ?? late.pickup ?? null
   }
   if (run.fire && run.front) return tickWildfire(run, run.front, run.fire)
   if (run.front && run.blizzardPattern) return tickBlizzard(run, run.front, run.blizzardPattern)

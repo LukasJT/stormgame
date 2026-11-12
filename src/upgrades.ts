@@ -360,7 +360,7 @@ const wildfire = [
       ['fire-receptive', 'Receptive Fuel', 'Give new spot fires more starting heat.', { burstPower: .18 }, 3],
       ['fire-ember-shower', 'Ember Shower', 'Further strengthen newly ignited spot fires.', { burstPower: .18, chargeGain: .10 }, 6],
     ],
-  }, ['ember-storm', 'Ember Storm', 'Extend spotting reach and start hotter spot fires.', { fireSpot: 1, burstPower: .22 }, 11]),
+  }, ['ember-storm', 'Ember Storm', 'Extend spotting reach, start hotter spot fires, and target a highlighted downwind cell.', { fireSpot: 1, burstPower: .22 }, 11]),
   ...upgradeTree('Damage', 'Persistent heat', {
     Fuel: [
       ['smolder', 'Smoldering Fuels', 'Use fuel more slowly.', { endurance: .12 }, 3],

@@ -1,4 +1,4 @@
-import { kmPerX, landAt, random, worldX, type MapPoint } from './convection'
+import { distanceKm, kmPerX, landAt, random, worldX, type MapPoint } from './convection'
 import type { Effects } from './upgrades'
 import history from './data/wildfire-history.json'
 
@@ -95,9 +95,40 @@ export function startWildfire(origin: MapPoint, seed: number): Wildfire {
 
 const live = (cell: FireCell) => cell.status !== 'Contained' && cell.status !== 'Burned out'
 
-export function spotFire(fire: Wildfire, effects: Effects, time: number) {
-  const source = [...fire.cells.values()].filter(cell => live(cell) && cell.heat >= .25)
-    .sort((a, b) => b.heat - a.heat)
+function hotCells(fire: Wildfire) {
+  return [...fire.cells.values()].filter(cell => live(cell) && cell.heat >= .25).sort((a, b) => b.heat - a.heat)
+}
+
+export function emberTargets(fire: Wildfire, effects: Effects) {
+  const targets = new Map<string, Hex & { point: MapPoint }>()
+  const reach = 2 + Math.floor(effects.fireSpot)
+  for (const cell of hotCells(fire).slice(0, 12)) {
+    for (const direction of [fire.wind, (fire.wind + 1) % 6, (fire.wind + 5) % 6]) {
+      const [dq, dr] = neighbors[direction]
+      for (let distance = reach; distance >= 2; distance--) {
+        const q = cell.q + dq * distance
+        const r = cell.r + dr * distance
+        const id = key(q, r)
+        if (fire.cells.has(id) || targets.has(id)) continue
+        const point = hexPoint(fire, { q, r })
+        if (canIgnite(point)) targets.set(id, { q, r, point })
+        if (targets.size >= 48) return [...targets.values()]
+      }
+    }
+  }
+  return [...targets.values()]
+}
+
+export function spotFire(fire: Wildfire, effects: Effects, time: number, target?: MapPoint) {
+  if (target) {
+    if (effects.fireSpot < 2) return false
+    const nearest = emberTargets(fire, effects).sort((a, b) => distanceKm(a.point, target) - distanceKm(b.point, target))[0]
+    if (!nearest || distanceKm(nearest.point, target) > hexRadius ||
+      !ignite(fire, nearest.q, nearest.r, .22 + effects.burstPower * .22)) return false
+    fire.spotfires++
+    return true
+  }
+  const source = hotCells(fire)
   const reach = 2 + Math.floor(effects.fireSpot)
   const roll = random(fire.seed ^ Math.imul(time + 1, 18329))
   const directions = [fire.wind, (fire.wind + (roll() < .5 ? 1 : 5)) % 6]

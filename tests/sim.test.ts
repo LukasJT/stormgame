@@ -183,12 +183,12 @@ describe('global weather scenarios', () => {
     const satellite = run.front!.funnels[0]
     expect(satellite.peakEF).toBeLessThan(5)
     expect(satellite.heading).not.toBe(run.front!.heading)
-    advance(run, 120)
+    advance(run, run.time + 59)
+    run.realTime = 120_000
     expect(triggerSatellite(run)).toBe(false)
-    run.realTime = 59_999
-    expect(triggerSatellite(run)).toBe(false)
-    run.realTime = 60_000
+    advance(run, run.time + 1)
     expect(triggerSatellite(run)).toBe(true)
+    advance(run, run.time + 60)
     expect(run.events.filter(event => event.text.includes('storm chasers'))).toHaveLength(1)
   })
 

@@ -8,7 +8,7 @@ export type MapPoint = { x: number; y: number }
 export type Funnel = {
   id: number; ef: number; peakEF: number; wind: number; width: number; peakWidth: number; start: number; life: number
   point: MapPoint; path: MapPoint[]; swath: Swath[]; heading: number; naturalHeading: number; preference: number | null
-  speed: number; phase: number
+  speed: number; phase: number; groundKm: number; damage: number; reachedEF: number
 }
 
 export type ConvectiveTrack = {
@@ -116,7 +116,7 @@ export function createFunnel(front: ConvectiveTrack, seed: number, time: number,
   const life = Math.round((.48 + roll() * .92) * lifetime + effects.tornadoLife)
   const heading = tornadoHeading(roll())
   const funnel: Funnel = { id, ef: 0, peakEF, wind: 65, width: peakWidth * .22, peakWidth, start: time, life, point, path: [point], swath: [], heading, naturalHeading: heading, preference: null,
-    speed: .22 + roll() * .41, phase: roll() * Math.PI * 2 }
+    speed: .22 + roll() * .41, phase: roll() * Math.PI * 2, groundKm: 0, damage: 0, reachedEF: 0 }
   front.funnels.push(funnel)
   return funnel
 }

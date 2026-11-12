@@ -1,4 +1,4 @@
-import { stormClock } from './storm-clock'
+import { dateFormatter, stormClock } from './storm-clock'
 
 export const tornadoTickSeconds = 15
 
@@ -8,13 +8,11 @@ export type TornadoRecord = {
   nextSatellite: number; manualSatellite: number; chaserExposure: number
 }
 
-const longDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' })
-
 export function tornadoStartDate(today = new Date()) {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15).getTime()
 }
 
-export const tornadoDate = (startedAt: number) => longDate.format(startedAt)
+export const tornadoDate = (startedAt: number) => dateFormatter('long').format(startedAt)
 
 export function tornadoClock(startedAt: number, ticks: number) {
   return stormClock(startedAt, ticks, tornadoTickSeconds)

@@ -332,6 +332,10 @@ body[data-phase=setup] .map-prompt, body[data-phase=opening] .map-prompt { inset
 .route-choice.ability { border-color: var(--red); background: var(--crimson); }
 .blizzard-steering .route-choice[aria-pressed=true] { color: var(--blue); border-color: var(--blue); background: #26394c; }
 .blizzard-steering .route-choice { text-align: center; }
+@media (max-width: 680px) {
+  .front-orders .orders { min-width: 0; flex-wrap: wrap; }
+  .front-orders > .ability { margin-inline-start: auto; }
+}
 @media (max-width: 720px) {
   .blizzard-steering .route-choice { flex: 1 1 0; min-width: 0; }
   .blizzard-steering.wide-steering { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -726,3 +730,29 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 .fire-history { pointer-events: none; opacity: .70; }
 .fire-perimeter { pointer-events: none; }
 .fire-perimeter path { fill-opacity: .88; stroke: #171415; stroke-width: .65px; stroke-linejoin: round; }
+.score-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .7rem;
+  margin-block: 1rem;
+}
+.score-filters label, .score-submit {
+  display: grid;
+  gap: .45rem;
+}
+.score-filters select, .score-submit input {
+  min-width: 0;
+  width: 100%;
+  padding: .55rem;
+  border: 1px solid #51657a;
+  border-radius: .35rem;
+  color: #edf6ff;
+  background: #142233;
+  font: inherit;
+}
+.score-table { overflow-x: auto; }
+.score-table table { width: 100%; border-collapse: collapse; text-align: left; }
+.score-table th, .score-table td { padding: .6rem; border-bottom: 1px solid #3b4b5c; }
+.score-table td { overflow-wrap: anywhere; }
+.score-table small { color: #aebed0; }
+.score-submit { padding: 1rem; }

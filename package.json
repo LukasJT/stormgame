@@ -6,6 +6,8 @@
     "test": "vitest run",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
+    "build:score-engine": "vite build --ssr src/replay.ts --outDir dist-engine",
+    "start": "node server/index.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test"
   },

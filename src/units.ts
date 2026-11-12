@@ -1,12 +1,11 @@
 import { settings } from './profile'
+import { localizedNumber } from './i18n'
 
-const distance = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
 const kilometersPerMile = 1.609344
-const miles = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
 
 export function formatDistance(km: number) {
-  if (settings.units === 'imperial') return `${miles.format(km / kilometersPerMile)} mi`
-  return km > 0 && km < 1 ? `${Math.round(km * 1000)} m` : `${distance.format(km)} km`
+  if (settings.units === 'imperial') return `${localizedNumber(km / kilometersPerMile, 3)} mi`
+  return km > 0 && km < 1 ? `${localizedNumber(km * 1000)} m` : `${localizedNumber(km, 1)} km`
 }
 
 export function windSpeed(mph: number) {
@@ -23,5 +22,5 @@ export function measurementText(description: string) {
 }
 
 export function snowfallDepth(cm: number) {
-  return settings.units === 'metric' ? `${distance.format(cm)} cm` : `${distance.format(cm / 2.54)} in`
+  return settings.units === 'metric' ? `${localizedNumber(cm, 1)} cm` : `${localizedNumber(cm / 2.54, 1)} in`
 }

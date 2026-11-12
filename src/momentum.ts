@@ -2,7 +2,7 @@ import { random } from './convection'
 import type { Storm } from './world'
 
 export const usesTornadoEconomy = (storm: Storm) => storm === 'Tornado' || storm === 'Thunderstorm' || storm === 'Wildfire'
-export const startingMomentum = (storm: Storm) => storm === 'Hurricane' ? 20 : usesTornadoEconomy(storm) ? 10 : 5
+export const startingMomentum = (storm: Storm) => storm === 'Hurricane' ? 20 : storm === 'Blizzard' ? 12 : usesTornadoEconomy(storm) ? 10 : 5
 const pickupLifetime = 42
 
 const opportunities: Partial<Record<Storm, readonly string[]>> = {
@@ -16,6 +16,21 @@ const opportunities: Partial<Record<Storm, readonly string[]>> = {
 const thunderstormOpportunities = ['Warm Air', 'Rising Moisture', 'Wind Shear', 'Unstable Air']
 
 export type WeatherPickup = { time: number; expires: number; label: string; points: number }
+
+export function lateMomentum(seed: number, storm: Storm, time: number) {
+  const openingEnds = storm === 'Hurricane' ? 1080 : 930
+  if (time < openingEnds) return {}
+  const block = Math.floor((time - openingEnds) / 60)
+  const start = openingEnds + block * 60
+  const roll = random(seed ^ Math.imul(block + 1, 0x45d9f3b))
+  const awardAt = start + Math.floor(roll() * 8)
+  const pickupAt = start + 14 + Math.floor(roll() * 8)
+  const labels = opportunities[storm] ?? thunderstormOpportunities
+  return {
+    points: time === awardAt ? 2 : 0,
+    pickup: time === pickupAt ? { time, expires: time + pickupLifetime, label: labels[Math.floor(roll() * labels.length)], points: 3 } : undefined,
+  }
+}
 
 export function momentumSchedule(seed: number, storm: Storm) {
   let salt = 0x156ADF09
@@ -39,14 +54,14 @@ export function momentumSchedule(seed: number, storm: Storm) {
     })
     return { awards, pickups }
   }
-  if (usesTornadoEconomy(storm)) {
+  if (usesTornadoEconomy(storm) || storm === 'Blizzard') {
     const awards = Array.from({ length: 40 }, (_, index) => ({
       time: 12 + index * 23 + Math.floor(roll() * 15),
-      points: roll() < .35 ? 3 : 2,
+      points: roll() < (storm === 'Blizzard' ? .12 : .35) ? 3 : 2,
     }))
     const pickups = Array.from({ length: 19 }, (_, index): WeatherPickup => {
       const time = 22 + index * 48 + Math.floor(roll() * (index ? 6 : 9))
-      return { time, expires: time + pickupLifetime, label: labels[Math.floor(roll() * labels.length)], points: 3 + Math.floor(roll() * 3) }
+      return { time, expires: time + pickupLifetime, label: labels[Math.floor(roll() * labels.length)], points: (storm === 'Blizzard' ? 2 : 3) + Math.floor(roll() * 3) }
     })
     return { awards, pickups }
   }

@@ -1,4 +1,4 @@
-import { drawWildfire, fireHistoryLayer } from './wildfire'
+import { drawWildfire, emberTargets, fireHistoryLayer } from './wildfire'
 import { blizzardTrack } from './blizzard'
 import { drawSnowfall } from './snow-map'
 import { formatDistance } from './units'
@@ -88,7 +88,7 @@ export function paintMotion(map: HTMLElement, run: Run, fraction: number) {
   map.querySelector('[data-storm-next]')?.setAttribute('d', view.next)
 }
 
-type Targeting = 'drop' | 'burst' | null
+type Targeting = 'drop' | 'burst' | 'ember' | null
 const atlasStyle = (run: Run) => run.cyclone ? 'cyclone-atlas' : run.theater.storm === 'Tornado' ? 'tornado-atlas' : run.front ? 'convective-atlas' : ''
 
 export function drawWorld(storm: Storm, run: Run | null, pending: Run | null, inspection = '', inspecting = false, targeting: Targeting = null, selectedFunnel: number | null = null) {
@@ -183,7 +183,7 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
   const longitude = (x: number) => world ? worldX(x) : x
   const near = (x: number) => world ? worldX(x) : x + Math.round((front.point.x - x) / 3600) * 3600
   const radius = targeting === 'burst' ? burstRange(run) : tornadoRadius(run)
-  const showArea = targeting || (!world && !run.end && stormAbility(run)?.tornado)
+  const showArea = targeting === 'drop' || targeting === 'burst' || (!world && !run.end && stormAbility(run)?.tornado)
   const area = showArea ? `<ellipse class="drop-area ${targeting ? 'aiming' : ''}" ${targeting === 'burst' ? 'data-burst-area' : 'data-drop-area'} cx="${longitude(front.point.x)}" cy="${front.point.y}" rx="${radius / kmPerX(front.point.y)}" ry="${radius / 11.1}" role="img" aria-label="${targeting === 'burst' ? 'Active ability range' : 'Possible tornado touchdown area'}" vector-effect="non-scaling-stroke"/>` : ''
   const water = [...front.floods.keys()].map(({ zone }) =>
     `<circle class="storm-flood" cx="${near(zone.x)}" cy="${zone.y}" r=".5"/>`).join('')
@@ -197,7 +197,9 @@ function drawFrontFeatures(run: Run, world: boolean, targeting: Targeting, selec
         <g data-camera-scaled="screen"><circle class="funnel-hit" r="13"/><circle r="8"/><path d="M-5-4H5M-4-1H3M-2 2H2M-1 5H1"/>${world ? '' : `<text x="11" y="4">EF${funnel.ef}</text>`}</g>
       </g>` : ''}`
   }).join('')
-  return water + area + drawSwath(front.swath, world) + funnels
+  const embers = targeting === 'ember' && run.fire ? emberTargets(run.fire, run.effects).map(({ point }) =>
+    `<ellipse class="drop-area aiming" cx="${near(point.x)}" cy="${point.y}" rx="${2.5 / kmPerX(point.y)}" ry="${2.5 / 11.1}" vector-effect="non-scaling-stroke"/>`).join('') : ''
+  return water + area + embers + drawSwath(front.swath, world) + funnels
 }
 
 function drawRecordedDamage(run: Run, world: boolean) {

@@ -1,4 +1,4 @@
-type Ability = {
+export type Ability = {
   name: string; resource: string; cost: number; seconds: number; damage: number
   reach?: number; tornado?: true
 }

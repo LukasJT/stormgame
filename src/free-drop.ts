@@ -50,13 +50,17 @@ export async function loadImpactRegions(theater: Theater, origin: 0 | 1) {
   const reach = theater.storm === 'Tornado' ? 470 : theater.storm === 'Hurricane' ? 1800 : 900
   const latitudeReach = reach / 111
   const longitudeReach = Math.min(180, latitudeReach / Math.max(.01, Math.cos(Math.min(89.9, Math.abs(lat) + latitudeReach) * radians)))
-  const codes = new Set(theater.places.flatMap(([, , , code]) => code ? [code] : []))
+  const codes = new Set(['US', 'CA', ...theater.places.flatMap(([, , , code]) => code ? [code] : [])])
   for (const boundary of polygons) {
     if (!boundary.code || boundary.north < lat - latitudeReach || boundary.south > lat + latitudeReach) continue
     if ([lon, lon + 360, lon - 360].some(center =>
       boundary.east >= center - longitudeReach && boundary.west <= center + longitudeReach)) codes.add(boundary.code)
   }
-  await Promise.allSettled([...codes].map(getRegions))
+  const loaded = await Promise.allSettled([...codes].map(getRegions))
+  return {
+    countries: new Set([...codes].filter((_, index) => loaded[index].status === 'fulfilled')),
+    complete: loaded.every(result => result.status === 'fulfilled'),
+  }
 }
 
 export function locate(lat: number, longitude: number) {

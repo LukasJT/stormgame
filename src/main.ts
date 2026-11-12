@@ -7,9 +7,9 @@ import '@fontsource/dm-sans/600.css'
 import './style.css'
 import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
-import { coordinates, loadImpactRegions, loadLocalities, makeDrop } from './free-drop'
-import { canRemoveUpgrade, removeUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, triggerSatellite, abilityCost, activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, difficultyRules, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, setBlizzardCourse, setCourse, startRun, steer, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, useAbility, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
-import { makeZones, stormColor, theaters, type Storm, type Theater } from './world'
+import { coordinates, loadLocalities, makeDrop } from './free-drop'
+import { canRemoveUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, abilityCost, activeStorm, chooseBlizzardPattern, conditions, defaultSeed, difficultyRules, environmentOutlook, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, startRun, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { stormColor, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards } from './hazards'
 import { blizzardCourseAvailable, blizzardCourses, blizzardOptions, blizzardPatterns, type BlizzardCourse, type BlizzardPattern } from './blizzard'
 import { branches, tornadoBranches, trees, type Branch, type Upgrade } from './upgrades'
@@ -20,6 +20,13 @@ import { campaign, difficulties, difficultyLabel, earnedStars, isCampaignEvent, 
 import { directionName, isActive, type MapPoint } from './convection'
 import { formatDamage } from './damage'
 import { escapeName } from './cities'
+import { enableAudio, hideAudio, playSound } from './audio'
+import { NewsPresentation } from './news'
+import { chooseLocale, getLocale, languages, localizedNumber, setLocale, translateMarkup } from './i18n'
+import { applyCommand, commonMetrics, createForecast, eventMetrics, metricLabels, prepareForecast, summarizeRun,
+  type Command, type Metric, type Placement, type Replay, type RunSummary, type Ticket } from './replay'
+import { getChallenge, getScores, issueTicket, pendingScore, savedDisplayName, submitScore,
+  type Challenge, type ScoreFilters, type ScoreRow } from './scores'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
 import { snowfallDepth, measurementText, temperature, windSpeed, formatDistance } from './units'
 import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
@@ -48,7 +55,9 @@ const weatherPickup = document.querySelector<HTMLElement>('#weather-pickup')!
 const dialog = document.querySelector<HTMLDialogElement>('#panel')!
 const refundDialog = document.querySelector<HTMLDialogElement>('#refund-confirmation')!
 const refundMessage = document.querySelector<HTMLElement>('#refund-message')!
-const num = new Intl.NumberFormat('en-US')
+const num = { format: (value: number) => localizedNumber(value) }
+setLocale(settings.locale)
+document.documentElement.lang = settings.locale
 
 const icons = {
   storm: '<path d="M20 4C12 0 4 6 5 13c1 5 7 6 9 2 2-3-1-6-4-4m-6 9c8 4 16-2 15-9-1-5-7-6-9-2-2 3 1 6 4 4"/>',
@@ -97,7 +106,7 @@ function upgradeIcon(upgrade: Upgrade) {
   return upgrade.branch === 'Formation' ? 'storm' : upgrade.branch === 'Impact' ? 'damage' : 'globe'
 }
 
-type Screen = 'home' | 'weather' | 'difficulty' | 'guide' | 'records' | 'settings' | 'map' | 'results'
+type Screen = 'home' | 'weather' | 'difficulty' | 'guide' | 'records' | 'settings' | 'leaderboards' | 'map' | 'results'
 let screen: Screen = 'home'
 let sandbox = false
 let loadingMap = false
@@ -106,7 +115,7 @@ let seed = defaultSeed
 let run: Run | null = null
 let storm: Storm = 'Tornado'
 let unlockedOnFinish: CampaignEvent | undefined
-let mapOrder: 'drop' | 'storm' | 'funnel' | 'burst' | null = null
+let mapOrder: 'drop' | 'storm' | 'funnel' | 'burst' | 'ember' | null = null
 let selectedFunnel: number | null = null
 let mapFeedback = ''
 let overview = false
@@ -116,17 +125,38 @@ let showWeather = true
 let hurricaneName = ''
 let inspected: ZoneId | null = null
 let speed: typeof settings.startingSpeed = 1
-let panel: 'pause' | 'pause-settings' | 'evolve' | 'region' | 'news' | 'history' | 'clipping' | null = null
+let panel: 'pause' | 'pause-settings' | 'evolve' | 'region' | 'news' | 'history' | 'clipping' | 'score' | null = null
 let evolutionTab: Branch | 'Storm' | 'Tornado' = 'Formation'
 let selectedUpgrade: string | null = null
 let inspectMode = false
 let inspection: Inspection | null = null
-let dismissedHeadline: Run['events'][number] | undefined
+let news = new NewsPresentation()
 let panelTrigger: HTMLElement | null = null
 let accumulator = 0
 let lastFrame = performance.now()
 let interactionInProgress = false
+let ticket: Ticket | undefined
+let replay: Replay | undefined
+let finishedRun: RunSummary | undefined
+let scoreMessage = ''
+let scoreSubmitting = false
+let scoreAccepted = false
+let boardChallenge: Challenge | undefined
+let runChallenge: Challenge | undefined
+let boardLoading = false
+let boardError = ''
+let boardRows: ScoreRow[] = []
+let boardRequest = 0
+const filters: ScoreFilters = { event: 'Tornado', difficulty: 'Normal', metric: 'damage', period: 'all' }
 const camera = new MapCamera(map, mapTools, render)
+
+function command(action: string, options: Omit<Command, 'tick' | 'action'> = {}) {
+  if (!run || opening) return false
+  const input = { tick: run.time, action, ...options }
+  if (!applyCommand(run, input)) return false
+  replay?.commands.push(input)
+  return true
+}
 
 function clock(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
@@ -142,11 +172,12 @@ function cycloneEventTime(cyclone: Cyclone, ticks: number) {
 }
 
 function replace(element: HTMLElement, html: string) {
-  if (element.dataset.rendered === html) return
+  const renderKey = getLocale() + html
+  if (element.dataset.rendered === renderKey) return
   const previous = element.contains(document.activeElement) ? document.activeElement : null
   const key = previous?.getAttribute('data-key') ?? previous?.getAttribute('data-zone')
-  element.innerHTML = html
-  element.dataset.rendered = html
+  element.innerHTML = translateMarkup(html)
+  element.dataset.rendered = renderKey
   if (key) element.querySelector<HTMLElement>(`[data-key="${key}"], [data-zone="${key}"]`)?.focus({ preventScroll: true })
 }
 
@@ -187,9 +218,24 @@ function settingsContent() {
           </select>
         </div>
         <div class="menu-setting">
-          <label for="breaking-news-setting">Breaking news popups</label>
-          <input id="breaking-news-setting" type="checkbox" aria-describedby="news-help" ${settings.breakingNews ? 'checked' : ''}>
-          <p id="news-help">Headlines always appear in the news ticker.</p>
+          <label for="news-mode">News alerts</label>
+          <select id="news-mode">
+            ${(['standard', 'major', 'quiet'] as const).map((mode, index) => `<option value="${mode}" ${settings.newsMode === mode ? 'selected' : ''}>${['Standard', 'Major alerts only', 'Quiet'][index]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="menu-setting">
+          <label for="language-setting">Language</label>
+          <select id="language-setting">${Object.entries(languages).map(([code, name]) => `<option value="${code}" ${settings.locale === code ? 'selected' : ''}>${name}</option>`).join('')}</select>
+        </div>
+        <div class="menu-setting">
+          <label for="mute-setting">Mute sound</label>
+          <input id="mute-setting" type="checkbox" ${settings.muted ? 'checked' : ''}>
+        </div>
+        <div class="menu-setting">
+          <label for="master-volume">Master volume</label>
+          <input id="master-volume" type="range" min="0" max="100" value="${Math.round(settings.masterVolume * 100)}">
+          <label for="effects-volume">Effects volume</label>
+          <input id="effects-volume" type="range" min="0" max="100" value="${Math.round(settings.effectsVolume * 100)}">
         </div>`
 }
 
@@ -257,12 +303,14 @@ function weatherPicker() {
 
 function menuContent() {
   if (screen === 'results' && run?.tornado) return tornadoResults(run)
+  if (screen === 'leaderboards') return leaderboardContent()
   if (screen === 'home') return `<section class="title-screen" aria-labelledby="menu-title">
     <div class="title-emblem">${icon('storm')}</div>
     <h1 id="menu-title" tabindex="-1">Stormwake</h1>
     <nav class="title-actions" aria-label="Main menu">
       ${button('menu-play', `${icon('play')} Play`, undefined, 'menu-primary')}
       ${button('menu-sandbox', `${icon('infinity')} Sandbox`, undefined, 'menu-secondary')}
+      ${button('leaderboards', 'Leaderboards', undefined, 'menu-secondary')}
       ${(Object.keys(menuSections) as (keyof typeof menuSections)[]).map(section =>
         button('menu-section', `${icon(section)} ${menuSections[section]}`, section, 'menu-secondary')).join('')}
     </nav>
@@ -283,6 +331,79 @@ function menuContent() {
     <div class="menu-options" role="group" aria-label="Difficulty">${choices}</div>
     <footer><button class="menu-primary" data-action="start-game" data-key="start-game" ${difficulty && !loadingMap ? '' : 'disabled'} ${loadingMap ? 'aria-busy="true"' : ''}>${icon('play')} Play</button></footer>
   </section>`
+}
+
+function scoreButton(state: Run) {
+  if (state.sandbox || !finishedRun) return ''
+  if (!ticket) return button('leaderboards', 'Leaderboards', undefined, 'order')
+  return button('score', scoreAccepted ? 'Score submitted.' : 'Submit score', undefined, 'order')
+}
+
+function scoreValue(metric: Metric, value: number) {
+  if (metric === 'damage' || metric === 'surge' || metric.endsWith('Damage')) return formatDamage(value)
+  if (metric === 'duration') return new Intl.NumberFormat(getLocale(), { style: 'unit', unit: 'hour', maximumFractionDigits: 2 }).format(value / 3600)
+  return localizedNumber(value, 2)
+}
+
+function leaderboardContent() {
+  const select = <T extends string>(key: keyof ScoreFilters, label: string, options: readonly T[], display: (value: T) => string) =>
+    `<label>${label}<select aria-label="${label}" data-score-filter="${key}" data-key="filter-${key}">${options.map(value =>
+      `<option value="${value}" ${filters[key] === value ? 'selected' : ''}>${display(value)}</option>`).join('')}</select></label>`
+  return `<section class="setup-screen score-screen" aria-labelledby="menu-title">
+    <header class="setup-header">${button('menu-back', `${icon('back')} Back`, 'home', 'menu-back')}<h1 id="menu-title" tabindex="-1">Leaderboards</h1></header>
+    <div class="score-filters">
+      ${select('event', 'Event', campaign, event => event)}
+      ${select('difficulty', 'Difficulty', difficulties, difficultyLabel)}
+      ${select('metric', 'Metric', [...commonMetrics, ...eventMetrics[filters.event], 'mastery'] as Metric[], metric => metricLabels[metric])}
+      ${select('period', 'Period', ['all', 'month'] as const, period => period === 'all' ? 'All time' : 'This month')}
+      ${boardChallenge ? `<label>Board<select data-score-filter="challenge" data-key="filter-challenge"><option value="">Free placement</option>
+        <option value="${boardChallenge.id}" ${filters.challenge ? 'selected' : ''}>Daily challenge · ${boardChallenge.id}</option></select></label>` : ''}
+    </div>
+    <div class="orders">${boardChallenge && eventUnlocked(filters.event) && difficultyUnlocked(filters.event, filters.difficulty)
+      ? button('play-challenge', 'Play daily challenge', undefined, 'order') : ''}
+      ${pendingScore() ? button('retry-score', 'Retry submission', undefined, 'order') : ''}</div>
+    <p role="status">${boardLoading ? 'Loading…' : escapeName(boardError) || (boardRows.length ? '' : 'No ranked runs yet.')}</p>
+    ${boardRows.length ? `<div class="score-table"><table><thead><tr><th>Rank</th><th>Player</th><th>Score</th><th>Origin</th></tr></thead><tbody>
+      ${boardRows.map((row, index) => `<tr><td>${localizedNumber(index + 1)}</td><td data-player-text>${escapeName(row.name)} <small>· ${escapeName(row.player)}</small></td>
+        <td>${scoreValue(filters.metric, row.score)}</td><td>${coordinates(row.summary.placement.lat, row.summary.placement.lon)}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+  </section>`
+}
+
+async function refreshScores() {
+  const request = ++boardRequest
+  boardLoading = true
+  boardError = ''
+  boardRows = []
+  render()
+  const [scores, challenge] = await Promise.allSettled([getScores(filters), getChallenge(filters.event)])
+  if (request !== boardRequest) return
+  boardLoading = false
+  boardChallenge = challenge.status === 'fulfilled' ? challenge.value : undefined
+  if (scores.status === 'fulfilled') boardRows = scores.value.rows
+  else boardError = scores.reason instanceof Error && scores.reason.name === 'Error'
+    ? scores.reason.message : 'Shared scores are unavailable right now.'
+  if (screen === 'leaderboards') render()
+}
+
+async function sendScore(submission: Parameters<typeof submitScore>[0], fromBoard = false) {
+  if (scoreSubmitting) return
+  scoreSubmitting = true
+  scoreMessage = 'Submitting…'
+  if (fromBoard) { boardError = scoreMessage; render() } else renderPanel()
+  try {
+    await submitScore(submission)
+    if (ticket?.id === submission.ticket.id) scoreAccepted = true
+    scoreMessage = 'Score submitted.'
+    if (fromBoard) void refreshScores()
+  } catch (error) {
+    scoreMessage = error instanceof Error && error.name !== 'TimeoutError' && error.name !== 'TypeError'
+      ? error.message : 'Shared scores are unavailable right now.'
+  } finally {
+    scoreSubmitting = false
+    if (fromBoard && screen === 'leaderboards') { boardError = scoreMessage; render() }
+    else if (panel === 'score') renderPanel()
+  }
 }
 
 function showScreen(next: Screen) {
@@ -328,15 +449,16 @@ function worldOptions() {
 function routeOrders(state: Run) {
   if (state.fire) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.fire.active} burning ${state.fire.active === 1 ? 'hex' : 'hexes'} · ${Math.round(state.fire.containment * 100)}% contained</strong>
-    <span>${mapFeedback || (state.fire.aircraft ? 'Ground crews and aircraft responding' : state.fire.responseAt !== null ? 'Ground crews building fireline' : 'Wind carries embers into new fuel')}</span></div>
-    <button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>Send embers</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} embers</small></button></div>`
+    <span>${mapFeedback || (mapOrder === 'ember' ? 'Choose a highlighted downwind cell' : state.fire.aircraft ? 'Ground crews and aircraft responding' : state.fire.responseAt !== null ? 'Ground crews building fireline' : 'Wind carries embers into new fuel')}</span></div>
+    ${mapOrder === 'ember' ? button('cancel-map-order', 'Cancel', undefined, 'route-choice') :
+      `<button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}><strong>Send embers</strong><small>${Math.floor(state.charge)} / ${abilityCost(state)} embers</small></button>`}</div>`
 
   if (state.cyclone) {
     const weather = conditions(state, state.at)
     const trend = weather.trend > .005 ? 'Strengthening' : weather.trend < -.005 ? 'Weakening' : 'Steady'
     return `<div class="route-status front-orders"><div class="course-caption">
       <strong>${state.name} · Drifting ${directionName(state.front!.heading)}</strong>
-      <span>${weather.name} · ${trend}</span></div>${button('history', 'Track history', undefined, 'route-choice')}</div>`
+      <span>${weather.name} · ${trend}</span></div><div class="orders">${button('history', 'Track history', undefined, 'route-choice')}${resourceAbility(state)}</div></div>`
   }
   if (state.snow) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.blizzardPattern} · Drifting ${directionName(state.front!.heading)}</strong>
@@ -345,7 +467,7 @@ function routeOrders(state: Run) {
     <div class="orders blizzard-steering ${state.blizzardPattern === "Nor'easter" ? 'wide-steering' : ''}" role="group" aria-label="Blizzard course">
       ${Object.entries(blizzardCourses).filter(([course]) => blizzardCourseAvailable(course as BlizzardCourse, state.blizzardPattern)).map(([course, { label, name, degrees }]) =>
         `<button class="route-choice" data-key="blizzard-course-${course}" data-action="blizzard-course" data-value="${course}" aria-label="${name}" aria-pressed="${state.snow?.steering.course === course}">${label}<small>${degrees ? `${Math.abs(degrees)}°` : '0°'}</small></button>`).join('')}
-    </div></div>`
+    </div>${resourceAbility(state)}</div>`
   if (state.front && state.theater.storm !== 'Tornado') return frontOrders(state)
   const { zones } = state
   const inTransit = state.progress > 0
@@ -364,11 +486,19 @@ function routeOrders(state: Run) {
     <strong>${state.name} · Drifting ${directionName(state.front.heading)}</strong>
     <span>${mapFeedback || (mapOrder ? 'Tap the map to set a preferred heading' : 'Follow the projected tornado track')}</span></div>
     <div class="orders">${mapOrder ? button('cancel-map-order', 'Cancel', undefined, 'route-choice')
-      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${satellite}${ability}`}</div></div>`
+      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${satellite}${state.tornado ? resourceAbility(state) : ability}`}</div></div>`
   return `<div class="route-status">
     <div class="course-caption"><strong>Moving toward ${zones[state.to].name}</strong>
     <span>${inTransit ? `Next: ${zones[selected].name} · ` : ''}${Math.ceil((leg - state.progress) / travelRate(state))}s · ${routeHint}</span></div>
     ${ability}</div>`
+}
+
+function resourceAbility(state: Run) {
+  const ability = stormAbility(state)
+  if (!ability) return ''
+  const resource = state.tornado ? Math.max(0, state.support - 15) : state.charge
+  return `<button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}>
+    <strong>${ability.name}</strong><small>${state.time < state.boostUntil ? 'Active' : `${Math.floor(resource)} / ${abilityCost(state)} ${ability.resource}`}</small></button>`
 }
 
 function frontOrders(state: Run) {
@@ -379,8 +509,8 @@ function frontOrders(state: Run) {
   const hint = mapFeedback || (mapOrder === 'drop' ? 'Choose land inside the highlighted area'
     : mapOrder === 'burst' ? 'Choose a target on land inside the highlighted range'
     : mapOrder === 'storm' || mapOrder === 'funnel' ? 'Tap the map to set a preferred heading'
-    : funnel ? `${formatDistance(funnel.width)} wide · ${funnel.start + funnel.life - state.time}s left · ${state.effects.tornadoSteering ? 'Select again to set heading' : 'Guided Funnels unlocks steering'}`
-    : ability.tornado ? (state.effects.precisionDrop ? 'Precision Touchdown available' : 'Touchdown and heading are random')
+    : funnel ? `${formatDistance(funnel.width)} wide · ${formatDamage(funnel.damage)} damage · ${funnel.start + funnel.life - state.time}s left · ${state.effects.tornadoSteering ? 'Select again to set heading' : 'Guided Funnels unlocks steering'}`
+    : ability.tornado ? `${state.effects.precisionDrop ? 'Precision Touchdown available' : 'Touchdown and heading are random'} · ${activeStorm(state) === 'Supercell' ? 'Supercell can spawn violent tornadoes' : 'EF0–EF2'}`
     : state.effects.targetedBurst ? 'Activate your ability to select a target' : 'Follow the projected storm track')
   const controls = mapOrder
     ? button('cancel-map-order', 'Cancel', undefined, 'route-choice')
@@ -393,7 +523,7 @@ function results(state: Run) {
   if (state.tornado) return `<div class="report-heading"><strong>${state.name} · Forecast ended</strong></div>
     <p class="report-summary">Pan or zoom to inspect the damage track.</p>
     <div class="orders">${button('clipping', 'Read news', undefined, 'order')}
-    ${button('view-results', 'Next', undefined, 'order hot')}${button('retry', 'Retry', undefined, 'order')}</div>`
+    ${button('view-results', 'Next', undefined, 'order hot')}${scoreButton(state)}${button('retry', 'Retry', undefined, 'order')}</div>`
   const total = totals(state)
   const kind = state.theater.storm
   if (!isCampaignEvent(kind)) return ''
@@ -405,7 +535,7 @@ function results(state: Run) {
     <p class="report-summary">Pan or zoom to inspect the final map.${total.damage && !state.fire ? ' Amber dots mark recorded property damage.' : ''}</p>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
     <div class="orders">${state.cyclone ? button('history', 'Track history', undefined, 'order') : ''}${!state.sandbox && upcoming && eventUnlocked(upcoming) ? button('next-event', `Next: ${upcoming}`, upcoming, 'order hot') : ''}
-    ${button('retry', 'Retry same forecast', undefined, 'order')}${button('new', 'New forecast', undefined, 'order')}</div>`
+    ${scoreButton(state)}${button('retry', 'Retry same forecast', undefined, 'order')}${button('new', 'New forecast', undefined, 'order')}</div>`
 }
 
 function snowfallSummary(snow: NonNullable<Run['snow']>) {
@@ -417,6 +547,18 @@ function snowfallSummary(snow: NonNullable<Run['snow']>) {
 }
 
 function eventText(event: Run['events'][number]) {
+  if (getLocale() !== 'en' && event.kind === 'touchdown' && event.locality) {
+    const place = escapeName(event.locality)
+    return getLocale() === 'fr' ? `Tornade signalée · ${place}` : `Tornado detectado · ${place}`
+  }
+  if (getLocale() !== 'en' && event.kind === 'shelter' && event.locality) {
+    const place = escapeName(event.locality)
+    return getLocale() === 'fr' ? `${place} · Consigne de mise à l’abri` : `${place} · Orden de refugiarse`
+  }
+  if (getLocale() !== 'en' && event.snowfall) {
+    const { place, cm } = event.snowfall
+    return getLocale() === 'fr' ? `${place} signale ${snowfallDepth(cm)} de neige.` : `${place} informa de ${snowfallDepth(cm)} de nieve.`
+  }
   return event.snowfall ? `${event.snowfall.place} reports ${snowfallDepth(event.snowfall.cm)} ${event.text}` : event.text
 }
 
@@ -451,7 +593,7 @@ function tornadoResults(state: Run) {
     <dl class="forecast-stat-sheet">${tornadoReportStats(state).map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
     <div class="forecast-places"><strong>Cities and towns affected</strong><p>${places.length ? places.join(' · ') : 'None reported'}</p></div>
     ${unlockedOnFinish ? `<p class="event-unlock" role="status">${unlockedOnFinish} unlocked.</p>` : ''}
-    <footer>${button('explore-damage', 'Explore damage', undefined, 'order')}${button('retry', 'Retry', undefined, 'order hot')}${button('main-menu', 'Exit', undefined, 'order')}</footer>
+    <footer>${button('explore-damage', 'Explore damage', undefined, 'order')}${scoreButton(state)}${button('retry', 'Retry', undefined, 'order hot')}${button('main-menu', 'Exit', undefined, 'order')}</footer>
   </section>`
 }
 
@@ -460,7 +602,7 @@ function tornadoClipping(state: Run) {
   const total = tornadoImpact(state)
   const headline = tornadoVerdict(record, total.damage, total.deaths, total.countryDeaths)
   const places = [...record.places]
-  const leadPlaces = new Intl.ListFormat('en-US').format(places.slice(0, 5))
+  const leadPlaces = new Intl.ListFormat(getLocale()).format(places.slice(0, 5))
   const where = places.length ? `Damage was reported in or near ${leadPlaces}${places.length > 5 ? ` and ${places.length - 5} other communities` : ''}.`
     : total.damage ? 'Damage was reported outside named towns and cities.' : 'No damage was reported in named towns or cities.'
   const timing = tornadoClock(record.startedAt, 0)
@@ -494,6 +636,15 @@ function renderPanel() {
   } else if (panel === 'clipping' && run.tornado) {
     title = 'Final storm report'
     content = tornadoClipping(run)
+  } else if (panel === 'score' && finishedRun) {
+    const { placement, metrics } = finishedRun
+    title = 'Submit score'
+    content = `<form id="score-form" class="score-submit">
+      <dl class="region-stats"><div><dt>Event</dt><dd>${placement.event}</dd></div><div><dt>Difficulty</dt><dd>${difficultyLabel(placement.difficulty)}</dd></div>
+        <div><dt>Damage</dt><dd>${formatDamage(metrics.damage ?? 0)}</dd></div><div><dt>Deaths</dt><dd>${num.format(metrics.deaths ?? 0)}</dd></div></dl>
+      <label for="score-name">Display name</label><input id="score-name" name="displayName" data-key="score-name" required maxlength="48" value="${escapeName(savedDisplayName())}">
+      <button class="order hot" type="submit" ${scoreSubmitting || scoreAccepted ? 'disabled' : ''}>Submit score</button>
+      <p role="status">${escapeName(scoreMessage)}</p></form>`
   } else if (panel === 'evolve') {
     const storm = run.theater.storm
     const state = run
@@ -643,9 +794,7 @@ async function inspectCountry(code: string) {
 }
 
 function latestHeadline() {
-  if (!settings.breakingNews || !run || opening || run.end) return undefined
-  const item = run.events.find(event => event.breaking)
-  return item && run.time - item.time < 14 && item !== dismissedHeadline ? item : undefined
+  return run && !opening && !run.end && !panel && settings.newsMode !== 'quiet' ? news.banner : undefined
 }
 
 function renderWeatherPickup(state: Run | null) {
@@ -705,6 +854,8 @@ function liveReadings(state: Run) {
   }
   if (state.theater.storm === 'Thunderstorm') items.unshift(['Type', stormOrganization(state)])
   if (stormAbility(state)?.tornado) items.push(['Active tornadoes', String(state.end ? 0 : state.front?.funnels.filter(funnel => isActive(funnel, state.time)).length ?? 0)])
+  const outlook = !opening && !state.end ? environmentOutlook(state) : undefined
+  if (outlook) items.push(['Outlook', outlook])
   return items.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')
 }
 
@@ -758,7 +909,7 @@ function render() {
       : `<span class="run-settings">${storm} · ${difficultyLabel(difficulty)}</span>${!state ? button('main-menu', 'Main menu', undefined, 'speed') : ''}`)
     if (!camera.interacting) {
       const worldView = !state || opening || overview
-      const targeting = mapOrder === 'drop' || mapOrder === 'burst' ? mapOrder : null
+      const targeting = mapOrder === 'drop' || mapOrder === 'burst' || mapOrder === 'ember' ? mapOrder : null
       replace(map, worldView
         ? drawWorld(storm, opening ? null : state, opening ? state : null, inspection && inspectMode ? drawInspection(inspection) : '', inspectMode, targeting, selectedFunnel)
         : drawRegion(state.theater, state, inspected, targeting, selectedFunnel))
@@ -794,7 +945,7 @@ function render() {
     ${gain && state.realTime - gain.at < 3200 ? `<output class="momentum-gain">+${gain.points} ${gain.points === 1 ? 'point' : 'points'}</output>` : ''}
     <div class="hud-chip detection ${state.detectedAt !== null && !state.end ? 'tracked' : ''}"><span>${status}</span><strong>${Math.round(storm === 'Tornado' ? state.support : state.strength)}<small>% ${storm === 'Tornado' ? 'inflow' : 'strength'}</small></strong></div>` : '')
   replace(stats, state ? liveReadings(state) : '')
-  if (!interactionInProgress) replace(bulletins, `<button class="news-button" data-key="news" data-action="news" ${!state || opening ? 'disabled' : ''}><strong>News</strong><span>${state && !opening && state.events[0] ? eventText(state.events[0]) : 'No headlines yet'}</span></button>`)
+  if (!interactionInProgress) replace(bulletins, `<button class="news-button" data-key="news" data-action="news" ${!state || opening ? 'disabled' : ''}><strong>News</strong><span>${settings.newsMode === 'quiet' ? 'News paused' : news.ticker ? eventText(news.ticker) : 'No headlines yet'}</span></button>`)
 }
 
 function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: BlizzardPattern | null = null) {
@@ -808,6 +959,12 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
     }
   }
   run = startRun(theater, origin, difficulty, seed, sandbox)
+  ticket = undefined
+  replay = undefined
+  finishedRun = undefined
+  runChallenge = undefined
+  scoreMessage = ''
+  scoreAccepted = false
   unlockedOnFinish = undefined
   if (blizzardPattern) chooseBlizzardPattern(run, blizzardPattern)
   overview = true
@@ -819,7 +976,7 @@ function chooseOrigin(theater: Theater, origin: Origin = 0, blizzardPattern: Bli
   inspected = null
   inspectMode = false
   inspection = null
-  dismissedHeadline = undefined
+  news = new NewsPresentation()
   accumulator = 0
   render()
   controls.querySelector<HTMLElement>('[data-key="launch"]')?.focus({ preventScroll: true })
@@ -832,13 +989,26 @@ async function launch() {
   if (forecast.cyclone && !nameHurricane(forecast, hurricaneName)) return
   loadingExposure = forecast
   render()
-  await loadImpactRegions(forecast.theater, forecast.origin)
+  const event = forecast.theater.storm
+  if (!isCampaignEvent(event)) return
+  const [, lat, lon] = forecast.theater.places[forecast.origin]
+  const placement: Placement = { event, difficulty: forecast.difficulty, lat, lon,
+    theaterId: forecast.theater.custom ? undefined : forecast.theater.id, origin: forecast.origin }
+  const [prepared, issued] = await Promise.all([
+    prepareForecast(placement), forecast.sandbox ? undefined : issueTicket(placement, runChallenge?.id).catch(() => undefined),
+  ])
   if (loadingExposure === forecast) loadingExposure = null
   if (screen !== 'map' || run !== forecast || !opening) return
-  run.zones = makeZones(run.theater)
-  if (run.cyclone) run.cyclone.startedAt = Date.now()
+  ticket = prepared.complete ? issued : undefined
+  const startedAt = ticket?.issuedAt ?? Date.now()
+  const name = forecast.cyclone ? hurricaneName : undefined
+  const pattern = forecast.blizzardPattern ?? undefined
+  run = createForecast(placement, prepared, ticket?.seed ?? forecast.seed, startedAt, name, pattern, forecast.sandbox)
+  replay = { placement, seed: run.seed, startedAt, name, pattern, ticks: 0, commands: [] }
   if (run.tornado) run.tornado.startedAt = tornadoStartDate()
   opening = false
+  news.update(run.events, settings.newsMode, 0, false)
+  playSound('confirm')
   if (run.fire) {
     overview = false
     run.front?.areas.clear()
@@ -869,7 +1039,7 @@ function selectMap(id: ZoneId) {
     return
   }
   if (!run.end && routeOptions(run).includes(id)) {
-    steer(run, id)
+    command('steer', { value: id })
     render()
     return
   }
@@ -902,12 +1072,15 @@ function selectFunnel(id: number) {
 
 function applyMapOrder(point: MapPoint) {
   if (!run || !mapOrder) return
-  const abilityTarget = mapOrder === 'drop' || mapOrder === 'burst'
-  const done = abilityTarget ? useAbility(run, point) : setCourse(run, point, mapOrder === 'funnel' ? selectedFunnel ?? undefined : undefined)
+  const abilityTarget = mapOrder === 'drop' || mapOrder === 'burst' || mapOrder === 'ember'
+  const done = abilityTarget ? command('ability', { point })
+    : command('course', { point, funnel: mapOrder === 'funnel' ? selectedFunnel ?? undefined : undefined })
   if (done) {
+    if (abilityTarget) playSound('ability')
     mapFeedback = abilityTarget ? '' : 'Preferred heading set'
     mapOrder = null
-  } else mapFeedback = abilityTarget ? 'Choose land inside the highlighted area' : 'Choose a point away from the current position'
+  } else mapFeedback = mapOrder === 'ember' ? 'Choose a highlighted downwind cell'
+    : abilityTarget ? 'Choose land inside the highlighted area' : 'Choose a point away from the current position'
   render()
 }
 
@@ -948,6 +1121,7 @@ document.addEventListener('click', event => {
   const region = event.target.closest<SVGElement>('[data-theater]')
   if (!inspectMode && region?.dataset.theater && !world?.hasAttribute('data-precise')) return selectTheater(region.dataset.theater)
   if (world && event.detail > 0) {
+    if (loadingExposure && loadingExposure === run) return
     const point = mapPoint(world, event)
     if (point && (inspectMode || (run && !opening))) {
       const code = countryAt(point.x, point.y)
@@ -970,8 +1144,30 @@ document.addEventListener('click', event => {
   }
   const target = event.target.closest<HTMLButtonElement>('button[data-action]')
   if (!target || target.disabled) return
+  enableAudio()
   const { action, value } = target.dataset
   switch (action) {
+    case 'leaderboards':
+      showScreen('leaderboards')
+      return void refreshScores()
+    case 'play-challenge':
+      if (!boardChallenge || !eventUnlocked(filters.event) || !difficultyUnlocked(filters.event, filters.difficulty)) return
+      sandbox = false
+      storm = filters.event
+      difficulty = filters.difficulty
+      hurricaneName = ''
+      showScreen('map')
+      chooseOrigin(makeDrop(storm, boardChallenge.lat, boardChallenge.lon))
+      runChallenge = boardChallenge
+      return
+    case 'retry-score': {
+      const pending = pendingScore()
+      if (pending) void sendScore(pending, true)
+      return
+    }
+    case 'score':
+      if (finishedRun && ticket && !run?.sandbox) return showPanel('score', target)
+      break
     case 'menu-play':
     case 'menu-sandbox':
       sandbox = action === 'menu-sandbox'
@@ -1015,7 +1211,7 @@ document.addEventListener('click', event => {
       return
     case 'blizzard-type': if (run && opening) chooseBlizzardPattern(run, value as BlizzardPattern); break
     case 'blizzard-course':
-      if (run && !opening && value && Object.hasOwn(blizzardCourses, value)) setBlizzardCourse(run, value as BlizzardCourse)
+      if (value) command('blizzard-course', { value })
       break
     case 'launch': return launch()
     case 'restart': {
@@ -1043,20 +1239,25 @@ document.addEventListener('click', event => {
       if (!overview) { inspectMode = false; inspection = null }
       break
     case 'inspect-close': inspectMode = false; inspection = null; break
-    case 'satellite': if (run) triggerSatellite(run); break
-    case 'dismiss-news': dismissedHeadline = latestHeadline(); break
+    case 'satellite': if (command('satellite')) playSound('ability'); break
+    case 'dismiss-news': news.dismiss(); break
     case 'ability':
       if (run?.fire) {
-        mapFeedback = useAbility(run) ? '' : 'No receptive fuel within ember range.'
+        if (run.effects.fireSpot >= 2) return prepareMapOrder('ember')
+        const ignited = command('ability')
+        if (ignited) playSound('ability')
+        mapFeedback = ignited ? '' : 'No receptive fuel within ember range.'
         break
       }
       if (run?.effects.targetedBurst) return prepareMapOrder('burst')
       if (run?.front && stormAbility(run)?.tornado) {
         if (run.effects.precisionDrop) return prepareMapOrder('drop')
-        mapFeedback = useAbility(run) ? '' : 'No land within touchdown range'
+        const dropped = command('ability')
+        if (dropped) playSound('ability')
+        mapFeedback = dropped ? '' : 'No land within touchdown range'
         selectedFunnel = null
         if (overview && !inspectMode) overview = false
-      } else if (run) useAbility(run)
+      } else if (command('ability')) playSound('ability')
       break
     case 'storm-course': return prepareMapOrder('storm')
     case 'cancel-map-order': mapOrder = null; mapFeedback = ''; break
@@ -1079,7 +1280,7 @@ document.addEventListener('click', event => {
       return dialog.close()
     case 'evolution-tab': evolutionTab = value as typeof evolutionTab; selectedUpgrade = null; break
     case 'select-upgrade': selectedUpgrade = value ?? null; break
-    case 'buy': if (run && value) buyUpgrade(run, value); break
+    case 'buy': if (value && command('buy', { value })) playSound('purchase'); break
     case 'refund': {
       if (!run || panel !== 'evolve' || !value || !canRemoveUpgrade(run, value)) return
       const upgrade = trees[run.theater.storm].find(item => item.id === value)
@@ -1096,14 +1297,16 @@ document.addEventListener('click', event => {
       if (!refundDialog.open) return
       const id = refundDialog.dataset.upgrade
       refundDialog.close()
-      if (!run || panel !== 'evolve' || !id || !removeUpgrade(run, id)) return
+      if (!run || panel !== 'evolve' || !id || !command('remove', { value: id })) return
+      playSound('removal')
       mapOrder = null
       render()
       dialog.querySelector<HTMLElement>('[data-action="buy"]')?.focus({ preventScroll: true })
       return
     }
     case 'weather-pickup':
-      if (run && !opening && collectWeatherPickup(run, Number(value))) {
+      if (command('pickup', { value: Number(value) })) {
+        playSound('pickup')
         render()
         if (event.detail === 0) map.focus({ preventScroll: true })
       }
@@ -1119,14 +1322,51 @@ function updateSettings({ target }: Event) {
     settings.units = target.value === 'metric' ? 'metric' : 'imperial'
   } else if (target instanceof HTMLSelectElement && target.id === 'starting-speed') {
     settings.startingSpeed = playbackSpeeds.find(rate => String(rate) === target.value) ?? 1
-  } else if (target instanceof HTMLInputElement && target.id === 'breaking-news-setting') {
-    settings.breakingNews = target.checked
+  } else if (target instanceof HTMLSelectElement && target.id === 'news-mode') {
+    settings.newsMode = target.value === 'major' || target.value === 'quiet' ? target.value : 'standard'
+    news.dismiss()
+  } else if (target instanceof HTMLSelectElement && target.id === 'language-setting') {
+    settings.locale = chooseLocale(target.value)
+    setLocale(settings.locale)
+    document.documentElement.lang = settings.locale
+  } else if (target instanceof HTMLInputElement && target.id === 'mute-setting') {
+    settings.muted = target.checked
+    if (!settings.muted) enableAudio()
+  } else if (target instanceof HTMLInputElement && (target.id === 'master-volume' || target.id === 'effects-volume')) {
+    settings[target.id === 'master-volume' ? 'masterVolume' : 'effectsVolume'] = Number(target.value) / 100
   } else return
   saveSettings()
-  if (panel === 'pause-settings') render()
+  render()
 }
 menu.addEventListener('change', updateSettings)
 dialog.addEventListener('change', updateSettings)
+menu.addEventListener('change', event => {
+  if (!(event.target instanceof HTMLSelectElement) || !event.target.dataset.scoreFilter) return
+  const { scoreFilter } = event.target.dataset
+  const value = event.target.value
+  if (scoreFilter === 'event') {
+    filters.event = value as CampaignEvent
+    filters.metric = 'damage'
+    filters.challenge = undefined
+    boardChallenge = undefined
+  } else if (scoreFilter === 'metric') filters.metric = value as Metric
+  else if (scoreFilter === 'difficulty') filters.difficulty = value as Difficulty
+  else if (scoreFilter === 'period') filters.period = value as ScoreFilters['period']
+  else if (scoreFilter === 'challenge') filters.challenge = value || undefined
+  void refreshScores()
+})
+dialog.addEventListener('submit', event => {
+  if (!(event.target instanceof HTMLFormElement) || event.target.id !== 'score-form') return
+  event.preventDefault()
+  if (!ticket || !replay || !finishedRun || scoreAccepted || scoreSubmitting) return
+  const displayName = String(new FormData(event.target).get('displayName') ?? '').normalize('NFC').trim()
+  if ([...displayName].length < 2 || [...displayName].length > 24 || /[\p{Cc}\p{Cf}]/u.test(displayName)) {
+    scoreMessage = 'Use 2 to 24 characters for the display name.'
+    renderPanel()
+    return
+  }
+  void sendScore({ ticket, replay, displayName })
+})
 
 inspector.addEventListener('change', event => {
   if (!(event.target instanceof HTMLSelectElement)) return
@@ -1243,13 +1483,22 @@ document.addEventListener('keydown', event => {
 })
 document.addEventListener('keyup', event => { if (event.code === 'Space') releaseInteraction() })
 window.addEventListener('blur', releaseInteraction)
-document.addEventListener('visibilitychange', () => { lastFrame = performance.now() })
+document.addEventListener('visibilitychange', () => {
+  lastFrame = performance.now()
+  if (document.hidden) hideAudio()
+  else enableAudio()
+})
 
 function frame(now: number) {
   const elapsed = Math.min(100, Math.max(0, now - lastFrame))
   lastFrame = now
   if (run && !opening && !panel && !run.end && !document.hidden) {
     run.realTime += elapsed
+    const priorBanner = news.banner
+    if (news.update(run.events, settings.newsMode, run.realTime, false)) {
+      if (news.banner && news.banner !== priorBanner) playSound('news')
+      render()
+    }
     accumulator += elapsed * speed
     while (accumulator >= 1000 && !run.end) {
       accumulator -= 1000
@@ -1260,6 +1509,11 @@ function frame(now: number) {
         mapFeedback = ''
       }
       if (run.end) {
+        playSound('finish')
+        if (replay) {
+          replay.ticks = run.time
+          finishedRun = summarizeRun(run, replay.placement, replay.startedAt)
+        }
         mapOrder = null
         if (!run.sandbox && isCampaignEvent(run.theater.storm)) {
           const upcoming = nextEvent(run.theater.storm)

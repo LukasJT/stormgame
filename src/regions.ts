@@ -5,6 +5,13 @@ export type Region = { id: string; name: string; pop: number | null; polygons: n
 const pending = new Map<string, Promise<Region[]>>()
 type RegionExposure = { id: string; name: string; pop: number; d: number }
 const localBoundaries = new Map<string, { name: string; exposure?: RegionExposure; west: number; east: number; north: number; south: number; polygon: number[][][] }[]>()
+let scope: ReadonlySet<string> | undefined
+
+export function withRegionScope<T>(countries: ReadonlySet<string> | undefined, action: () => T): T {
+  const previous = scope
+  scope = countries
+  try { return action() } finally { scope = previous }
+}
 
 // The region files store longitude and latitude multiplied by ten in map coordinates.
 function ringArea(ring: number[][]) {
@@ -46,6 +53,7 @@ export function getRegions(code: string): Promise<Region[]> {
 }
 
 function boundaryAt(code: string, x: number, y: number) {
+  if (scope && !scope.has(code)) return
   return localBoundaries.get(code)?.find(({ west, east, north, south, polygon: [outer, ...holes] }) =>
     x >= west && x <= east && y >= north && y <= south &&
     inside(x, y, outer) && !holes.some(hole => inside(x, y, hole)))

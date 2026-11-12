@@ -4,31 +4,30 @@ import { buyUpgrade, defaultSeed, removeUpgrade, startRun, upgradeCost, upgradeR
 import { trees } from '../src/upgrades'
 
 it.each([
-  ['Easy', [4, 4, 4], 3, 2],
-  ['Normal', [4, 4, 5], 2, 1],
-  ['Hard', [4, 5, 6], 2, 1],
-  ['Expert', [4, 6, 8], 0, 0],
-] as const)('scales purchase prices and diminishing refunds on %s', (difficulty, prices, firstRefund, secondRefund) => {
+  ['Easy', 4, 7, 11, 3, 2],
+  ['Normal', 4, 8, 12, 2, 2],
+  ['Hard', 5, 8, 13, 2, 1],
+  ['Expert', 5, 9, 15, 0, 0],
+] as const)('keeps prices stable and refunds diminish on %s', (difficulty, price, rearPrice, corePrice, firstRefund, secondRefund) => {
   const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, difficulty, defaultSeed)
   run.momentum = 500
   const travel = trees.Tornado.find(item => item.id === 'tornado-track-feed')!
-  expect(upgradeCost(run, travel)).toBe(prices[0])
+  expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'vortex')).toBe(true)
-  expect(upgradeCost(run, travel)).toBe(prices[1])
+  expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'rear-flank')).toBe(true)
-  expect(upgradeCost(run, travel)).toBe(prices[2])
+  expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'tornado-vortex-breakdown')).toBe(true)
   expect(removeUpgrade(run, 'vortex')).toBe(false)
   expect(upgradeRefund(run, 'rear-flank')).toBe(firstRefund)
   expect(removeUpgrade(run, 'tornado-vortex-breakdown')).toBe(true)
-  const baseThird = 11 + prices[2] - 4
-  const thirdRefund = Math.floor(baseThird * ({ Easy: .5, Normal: .35, Hard: .25, Expert: 0 })[difficulty])
-  expect(run.momentum).toBe(500 - 4 - (7 + prices[1] - 4) - baseThird + thirdRefund)
+  const thirdRefund = Math.floor(corePrice * ({ Easy: .5, Normal: .35, Hard: .25, Expert: 0 })[difficulty])
+  expect(run.momentum).toBe(500 - price - rearPrice - corePrice + thirdRefund)
   expect(run.effects.wind).toBe(55)
   expect(upgradeRefund(run, 'rear-flank')).toBe(secondRefund)
   expect(removeUpgrade(run, 'rear-flank')).toBe(true)
   expect(run.effects.wind).toBe(24)
-  expect(upgradeCost(run, travel)).toBeGreaterThanOrEqual(prices[2])
+  expect(upgradeCost(run, travel)).toBe(price)
 })
 
 it('requires both hot and cold branches for their shared upgrade', () => {

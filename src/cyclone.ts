@@ -65,12 +65,13 @@ export function cycloneWeather(cyclone: Cyclone, point: MapPoint, effects: Effec
     if (lat >= 34) return { name: 'Cold water and wind shear', trend: -(.16 + Math.min(.22, (lat - 34) * .014)) * buffer }
     return { name: 'Cooler water and wind shear', trend: (-.042 - difficulty * .024) * buffer }
   }
-  const shear = Math.min(.78, Math.max(0, cyclone.oceanKm - 850) / 1100)
+  const shear = Math.min(.18, Math.max(0, lat - 28) * .025) *
+    Math.min(1, Math.max(0, cyclone.oceanKm - 1100) / 1600)
   const potential = Math.min(100, 43 + effects.seaGain * 220)
   const approach = (potential - strength) * .012
   const growth = Math.min(.075 - difficulty * .012 + effects.seaGain, approach)
   const trend = growth - shear * (1 - Math.min(.28, effects.coldBuffer))
-  const sheared = shear > .27 || (shear > 0 && growth >= 0 && trend < 0)
+  const sheared = shear > .02 && trend < 0
   return { name: sheared ? 'Increasing wind shear over warm water' : 'Warm ocean water', trend }
 }
 
