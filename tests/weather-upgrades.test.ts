@@ -51,7 +51,6 @@ it('supports separate wind and warm-water builds while keeping unupgraded hurric
   expect(base.cyclone!.peakWind).toBeLessThan(74)
   expect(wind.cyclone!.peakWind).toBeGreaterThanOrEqual(130)
   expect(ocean.cyclone!.peakWind).toBeGreaterThanOrEqual(130)
-  expect(trees.Hurricane).toHaveLength(trees.Tornado.length)
 })
 
 it.each([
@@ -71,10 +70,7 @@ it.each([
 })
 
 
-it('matches the tornado tree size and Momentum economy', () => {
-  const groups = (storm: Storm) => new Set(trees[storm].map(upgrade => upgrade.group)).size
-  expect(trees.Thunderstorm).toHaveLength(trees.Tornado.length)
-  expect(groups('Thunderstorm')).toBe(groups('Tornado'))
+it('shares the tornado Momentum economy', () => {
   expect(startingMomentum('Thunderstorm')).toBe(startingMomentum('Tornado'))
   const schedule = momentumSchedule(defaultSeed, 'Thunderstorm')
   const tornado = momentumSchedule(defaultSeed, 'Tornado')

@@ -127,22 +127,24 @@ it('gates tornado junctions behind both branches and makes intensity purchased',
   expect(frontSpeed(run)).toBeCloseTo(frontSpeed(longRun) * 1.15)
 })
 
-it('keeps unupgraded winds at EF0 and lets hail and rain damage property independently', () => {
+it('combines tornado hail, runoff, and rain concealment along one upgrade path', () => {
   const makeRun = () => startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
   const base = makeRun()
-  const rain = makeRun()
-  const hail = makeRun()
-  rain.momentum = 50
-  for (const id of ['rain-wrapped', 'tornado-rain-screen', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']) expect(buyUpgrade(rain, id)).toBe(true)
-  expect(buyUpgrade(hail, 'tornado-hail')).toBe(true)
-  for (let i = 0; i < 360; i++) for (const run of [base, rain, hail]) tick(run)
-  for (const run of [base, rain, hail]) {
+  const precipitation = makeRun()
+  precipitation.momentum = 50
+  expect(buyUpgrade(precipitation, 'tornado-rain-core')).toBe(false)
+  for (const id of ['rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']) {
+    expect(buyUpgrade(precipitation, id)).toBe(true)
+  }
+  expect(precipitation.effects.hail).toBeCloseTo(1.45)
+  expect(precipitation.effects.rainWrap).toBeCloseTo(1.9)
+  for (let i = 0; i < 360; i++) for (const run of [base, precipitation]) tick(run)
+  for (const run of [base, precipitation]) {
     expect(stormStats(run).windMph).toBe(65)
     expect(totals(run).deaths).toBe(0)
   }
-  expect(rain.front!.floods.size).toBeGreaterThan(0)
-  expect(totals(rain).damage).toBeGreaterThan(totals(base).damage)
-  expect(totals(hail).damage).toBeGreaterThan(totals(base).damage)
+  expect(precipitation.front!.floods.size).toBeGreaterThan(0)
+  expect(totals(precipitation).damage).toBeGreaterThan(totals(base).damage)
 })
 
 it('reduces cold and hot inflow weakening through the matching tolerance upgrades', () => {

@@ -499,7 +499,7 @@ function routeOrders(state: Run) {
     <strong>${state.name} · Drifting ${directionName(state.front.heading)}</strong>
     <span>${mapFeedback || (mapOrder ? 'Tap the map to set a preferred heading' : 'Follow the projected tornado track')}</span></div>
     <div class="orders">${mapOrder ? button('cancel-map-order', 'Cancel', undefined, 'route-choice')
-      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${satellite}${state.tornado ? resourceAbility(state) : ability}`}</div></div>`
+      : `${state.effects.courseControl ? button('storm-course', 'Set tornado heading', undefined, 'route-choice') : ''}${satellite}`}</div></div>`
   return `<div class="route-status">
     <div class="course-caption"><strong>Moving toward ${zones[state.to].name}</strong>
     <span>${inTransit ? `Next: ${zones[selected].name} · ` : ''}${Math.ceil((leg - state.progress) / travelRate(state))}s · ${routeHint}</span></div>
@@ -509,9 +509,8 @@ function routeOrders(state: Run) {
 function resourceAbility(state: Run) {
   const ability = stormAbility(state)
   if (!ability) return ''
-  const resource = state.tornado ? Math.max(0, state.support - 15) : state.charge
   return `<button class="route-choice ability" data-key="ability" data-action="ability" ${hazardAbilityReady(state) ? '' : 'disabled'}>
-    <strong>${ability.name}</strong><small>${state.time < state.boostUntil ? 'Active' : `${Math.floor(resource)} / ${abilityCost(state)} ${ability.resource}`}</small></button>`
+    <strong>${ability.name}</strong><small>${state.time < state.boostUntil ? 'Active' : `${Math.floor(state.charge)} / ${abilityCost(state)} ${ability.resource}`}</small></button>`
 }
 
 function frontOrders(state: Run) {

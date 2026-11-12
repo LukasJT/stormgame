@@ -72,7 +72,7 @@ export function saveDeviceScore(id: string, name: string, summary: RunSummary) {
 export function getDeviceScores(filters: ScoreFilters): ScoreRow[] {
   const now = new Date()
   const since = filters.period === 'month' ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) : 0
-  const eligible = deviceEntries().filter(entry => entry.summary.rulesVersion === rulesVersion && entry.submitted >= since)
+  const eligible = deviceEntries().filter(entry => entry.submitted >= since)
   if (filters.metric === 'mastery') {
     const byName = new Map<string, { entry: DeviceEntry; best: Map<string, number> }>()
     for (const entry of eligible) {

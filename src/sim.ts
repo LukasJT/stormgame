@@ -117,7 +117,6 @@ export function stormOrganization(run: Run) {
 }
 
 export function stormAbility(run: Run): Ability | undefined {
-  if (run.tornado && run.effects.wind > 0) return { name: 'Concentrate inflow', resource: 'inflow', cost: 14, seconds: 35, damage: 0 }
   if (run.cyclone) return { name: 'Ocean heat pulse', resource: 'ocean heat', cost: 40, seconds: 45, damage: 0 }
   if (run.snow) return { name: 'Snowburst', resource: 'moisture', cost: 30, seconds: 35, damage: 0 }
   const form = activeStorm(run)
@@ -407,10 +406,9 @@ function abilityTargets(run: Run, reach: number) {
 
 export function hazardAbilityReady(run: Run) {
   const ability = stormAbility(run)
-  const environmentAllows = (!run.cyclone || conditions(run, run.at).name === 'Warm ocean water') && (!run.tornado || !run.overWater)
-  const offCooldown = !(run.snow || run.cyclone || run.tornado) || run.time >= run.boostUntil
-  const available = run.tornado ? run.support - 15 : run.charge
-  return !!ability && !run.end && environmentAllows && offCooldown && available >= abilityCost(run) &&
+  const environmentAllows = !run.cyclone || conditions(run, run.at).name === 'Warm ocean water'
+  const offCooldown = !(run.snow || run.cyclone) || run.time >= run.boostUntil
+  return !!ability && !run.end && environmentAllows && offCooldown && run.charge >= abilityCost(run) &&
     (!!run.front || abilityTargets(run, (ability.reach ?? 0) + run.effects.abilityReach).length > 0)
 }
 
@@ -427,10 +425,9 @@ export function useAbility(run: Run, target?: MapPoint) {
   const ability = stormAbility(run)
   if (ability) {
     if (!hazardAbilityReady(run)) return
-    if (run.cyclone || run.snow || run.tornado) {
+    if (run.cyclone || run.snow) {
       if (target) return false
-      if (run.tornado) run.support -= abilityCost(run)
-      else run.charge -= abilityCost(run)
+      run.charge -= abilityCost(run)
       run.boostUntil = run.time + ability.seconds
       return true
     }
@@ -846,8 +843,7 @@ function tickTornado(run: Run, front: Front) {
   const draw = (.153 + exposure * .34 + difficulty) / (1 + run.effects.endurance * .67)
   run.support = Math.max(0, run.support - draw)
   const exhausted = Math.max(0, 1 - run.support / 24) * .52
-  const inflowPulse = run.time < run.boostUntil && !run.overWater ? .11 : 0
-  run.strength = Math.max(0, Math.min(58, run.strength + weather.trend - exhausted + inflowPulse))
+  run.strength = Math.max(0, run.strength + weather.trend - exhausted)
   const ahead = movePoint(front.point, front.heading, 15 + record.awareness * 35)
   const threatened = new Set([front.current, ...sampledAreas(front, ahead, record.awareness * 10)])
   const { windMph, widthKm } = stormStats(run)

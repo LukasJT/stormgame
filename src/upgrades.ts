@@ -79,16 +79,14 @@ const tornadoUpgrades = [
       ['wedge', 'Wedge Circulation', 'Add up to another 700 m of damage width.', { width: .70 }],
     ],
   }, ['multi-vortex', 'Violent Multivortex Core', 'Add 15 mph of peak wind and up to 500 m of damage width.', { wind: 15, width: .5 }]),
-  ...upgradeTree('Damage', 'Rainfall and concealment', {
-    'Heavy rainfall': [
-      ['tornado-rain-core', 'High-Precipitation Core', 'Heavy rain leaves damaging runoff along the track.', { floodPower: .38 }],
-      ['tornado-rain-swath', 'Sustained Downpour', 'Intensify runoff and extend flooding.', { floodPower: .28, floodLife: 16 }],
+  ...upgradeTree('Damage', 'Rain and hail', {
+    Precipitation: [
+      ['rain-wrapped', 'Precipitation Curtain', 'Rain conceals the funnel and delays warnings while small hail damages roofs and cars.', { warningDelay: 12, rainWrap: 1, hail: .35, hailRadius: 2 }],
+      ['tornado-rain-core', 'High-Precipitation Core', 'Heavy rain leaves damaging runoff while larger hail spreads outward.', { floodPower: .38, hail: .45, hailRadius: 2 }],
+      ['tornado-rain-swath', 'Sustained Downpour', 'Expand the hail swath, deepen the rain curtain, and make flooding last longer.', { floodPower: .28, floodLife: 16, rainWrap: .55, hail: .65, hailRadius: 3 }],
+      ['tornado-runoff', 'Rain-Wrapped Deluge', 'Intensify flooding and further conceal the funnel in heavy rain.', { floodPower: .34, floodLife: 24, rainWrap: .35 }],
     ],
-    'Rain concealment': [
-      ['rain-wrapped', 'Precipitation Curtain', 'Rain hides the funnel from spotters and delays local warnings.', { warningDelay: 12, rainWrap: 1 }],
-      ['tornado-rain-screen', 'Dense Rain Screen', 'Further reduce how quickly the funnel draws attention.', { rainWrap: .55 }],
-    ],
-  }, ['tornado-runoff', 'Rain-Wrapped Deluge', 'Intensify flooding and deepen the rain curtain around the funnel.', { floodPower: .34, floodLife: 24, rainWrap: .35 }]),
+  }),
   ...upgradeTree('Damage', 'Debris and surface winds', {
     Debris: [
       ['tornado-debris', 'Debris Entrainment', 'Lift debris into the circulation to increase property damage.', { gust: .20 }],
@@ -99,13 +97,6 @@ const tornadoUpgrades = [
       ['tornado-ground-jet', 'Ground-Level Surge', 'Concentrate damaging winds close to the ground.', { gust: .20 }],
     ],
   }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Dense debris increases damage and weakens shelter protection in severe winds.', { gust: .45, shelterBreach: .20 }]),
-  ...upgradeTree('Damage', 'Hail', {
-    Hail: [
-      ['tornado-hail', 'Embryo Recirculation', 'Recycle small hailstones to damage roofs and cars.', { hail: .35, hailRadius: 2 }],
-      ['tornado-hail-growth', 'Wet Growth Regime', 'Grow larger hailstones across a wider footprint.', { hail: .45, hailRadius: 2 }],
-      ['tornado-hail-swath', 'Giant Hail Swath', 'Spread damaging hail farther around the vortex.', { hail: .65, hailRadius: 3 }],
-    ],
-  }),
   ...upgradeTree('Abilities', 'Temperature resistance', {
     'Heat resistance': [
       ['tornado-mixed-layer', 'Heat Resistance I', 'Reduce hot-air weakening by 25%.', { heatTolerance: .25 }],
