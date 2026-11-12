@@ -37,6 +37,8 @@ const catalog: Record<string, readonly [string, string]> = {
   'Formation': ['Formation', 'Formación'],
   'Movement': ['Déplacement', 'Movimiento'],
   'Damage': ['Dégâts', 'Daños'],
+  'Lifespan': ['Durée de vie', 'Duración'],
+  'Resistance': ['Résistance', 'Resistencia'],
   'Abilities': ['Capacités', 'Habilidades'],
   'Impact': ['Impact', 'Impacto'],
   'Disruption': ['Perturbation', 'Alteración'],

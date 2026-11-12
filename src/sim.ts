@@ -1,6 +1,7 @@
 import { advanceWildfire, fireHistoryAt, fireHistoryLabels, spotFire, startWildfire, type Wildfire } from './wildfire'
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
+import { damagePrice } from './evolution-stats'
 import { alongTrack } from './track'
 import { hazardFor, hazards, type Ability } from './hazards'
 import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
@@ -494,7 +495,8 @@ const upgradeEconomy = {
 }
 
 export function upgradeCost(run: Run, upgrade: Upgrade) {
-  return run.sandbox ? 0 : Math.round(upgrade.cost * upgradeEconomy[run.difficulty].multiplier)
+  const cost = upgrade.cost + damagePrice(run.theater.storm, upgrade)
+  return run.sandbox ? 0 : Math.round(cost * upgradeEconomy[run.difficulty].multiplier)
 }
 
 export function upgradeRefund(run: Run, id: string) {

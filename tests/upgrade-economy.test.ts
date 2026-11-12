@@ -4,11 +4,11 @@ import { buyUpgrade, defaultSeed, removeUpgrade, startRun, upgradeCost, upgradeR
 import { trees } from '../src/upgrades'
 
 it.each([
-  ['Easy', 4, 7, 11, 3, 2],
-  ['Normal', 4, 8, 12, 2, 2],
-  ['Hard', 5, 8, 13, 2, 1],
-  ['Expert', 5, 9, 15, 0, 0],
-] as const)('keeps prices stable and refunds diminish on %s', (difficulty, price, rearPrice, corePrice, firstRefund, secondRefund) => {
+  ['Easy', 4, 5, 9, 13, 4, 3],
+  ['Normal', 4, 6, 10, 14, 3, 2],
+  ['Hard', 5, 6, 11, 16, 2, 1],
+  ['Expert', 5, 7, 12, 18, 0, 0],
+] as const)('prices Damage gains and keeps refunds based on the amount paid on %s', (difficulty, price, vortexPrice, rearPrice, corePrice, firstRefund, secondRefund) => {
   const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, difficulty, defaultSeed)
   run.momentum = 500
   const travel = trees.Tornado.find(item => item.id === 'tornado-track-feed')!
@@ -22,7 +22,7 @@ it.each([
   expect(upgradeRefund(run, 'rear-flank')).toBe(firstRefund)
   expect(removeUpgrade(run, 'tornado-vortex-breakdown')).toBe(true)
   const thirdRefund = Math.floor(corePrice * ({ Easy: .5, Normal: .35, Hard: .25, Expert: 0 })[difficulty])
-  expect(run.momentum).toBe(500 - price - rearPrice - corePrice + thirdRefund)
+  expect(run.momentum).toBe(500 - vortexPrice - rearPrice - corePrice + thirdRefund)
   expect(run.effects.wind).toBe(55)
   expect(upgradeRefund(run, 'rear-flank')).toBe(secondRefund)
   expect(removeUpgrade(run, 'rear-flank')).toBe(true)

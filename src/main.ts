@@ -9,6 +9,7 @@ import { drawRegion, drawWorld, paintMotion } from './map'
 import { MapCamera } from './map-camera'
 import { coordinates, loadLocalities, makeDrop } from './free-drop'
 import { canRemoveUpgrade, upgradeCost, upgradeRefund, satelliteCooldown, tornadoLimits, abilityCost, activeStorm, chooseBlizzardPattern, conditions, defaultSeed, difficultyRules, environmentOutlook, frontSpeed, hazardAbilityReady, hurricaneCategory, impactAreas, leg, nameHurricane, preferredRoute, routeOptions, startRun, stormAbility, stormOrganization, stormStats, tick, tornadoSupportAt, totals, travelRate, upgradeLocked, type Difficulty, type Origin, type Run, type ZoneId } from './sim'
+import { evolutionRating, evolutionStats } from './evolution-stats'
 import { stormColor, theaters, type Storm, type Theater } from './world'
 import { hazardFor, hazards } from './hazards'
 import { blizzardCourseAvailable, blizzardCourses, blizzardOptions, blizzardPatterns, type BlizzardCourse, type BlizzardPattern } from './blizzard'
@@ -674,7 +675,7 @@ function renderPanel() {
         <div class="upgrade-detail"><h3>${evolvingStorm ? stormOrganization(run) : storm}</h3><p>${run.theater.name} · ${difficultyLabel(run.difficulty)}</p>${evolvingStorm ? '<p>The strongest of Rotation and touchdown, Straight-line winds, and Cell regeneration determines the storm type. Drop Tornado stays available in all three forms.</p>' : ''}<dl class="region-stats"><div><dt>Strength</dt><dd>${Math.round(run.strength)}%</dd></div><div><dt>Detection</dt><dd>${run.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div><div><dt>Upgrades installed</dt><dd>${state.upgrades.length} of ${tree.length}</dd></div></dl></div>`
     content = `<nav class="evolution-tabs" aria-label="Evolution views">${tabs.map(tab => `<button data-key="evolution-tab-${tab}" data-action="evolution-tab" data-value="${tab}" aria-pressed="${evolutionTab === tab}">${storm === 'Hurricane' && tab === 'Impact' ? 'Damage' : tab}</button>`).join('')}</nav>
       <div class="evolution network-evolution">${pane}</div>
-      <div class="panel-status"><strong>${run.sandbox ? 'Unlimited Momentum' : `${run.momentum} Momentum`}</strong><div class="strength-meter"><span>${tornado ? 'Inflow reserve' : 'Storm strength'}</span><meter min="0" max="100" value="${tornado ? run.support : run.strength}" aria-label="${tornado ? 'Inflow reserve' : 'Storm strength'}"></meter></div></div>`
+      ${evolutionFooter(state, selected)}`
   } else if (panel === 'history' && run.cyclone) {
     title = `${run.name} · Track history`
     const cyclone = run.cyclone
@@ -704,6 +705,29 @@ function renderPanel() {
   const treeScroll = oldTree?.dataset.branch === evolutionTab ? { left: oldTree.scrollLeft, top: oldTree.scrollTop } : null
   replace(dialog, `<header class="panel-header"><h2 id="panel-title" tabindex="-1">${title}</h2><button class="icon-button" data-key="close-panel" data-action="close-panel" aria-label="${panel === 'pause-settings' ? 'Back' : 'Close'}">${icon('close')}</button></header>${content}`)
   if (treeScroll) dialog.querySelector<HTMLElement>('.upgrade-tree')?.scrollTo(treeScroll)
+}
+
+function evolutionFooter(state: Run, selected?: Upgrade) {
+  const preview = selected && !state.upgrades.includes(selected.id) && !state.end ? selected : undefined
+  const labels = { damage: 'Damage', lifespan: 'Lifespan', resistance: 'Resistance' }
+  const descriptions = { damage: 'Potential to cause damage', lifespan: 'Ability to stay active', resistance: 'Tolerance to adverse conditions' }
+  const stats = evolutionStats.map(stat => {
+    const { current, projected } = evolutionRating(state.theater.storm, stat, state.effects, preview)
+    const gain = projected - current
+    const label = labels[stat]
+    return `<div class="evolution-stat" data-stat="${stat}" title="${descriptions[stat]}">
+      <div class="evolution-stat-label"><span>${label}</span><span class="evolution-stat-value">${num.format(current)}${gain > 0 ? ` <b>+${num.format(gain)}</b>` : ''}</span></div>
+      <div class="evolution-stat-track" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${current}"
+        ${gain > 0 ? `aria-valuetext="${current} of 100. Selected upgrade adds ${gain}."` : ''}>
+        <div class="evolution-stat-fill" style="width:${current}%"></div>
+        ${gain > 0 ? `<div class="evolution-stat-preview" style="left:${current}%;width:${gain}%"></div>` : ''}
+      </div>
+    </div>`
+  }).join('')
+  return `<footer class="panel-status">
+    <strong>${state.sandbox ? 'Unlimited Momentum' : `${num.format(state.momentum)} Momentum`}</strong>
+    <div class="evolution-stats">${stats}</div>
+  </footer>`
 }
 
 function upgradeNode(state: Run, item: Upgrade, selected: string, connector = '') {

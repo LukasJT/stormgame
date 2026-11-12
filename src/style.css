@@ -215,13 +215,25 @@ dialog[data-view=clipping] { width: min(650px, calc(100vw - 24px)); }
 .upgrade-detail { padding: 20px; background: #1d181c; align-content: center; }
 .upgrade-detail h3 { font: 700 25px/1 var(--display); margin: 0; }
 .upgrade-detail p { margin: 6px 0 10px; }
-.panel-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 13px; border-top: 1px solid var(--line); font-size: 12px; background: var(--instrument); }
-.panel-status strong { color: #fff; background: var(--crimson); padding: 5px 10px; border-radius: 3px; font: 700 19px var(--display); }
-.panel-status span { color: var(--muted); }
-.strength-meter { display: grid; gap: 2px; width: min(36vw, 210px); }
-.strength-meter meter { width: 100%; height: 13px; }
-.strength-meter meter::-webkit-meter-bar { background: #101719; border-color: #8b9ca0; }
-.strength-meter meter::-webkit-meter-optimum-value { background: #f18c79; }
+.panel-status { display: flex; align-items: center; gap: 20px; padding: 10px 14px 12px; border-top: 1px solid var(--line); background: var(--instrument); }
+.panel-status > strong { color: #fff; background: var(--crimson); padding: 5px 10px; border-radius: 3px; font: 700 19px var(--display); }
+.evolution-stats { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+.evolution-stat { --stat-fill: #ed827b; --stat-preview: #ffd0b4; min-width: 0; }
+.evolution-stat[data-stat="lifespan"] { --stat-fill: #e8ac68; --stat-preview: #ffe0ad; }
+.evolution-stat[data-stat="resistance"] { --stat-fill: #83b7bd; --stat-preview: #c7ebea; }
+.evolution-stat-label { display: flex; align-items: baseline; justify-content: space-between; gap: 3px; color: #ede5e5; font: 700 16px/1.15 var(--display); }
+.evolution-stat-value { color: #c9bdc1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.evolution-stat-value b { color: var(--stat-preview); }
+.evolution-stat-track { position: relative; height: 9px; margin-top: 5px; border: 1px solid #69545b; background: #151114; }
+.evolution-stat-fill, .evolution-stat-preview { position: absolute; inset-block: 0; }
+.evolution-stat-fill { left: 0; background: var(--stat-fill); }
+.evolution-stat-preview { background: var(--stat-preview); }
+@media (max-width: 540px) {
+  .panel-status { flex-direction: column; align-items: stretch; gap: 7px; padding: 7px 10px 9px; }
+  .panel-status > strong { align-self: flex-start; padding: 3px 7px; font-size: 16px; }
+  .evolution-stats { flex: auto; gap: 8px; }
+  .evolution-stat-label { font-size: 14px; }
+}
 .news-list, .region-stats { list-style: none; padding: 0 16px 16px; }
 .news-list li, .region-stats div { display: flex; gap: 12px; align-items: baseline; border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 14px; }
 .news-list time { color: var(--red); font-variant-numeric: tabular-nums; }
@@ -617,7 +629,9 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 .upgrade-node .hex.locked { opacity: .62; }
 .upgrade-node strong { font: 700 17px/1 var(--display); }
 .upgrade-node small, .requirement { color: #dcc9cf; font-size: 10px; }
-.network-evolution { grid-template-columns: minmax(0, 1fr) minmax(215px, 30%); min-height: 0; }
+dialog[data-view=evolve][open] { display: flex; flex-direction: column; overflow: hidden; }
+dialog[data-view=evolve] > :not(.network-evolution) { flex-shrink: 0; }
+.network-evolution { grid-template-columns: minmax(0, 1fr) minmax(215px, 30%); min-height: 0; overflow-y: auto; }
 .upgrade-tree { min-width: 0; overflow-x: auto; padding: 12px 15px 16px; background: #38202a; scrollbar-color: #b87e89 #38202a; }
 .upgrade-network + .upgrade-network { margin-top: 16px; padding-top: 12px; border-top: 1px solid #704450; }
 .upgrade-network h3 { margin: 0 0 7px; color: #ffd4c7; font: 700 20px/1 var(--display); }
@@ -642,8 +656,6 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
 .tornado-profile p { margin: 4px 0 0; }
 .tornado-overview .region-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 @media (max-width: 720px) {
-  dialog:has(.network-evolution)[open] { display: flex; flex-direction: column; overflow: hidden; }
-  dialog:has(.network-evolution) > :not(.network-evolution) { flex-shrink: 0; }
   .network-evolution { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
   .upgrade-tree { padding: 10px 8px 12px; overflow: auto; }
   .upgrade-tree .upgrade-node .hex { width: 27px; }
