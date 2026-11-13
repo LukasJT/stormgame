@@ -580,7 +580,7 @@ test('describes the tornado and buys an upgrade through the branching evolution 
     .toHaveText(['Environmental resistance', 'Warning disruption', 'Satellite tornadoes'])
   await expect(panel.getByRole('button', { name: 'Buffered Inflow', exact: true })).toBeVisible()
   await panel.getByRole('button', { name: 'Radar Signature Masking', exact: true }).click()
-  await expect(panel.getByRole('button', { name: 'Buy for 4 Momentum' })).toBeDisabled()
+  await expect(panel.getByRole('button', { name: 'Need 2 more Momentum' })).toBeDisabled()
   await panel.getByRole('button', { name: 'Close' }).click()
   await page.clock.runFor(24000)
   await expect(page.locator('#storm-stats')).toContainText('EF1')
