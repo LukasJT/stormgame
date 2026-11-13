@@ -45,20 +45,18 @@ function upgradeTree(branch: Branch, group: string, lanes: Record<string, Upgrad
 }
 
 const tornadoUpgrades: Upgrade[] = [
-  ...upgradeTree('Movement', 'Forward speed', {
-    Track: [
-      ['tornado-track-feed', 'Track Inflow', 'Add 18% of base forward speed and 50 km of travel range.', { tornadoSpeed: .18, tornadoRange: 50 }, 5],
-      ['tornado-track-corridor', 'Inflow Corridor', 'Add another 25% of base forward speed and 70 km of travel range.', { tornadoSpeed: .25, tornadoRange: 70 }, 7],
-      ['tornado-track-long', 'Long-Track Circulation', 'Add another 38% of base forward speed and 100 km of travel range.', { tornadoSpeed: .38, tornadoRange: 100 }, 9],
+  ...upgradeTree('Movement', 'Track endurance', {
+    'Forward speed': [
+      ['tornado-track-feed', 'Track Inflow', 'Add 24% of base forward speed and 40 km of travel range. Cover more ground before inflow runs out.', { tornadoSpeed: .24, tornadoRange: 40 }, 5],
+      ['tornado-track-corridor', 'Inflow Corridor', 'Add another 28% of base forward speed and 65 km of travel range.', { tornadoSpeed: .28, tornadoRange: 65 }, 7],
+      ['tornado-track-long', 'Long-Track Circulation', 'Add another 34% of base forward speed and raise the travel limit to 400 km.', { tornadoSpeed: .34, tornadoRange: 85 }, 9],
     ],
-  }),
-  ...upgradeTree('Movement', 'Lifetime', {
-    Inflow: [
+    Lifetime: [
       ['tornado-life-feed', 'Sustained Updraft', 'Add 25 simulated minutes and make the inflow reserve last longer.', { tornadoLifetime: 100, endurance: .55 }, 5],
       ['tornado-life-balance', 'Steady Inflow', 'Add another 30 simulated minutes and slow inflow depletion further.', { tornadoLifetime: 120, endurance: .67 }, 8],
       ['tornado-life-anchor', 'Anchored Mesocyclone', 'Add another 35 simulated minutes, reaching a four-hour lifetime limit, and conserve more inflow.', { tornadoLifetime: 140, endurance: .80 }, 11],
     ],
-  }),
+  }, ['tornado-sustained-track', 'Sustained Long-Track Vortex', 'Add another 21% of base forward speed and 50 km of travel range. Preserve more inflow on the extended track.', { tornadoSpeed: .21, tornadoRange: 50, endurance: .35 }, 10]),
   ...upgradeTree('Movement', 'Track control', {
     Steering: [
       ['tornado-thermal', 'Vorticity Alignment', 'Reduce track wobble and steer up to 35° to either side of the natural track.', { trackStability: .25, courseControl: 35 / 180 }, 5],
@@ -111,9 +109,9 @@ const tornadoUpgrades: Upgrade[] = [
   }),
   ...upgradeTree('Abilities', 'Warning disruption', {
     Response: [
-      ['tornado-response', 'Radar Signature Masking', 'Delay local warnings and reduce the share of residents who reach shelter, even before the tornado strikes.', { warningDelay: 16, gridlock: 18, warningFriction: .08 }, 4],
-      ['tornado-grid', 'Repeater Failure', 'Delay warnings further and reduce shelter uptake. EF1 and stronger winds can cut local broadcasts.', { warningDelay: 10, gridlock: 12, warningFriction: .07, outageTime: 64, broadcast: .25 }, 6],
-      ['tornado-warning-overload', 'Response Overload', 'Further reduce shelter uptake, keep broadcasts offline longer, and weaken protection where winds cut power.', { warningDelay: 10, gridlock: 18, warningFriction: .10, outageTime: 36, broadcast: .20, power: .14 }, 8],
+      ['tornado-response', 'Radar Signature Masking', 'Delay alerts and reduce shelter uptake. With less advance warning, residents have less time to protect themselves and secure property.', { warningDelay: 22, gridlock: 22, warningFriction: .18 }, 4],
+      ['tornado-grid', 'Repeater Failure', 'Delay alerts further. EF1 and stronger winds cut local broadcasts, slowing sheltering and adding property losses during outages.', { warningDelay: 12, gridlock: 14, warningFriction: .12, outageTime: 64, broadcast: .28, supply: .12 }, 6],
+      ['tornado-warning-overload', 'Response Overload', 'Prolong outages and increase their property losses. Fewer residents reach shelter, and those who do have less protection when power fails.', { warningDelay: 12, gridlock: 20, warningFriction: .12, outageTime: 36, broadcast: .22, power: .18, supply: .18 }, 8],
     ],
   }),
   ...upgradeTree('Abilities', 'Satellite tornadoes', {

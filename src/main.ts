@@ -56,6 +56,7 @@ const weatherPickup = document.querySelector<HTMLElement>('#weather-pickup')!
 const dialog = document.querySelector<HTMLDialogElement>('#panel')!
 const refundDialog = document.querySelector<HTMLDialogElement>('#refund-confirmation')!
 const refundMessage = document.querySelector<HTMLElement>('#refund-message')!
+const refundStats = document.querySelector<HTMLElement>('#refund-stats')!
 const num = { format: (value: number) => localizedNumber(value) }
 setLocale(settings.locale)
 document.documentElement.lang = settings.locale
@@ -711,25 +712,32 @@ function renderPanel() {
 
 function evolutionFooter(state: Run, selected?: Upgrade) {
   const preview = selected && !state.upgrades.includes(selected.id) && !state.end ? selected : undefined
+  return `<footer class="panel-status">
+    <strong>${state.sandbox ? 'Unlimited Momentum' : `${num.format(state.momentum)} Momentum`}</strong>
+    <div class="evolution-stats">${evolutionMeters(state, preview)}</div>
+  </footer>`
+}
+
+function evolutionMeters(state: Run, preview?: Upgrade, removing = false) {
   const labels = { damage: 'Damage', lifespan: 'Lifespan', resistance: 'Resistance' }
   const descriptions = { damage: 'Potential to cause damage', lifespan: 'Ability to stay active', resistance: 'Tolerance to adverse conditions' }
-  const stats = evolutionStats.map(stat => {
-    const { current, projected } = evolutionRating(state.theater.storm, stat, state.effects, preview)
+  return evolutionStats.map(stat => {
+    const { current, projected } = evolutionRating(state.theater.storm, stat, state.effects, preview, removing)
     const gain = projected - current
     const label = labels[stat]
+    const previewLabel = removing ? `${current} of 100. After removal, ${projected} of 100.`
+      : gain > 0 ? `${current} of 100. Selected upgrade adds ${gain}.` : ''
+    const values = removing ? `${num.format(current)} → ${num.format(projected)}${gain ? ` <b>(${num.format(gain)})</b>` : ''}`
+      : `${num.format(current)}${gain > 0 ? ` <b>+${num.format(gain)}</b>` : ''}`
     return `<div class="evolution-stat" data-stat="${stat}" title="${descriptions[stat]}">
-      <div class="evolution-stat-label"><span>${label}</span><span class="evolution-stat-value">${num.format(current)}${gain > 0 ? ` <b>+${num.format(gain)}</b>` : ''}</span></div>
+      <div class="evolution-stat-label"><span>${label}</span><span class="evolution-stat-value">${values}</span></div>
       <div class="evolution-stat-track" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${current}"
-        ${gain > 0 ? `aria-valuetext="${current} of 100. Selected upgrade adds ${gain}."` : ''}>
-        <div class="evolution-stat-fill" style="width:${current}%"></div>
-        ${gain > 0 ? `<div class="evolution-stat-preview" style="left:${current}%;width:${gain}%"></div>` : ''}
+        ${previewLabel ? `aria-valuetext="${previewLabel}"` : ''}>
+        <div class="evolution-stat-fill" style="width:${Math.min(current, projected)}%"></div>
+        ${gain ? `<div class="evolution-stat-preview${gain < 0 ? ' lost' : ''}" style="left:${Math.min(current, projected)}%;width:${Math.abs(gain)}%"></div>` : ''}
       </div>
     </div>`
   }).join('')
-  return `<footer class="panel-status">
-    <strong>${state.sandbox ? 'Unlimited Momentum' : `${num.format(state.momentum)} Momentum`}</strong>
-    <div class="evolution-stats">${stats}</div>
-  </footer>`
 }
 
 function upgradeNode(state: Run, item: Upgrade, selected: string, connector = '') {
@@ -738,7 +746,7 @@ function upgradeNode(state: Run, item: Upgrade, selected: string, connector = ''
   const status = installed ? 'installed' : upgradeLocked(state, item) ? 'locked' : state.momentum < price ? 'unaffordable' : 'available'
   return `<button class="upgrade-node ${connector} ${item.capstone ? 'capstone' : ''}" data-key="upgrade-${item.id}" data-action="select-upgrade" data-value="${item.id}" aria-pressed="${item.id === selected}" aria-label="${item.name}">
     <span class="hex ${status}">${icon(upgradeIcon(item))}</span>
-    <strong>${item.name}</strong><small>${installed ? 'Installed' : `${state.sandbox ? 'Free' : `${price} Momentum`}${status === 'locked' ? ' · Locked' : ''}`}</small>
+    <strong>${item.name}</strong><small>${installed ? 'Installed' : `${price} Momentum${status === 'locked' ? ' · Locked' : ''}`}</small>
   </button>`
 }
 
@@ -851,9 +859,10 @@ function upgradeDetails(state: Run, id: string) {
   const required = item.requiresAll?.map(id => tree.find(entry => entry.id === id)!.name)
   const price = upgradeCost(state, item)
   const refund = upgradeRefund(state, id)
-  const cost = locked ? 'Locked' : state.momentum < price ? `Need ${price - state.momentum} more Momentum` : state.sandbox ? 'Install upgrade' : `Buy for ${price} Momentum`
+  const cost = locked ? 'Locked' : state.momentum < price ? `Need ${price - state.momentum} more Momentum` : `Buy for ${price} Momentum`
   return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${measurementText(item.description)}</p>
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
+    ${required?.length ? `<p class="requirement">Requires ${required.join(' and ')}</p>` : ''}
     ${installed
       ? `<button class="order" data-key="refund" data-action="refund" aria-haspopup="dialog" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade${state.sandbox ? '' : ` · ${refund} Momentum back`}</button>
         ${!state.end && !canRemoveUpgrade(state, id) ? '<p class="requirement">Remove dependent upgrades first.</p>' : ''}`
@@ -1402,6 +1411,7 @@ document.addEventListener('click', event => {
       if (!upgrade) return
       const refund = run.sandbox ? '' : ` You’ll get ${upgradeRefund(run, value)} Momentum back.`
       refundMessage.textContent = `Are you sure you want to remove ${upgrade.name}?${refund}`
+      replace(refundStats, evolutionMeters(run, upgrade, true))
       refundDialog.dataset.upgrade = value
       target.focus({ preventScroll: true })
       refundDialog.showModal()

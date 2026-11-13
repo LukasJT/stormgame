@@ -136,7 +136,7 @@ it('gates tornado junctions behind both branches and makes intensity purchased',
   expect(longRun.effects.endurance).toBeCloseTo(2.02)
   const speed = frontSpeed(longRun)
   expect(buyUpgrade(longRun, 'tornado-track-feed')).toBe(true)
-  expect(frontSpeed(longRun)).toBeCloseTo(speed * 1.18)
+  expect(frontSpeed(longRun)).toBeCloseTo(speed * 1.24)
 })
 
 it('combines tornado hail, runoff, and rain concealment along one upgrade path', () => {
@@ -245,7 +245,7 @@ it('tracks surveyed distance and towns while geography and upgrades shape the ca
   persistent.momentum = 150
   for (const id of ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-inflow-coupling',
     'tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor',
-    'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']) {
+    'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long', 'tornado-sustained-track']) {
     expect(buyUpgrade(persistent, id)).toBe(true)
   }
   for (const run of [plains, persistent, arctic]) {

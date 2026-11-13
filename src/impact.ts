@@ -24,6 +24,8 @@ export function tornadoWindProfile(windBonus: number, widthBonus: number, coupli
 
 export const tornadoHailShare = (hail: number) => .0154 * hail
 export const tornadoRunoffShare = (floodPower: number) => .0048 * floodPower
+export const tornadoPropertyProtection = (preparedShare: number, leadMinutes: number) =>
+  .30 * preparedShare * Math.min(1, leadMinutes / .75)
 
 export function tornadoDebrisBonus(wind: number, debris: number) {
   if (wind < efMinimum[1]) return 0

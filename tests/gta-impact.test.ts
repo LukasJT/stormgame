@@ -4,7 +4,7 @@ import { makeDrop } from '../src/free-drop'
 import { buyUpgrade, defaultSeed, impactAreas, setCourse, startRun, tick, totals } from '../src/sim'
 import { project } from '../src/world'
 
-function gtaForecast() {
+function gtaForecast(warningTiers = 0) {
   const run = startRun(makeDrop('Tornado', 43.50, -79.72), 0, 'Normal', defaultSeed)
   run.momentum = 200
   for (const upgrade of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core',
@@ -12,10 +12,22 @@ function gtaForecast() {
     'tornado-thermal', 'tornado-organize', 'tornado-course']) {
     expect(buyUpgrade(run, upgrade)).toBe(true)
   }
+  for (const upgrade of ['tornado-response', 'tornado-grid', 'tornado-warning-overload'].slice(0, warningTiers)) {
+    expect(buyUpgrade(run, upgrade)).toBe(true)
+  }
   expect(setCourse(run, project(43.84, -79.09))).toBe(true)
   while (!run.end && run.time < 245) tick(run)
   return run
 }
+
+it('increases property loss and deaths at each warning disruption tier on the same track', () => {
+  const runs = [0, 1, 2, 3].map(gtaForecast)
+  for (let tier = 1; tier < runs.length; tier++) {
+    expect(runs[tier].tornado!.lengthKm).toBe(runs[0].tornado!.lengthKm)
+    expect(totals(runs[tier]).damage).toBeGreaterThan(totals(runs[tier - 1]).damage)
+    expect(totals(runs[tier]).deaths).toBeGreaterThan(totals(runs[tier - 1]).deaths)
+  }
+})
 
 it('uses GTA census divisions along a moving EF5 tornado track', () => {
   const regional = gtaForecast()

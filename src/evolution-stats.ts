@@ -1,5 +1,5 @@
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
-import { fatalityRate, lossPerHome, sweptShare, tornadoDebrisBonus, tornadoHailShare, tornadoRunoffShare, tornadoWindProfile } from './impact'
+import { fatalityRate, lossPerHome, sweptShare, tornadoDebrisBonus, tornadoHailShare, tornadoPropertyProtection, tornadoRunoffShare, tornadoWindProfile } from './impact'
 import { tornadoStrips } from './swath'
 import type { Storm } from './world'
 import { isCampaignEvent } from './campaign'
@@ -25,7 +25,7 @@ const weights: Record<Stat, Weights> = {
     spread: 10, chargeGain: 6, burst: .055, heatDegrees: 1.8, fireSpot: 2,
   },
   lifespan: {
-    endurance: 14, tornadoLifetime: .15, tornadoRange: .085, seaGain: 30, inlandBuffer: 11,
+    endurance: 14, tornadoLifetime: .15, seaGain: 30, inlandBuffer: 11,
     coldBuffer: 7, snowRetention: 11, lakeMoisture: 7, oceanMoisture: 7, snowGain: 6,
     persistence: .14, hazardGain: 32, newCells: 2, fireDelay: .045, fireLine: 7, fireAir: 7,
   },
@@ -48,9 +48,9 @@ function rawRating(storm: Storm, stat: Stat, effects: Partial<Effects>) {
   return rating
 }
 
-function withEffects(effects: Effects, bonus: Partial<Effects>) {
+function withEffects(effects: Effects, bonus: Partial<Effects>, direction = 1) {
   const result = { ...effects }
-  for (const key of Object.keys(bonus) as (keyof Effects)[]) result[key] += bonus[key] ?? 0
+  for (const key of Object.keys(bonus) as (keyof Effects)[]) result[key] += (bonus[key] ?? 0) * direction
   return result
 }
 
@@ -70,13 +70,15 @@ function tornadoDamagePotential(effects: Effects) {
     + effects.broadcast * Math.min(1, effects.outageTime / 80) * .25 + effects.gridlock / 250 + effects.warningFriction
   const sheltered = .5 * Math.max(0, 1 - warningDisruption)
   const breach = Math.min(.65, (windMph >= 111 ? effects.shelterBreach : 0) + (windMph >= 86 ? effects.power : 0))
+  const preparation = 1 + tornadoPropertyProtection(.5 - sheltered * (1 - breach), 1)
+  const outageLoss = windMph >= 86 ? 1 + effects.supply * Math.min(1, effects.outageTime / 80) : 1
   const casualties = strips.reduce((total, strip) => total + sweptShare(referenceStepKm, strip.width, referenceArea) *
     fatalityRate(strip.wind, sheltered * (1 - breach), 1, .5), 0)
   const manualFrequency = effects.satelliteTrigger ? 60 / satelliteRechargeTicks(effects.satelliteTrigger) : 0
   const satelliteLoss = (effects.satelliteChance * .8 + manualFrequency * .5) *
     (1 + effects.tornadoLife / 24) * (1 + effects.tornadoWidth) * lossPerHome(95) *
     sweptShare(referenceStepKm, .12, referenceArea)
-  return windLoss + hailLoss + rainLoss + casualties * 160_000 + satelliteLoss
+  return windLoss * preparation * outageLoss + hailLoss + rainLoss + casualties * 160_000 + satelliteLoss
 }
 
 const stockTornadoDamage = tornadoDamagePotential(baseEffects)
@@ -102,11 +104,11 @@ function ratingGain(storm: Storm, stat: Stat, effects: Partial<Effects>) {
   return ceiling[stat] ? rawRating(storm, stat, effects) * (100 - starts[stat]) / ceiling[stat] : 0
 }
 
-export function evolutionRating(storm: Storm, stat: Stat, effects: Effects, preview?: Upgrade) {
+export function evolutionRating(storm: Storm, stat: Stat, effects: Effects, preview?: Upgrade, removing = false) {
   const rate = (build: Effects) => storm === 'Tornado' && stat === 'damage'
     ? tornadoDamageRating(build) : starts[stat] + ratingGain(storm, stat, build)
   const current = rate(effects)
-  const projected = preview ? rate(withEffects(effects, preview.effects)) : current
+  const projected = preview ? rate(withEffects(effects, preview.effects, removing ? -1 : 1)) : current
   return {
     current: Math.max(0, Math.min(100, Math.round(current))),
     projected: Math.max(0, Math.min(100, Math.round(projected))),

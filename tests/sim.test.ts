@@ -152,18 +152,29 @@ describe('global weather scenarios', () => {
     }
   })
 
-  it('reaches four simulated hours and 400 km when the lifetime and travel lanes are maxed', () => {
-    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
-    run.momentum = 100
-    for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor',
-      'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']) {
-      expect(buyUpgrade(run, id)).toBe(true)
-    }
-    expect(tornadoLimits(run)).toEqual({ ticks: 960, km: 400 })
-    advance(run, 1_000)
-    expect(run.time).toBe(960)
-    expect(run.tornado!.lengthKm).toBeCloseTo(400)
-    expect(run.end).toBeTruthy()
+  it('trades forward speed for lifetime and unlocks a longer track by completing both lanes', () => {
+    const speedLane = ['tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']
+    const lifeLane = ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor']
+    const capstone = 'tornado-sustained-track'
+    const theater = makeDrop('Tornado', 37.69, -97.34)
+    const [stock, speed, life, both, joined] = [[], speedLane, lifeLane, [...speedLane, ...lifeLane], [...speedLane, ...lifeLane, capstone]]
+      .map(upgrades => {
+        const run = startRun(theater, 0, 'Easy', defaultSeed)
+        run.momentum = 100
+        for (const id of upgrades) expect(buyUpgrade(run, id)).toBe(true)
+        if (upgrades.length < 6) expect(buyUpgrade(run, capstone)).toBe(false)
+        advance(run, 1_000)
+        expect(run.end).toBeTruthy()
+        return run
+      })
+    expect(speed.tornado!.lengthKm).toBeGreaterThan(stock.tornado!.lengthKm * 1.5)
+    expect(life.time).toBeGreaterThan(stock.time * 1.3)
+    expect(speed.tornado!.lengthKm).toBeGreaterThan(life.tornado!.lengthKm)
+    expect(life.time).toBeGreaterThan(speed.time)
+    expect(both.tornado!.lengthKm).toBeCloseTo(400)
+    expect(tornadoLimits(joined)).toEqual({ ticks: 960, km: 450 })
+    expect(joined.time).toBeGreaterThan(920)
+    expect(joined.tornado!.lengthKm).toBeCloseTo(450)
   })
 
   it('reaches EF4 then EF5 along the wind lane and gates manual satellites by simulation time', () => {

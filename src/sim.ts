@@ -8,7 +8,7 @@ import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatt
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
-import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, tornadoDebrisBonus, tornadoHailShare, tornadoRunoffShare, tornadoWindProfile, windBand } from './impact'
+import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, tornadoDebrisBonus, tornadoHailShare, tornadoPropertyProtection, tornadoRunoffShare, tornadoWindProfile, windBand } from './impact'
 import { lateMomentum, momentumSchedule, startingMomentum, usesTornadoEconomy, type WeatherPickup } from './momentum'
 import { cycloneFlow, cycloneSpeed, cycloneTrack, cycloneWeather, latitudeAt, longitudeAt, radarSpin, startCyclone, type Cyclone } from './cyclone'
 import { markSwath, tornadoStrips, type Swath } from './swath'
@@ -192,7 +192,7 @@ function tornadoName(city: string | undefined) {
 }
 
 export function tornadoLimits(run: Run) {
-  return { ticks: 600 + run.effects.tornadoLifetime, km: 180 + run.effects.tornadoRange }
+  return { ticks: 600 + run.effects.tornadoLifetime, km: 210 + run.effects.tornadoRange }
 }
 
 function gainMomentum(run: Run, points: number) {
@@ -496,7 +496,7 @@ const upgradeEconomy = {
 export function upgradeCost(run: Run, upgrade: Upgrade) {
   const storm = run.theater.storm
   const cost = storm === 'Tornado' ? tornadoUpgradePrice(run.effects, upgrade) : upgrade.cost + damagePrice(storm, upgrade)
-  return run.sandbox ? 0 : Math.round(cost * upgradeEconomy[run.difficulty].multiplier)
+  return Math.round(cost * upgradeEconomy[run.difficulty].multiplier)
 }
 
 export function upgradeRefund(run: Run, id: string) {
@@ -645,7 +645,9 @@ function applyImpact(run: Run, zone: Zone, site: Site, share: number, wind: numb
   const rate = fatalityRate(wind, protectedShare, leadMinutes, preparedness)
   const casualtyRate = share * rate * (1 + overload + effects.panic)
   const debris = funnel ? tornadoDebrisBonus(wind, effects.debris) : 0
-  const loss = Math.min(zone.assets - site.loss, Math.floor(zone.housing * share * lossPerHome(wind, funnel) * (1 + rain + debris + (propertyOnly ? 0 : effects.gust) + (outage ? effects.supply : 0))))
+  const preparation = run.tornado && funnel ? tornadoPropertyProtection(protectedShare, leadMinutes) : 0
+  const loss = Math.min(zone.assets - site.loss, Math.floor(zone.housing * share * lossPerHome(wind, funnel) *
+    (1 - preparation) * (1 + rain + debris + (propertyOnly ? 0 : effects.gust) + (outage ? effects.supply : 0))))
   site.loss += loss
   if (loss > 0 && !run.sandbox && usesTornadoEconomy(run.theater.storm)) {
     const densityBonus = Math.min(6, 1 + zone.population / zone.area / 220)
@@ -683,7 +685,7 @@ function sampledAreas(front: Front, center: MapPoint, radius: number) {
 
 export function frontSpeed(run: Run) {
   if (run.fire) return 0
-  return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? Math.max(.23 * (1 + run.effects.tornadoSpeed), (180 + run.effects.tornadoRange) / 960) : run.blizzardPattern ? travelRate(run) : 1.15 * travelRate(run)
+  return run.cyclone ? cycloneSpeed(run.front!.point) : run.tornado ? .23 * (1 + run.effects.tornadoSpeed) : run.blizzardPattern ? travelRate(run) : 1.15 * travelRate(run)
 }
 
 function moveFront(run: Run, front: Front, speed = frontSpeed(run)) {

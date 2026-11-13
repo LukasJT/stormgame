@@ -228,6 +228,9 @@ dialog[data-view=clipping] { width: min(650px, calc(100vw - 24px)); }
 .evolution-stat-fill, .evolution-stat-preview { position: absolute; inset-block: 0; }
 .evolution-stat-fill { left: 0; background: var(--stat-fill); }
 .evolution-stat-preview { background: var(--stat-preview); }
+.evolution-stat-preview.lost { background: var(--stat-fill); opacity: .4; }
+.refund-stats { margin: 0 16px 18px; }
+.refund-stats .evolution-stat-label { display: grid; gap: 4px; }
 @media (max-width: 540px) {
   .panel-status { flex-direction: column; align-items: stretch; gap: 7px; padding: 7px 10px 9px; }
   .panel-status > strong { align-self: flex-start; padding: 3px 7px; font-size: 16px; }

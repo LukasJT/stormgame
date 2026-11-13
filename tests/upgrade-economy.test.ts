@@ -4,10 +4,10 @@ import { buyUpgrade, defaultSeed, removeUpgrade, startRun, upgradeCost, upgradeR
 import { trees } from '../src/upgrades'
 
 it.each([
-  ['Easy', 5, 8, 4, 3],
-  ['Normal', 6, 9, 3, 2],
-  ['Hard', 6, 10, 2, 1],
-  ['Expert', 7, 11, 0, 0],
+  ['Easy', 5, 7, 4, 3],
+  ['Normal', 6, 8, 3, 2],
+  ['Hard', 6, 8, 2, 1],
+  ['Expert', 7, 9, 0, 0],
 ] as const)('prices Damage gains and keeps refunds based on the amount paid on %s', (difficulty, price, vortexPrice, firstRefund, secondRefund) => {
   const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, difficulty, defaultSeed)
   run.momentum = 500
