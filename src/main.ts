@@ -766,8 +766,8 @@ function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
 function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
   const rows = [
     [null, 'rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff'],
-    ['wide-funnel', 'satellite', 'wedge'],
-    ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex'],
+    ['wide-funnel', 'satellite', 'wedge', null, 'multi-vortex'],
+    ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core'],
     [null, null, 'tornado-debris', 'tornado-debris-load', 'tornado-debris-barrage'],
     [null, null, 'tornado-low-jet', 'tornado-ground-jet'],
   ]
@@ -790,12 +790,11 @@ function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
     const halfHeight = nodeHeight / 2
     const rightGutter = x + columnPitch / 2
     const leftGutter = x - columnPitch / 2
-    const lowerGutter = y + rowPitch / 2
     let path: string
     if (item.id === 'rain-wrapped') {
       path = `M${x + halfWidth} ${y - 18}H${rightGutter}V${endY + rowPitch / 2}H${endX}V${endY + halfHeight}`
-    } else if (id === 'wedge') {
-      path = `M${x} ${y + halfHeight}V${lowerGutter}H${endX}V${endY - halfHeight}`
+    } else if (id === 'tornado-inner-core' && item.id === 'multi-vortex') {
+      path = `M${x} ${y - halfHeight}V${endY + rowPitch / 2}H${endX}V${endY + halfHeight}`
     } else if (item.id === 'tornado-low-jet') {
       path = `M${x - halfWidth} ${y + 18}H${leftGutter}V${endY}H${endX - halfWidth}`
     } else if (id === 'tornado-ground-jet' && item.id === 'tornado-debris-barrage') {
@@ -808,7 +807,7 @@ function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
     }
     return `<path d="${path}" class="${state.upgrades.includes(id) ? 'earned' : ''}"/>`
   })).join('')
-  const order = ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex']
+  const order = rows[windRow]
   const ordered = [...order.map(id => choices.find(item => item.id === id)!), ...choices.filter(item => !order.includes(item.id))]
   return `<div class="upgrade-tree" role="group" data-branch="Damage" aria-label="Damage upgrades">
     <div class="tornado-damage-tree" style="--node-width:${nodeWidth}px;--node-height:${nodeHeight}px;--column-gap:${columnPitch - nodeWidth}px;--row-gap:${rowPitch - nodeHeight}px">

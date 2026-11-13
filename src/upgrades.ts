@@ -70,8 +70,8 @@ const tornadoUpgrades: Upgrade[] = [
     'Wind speed': [
       ['vortex', 'Vortex Contraction', 'Add 24 mph to peak winds.', { wind: 24 }],
       ['rear-flank', 'Rear-Flank Momentum Surge', 'Add another 31 mph to peak winds.', { wind: 31 }],
-      ['tornado-vortex-breakdown', 'Corner-Flow Intensification', 'Add another 38 mph to peak winds.', { wind: 38 }],
-      ['tornado-inner-core', 'Inner-Core Acceleration', 'Add another 44 mph to peak winds, enough to reach EF5 at full strength.', { wind: 44 }],
+      ['tornado-vortex-breakdown', 'Corner-Flow Intensification', 'Add 50 mph to reach EF4 (170 mph) at full strength.', { wind: 50 }],
+      ['tornado-inner-core', 'Inner-Core Acceleration', 'Add 32 mph to reach EF5 (202 mph) at full strength.', { wind: 32 }],
     ],
   }),
   ...upgradeTree('Damage', 'Path width', {
@@ -81,7 +81,7 @@ const tornadoUpgrades: Upgrade[] = [
       ['wedge', 'Wedge Circulation', 'Add up to another 700 m of damage width.', { width: .70 }],
     ],
   }, undefined, 'vortex'),
-  { id: 'multi-vortex', name: 'Violent Multivortex Core', branch: 'Damage', group: 'Wind speed', cost: 12, capstone: true,
+  { id: 'multi-vortex', name: 'Violent Multivortex Core', branch: 'Damage', group: 'Path width', cost: 12, capstone: true,
     description: 'Add 15 mph of peak wind and up to 500 m of damage width.',
     requiresAll: ['tornado-inner-core', 'wedge'], effects: { wind: 15, width: .5 } },
   ...upgradeTree('Damage', 'Rain and hail', {

@@ -660,7 +660,7 @@ dialog[data-view=evolve] > :not(.network-evolution) { flex-shrink: 0; }
   grid-template-rows: repeat(5, var(--node-height)); gap: var(--row-gap) var(--column-gap);
   width: max-content; margin: 20px auto 0;
 }
-.tornado-wind-track { grid-column: 1 / -1; background: #47252b; box-shadow: 0 0 0 5px #47252b; border-radius: 4px; }
+.tornado-wind-track { grid-column: 1 / 5; background: #47252b; box-shadow: 0 0 0 5px #47252b; border-radius: 4px; }
 .tornado-tree-slot { position: relative; min-width: 0; }
 .tornado-branch-name {
   position: relative; align-self: start; margin: -19px 0 0;

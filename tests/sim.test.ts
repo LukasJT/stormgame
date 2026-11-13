@@ -166,13 +166,16 @@ describe('global weather scenarios', () => {
     expect(run.end).toBeTruthy()
   })
 
-  it('reaches EF5 with the wind lane alone and gates manual satellite spawning on real time', () => {
+  it('reaches EF4 then EF5 along the wind lane and gates manual satellites by simulation time', () => {
     const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
     run.momentum = 80
-    for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core']) {
+    for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown']) {
       expect(buyUpgrade(run, id)).toBe(true)
     }
     advance(run, 24)
+    expect(stormStats(run)).toMatchObject({ windMph: 170, category: 'EF4 · On ground' })
+    expect(buyUpgrade(run, 'tornado-inner-core')).toBe(true)
+    expect(stormStats(run).windMph).toBe(202)
     expect(stormStats(run).category).toContain('EF5')
     expect(triggerSatellite(run)).toBe(false)
     run.momentum = 60
