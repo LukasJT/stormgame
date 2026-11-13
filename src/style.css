@@ -434,6 +434,11 @@ body[data-storm=Blizzard]:is([data-phase=setup], [data-phase=opening]) .controls
   background: linear-gradient(#e49a9130 1px, transparent 1px), linear-gradient(90deg, #e49a9130 1px, transparent 1px);
   background-size: 48px 48px; mask-image: radial-gradient(ellipse at center, #000, transparent 72%);
 }
+.front-end[data-screen=home]::before {
+  background: linear-gradient(90deg, #10121aa8, #100e1899 43%, #100e1824 100%),
+    url('/stormwake-cover.png') 64% center / cover;
+}
+.front-end[data-screen=home]::after { content: none; }
 .title-screen { display: grid; justify-items: center; width: min(100%, 560px); padding: 26px 0; }
 .title-emblem {
   display: grid; place-items: center; width: clamp(136px, 25vw, 220px); aspect-ratio: 1; margin-bottom: 22px;
