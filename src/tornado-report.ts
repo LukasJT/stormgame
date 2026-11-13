@@ -1,11 +1,12 @@
 import { dateFormatter, stormClock } from './storm-clock'
 
 export const tornadoTickSeconds = 15
+export const satelliteRechargeTicks = (tier: number) => 120 - 20 * tier
 
 export type TornadoRecord = {
   startedAt: number; lengthKm: number; groundTicks: number; maxWidthKm: number; peakEf: number | null
   places: Set<string>; travelKm: number; awareness: number; deaths: number
-  nextSatellite: number; manualSatellite: number; chaserExposure: number
+  nextSatellite: number; lastManualSatellite: number | null; chaserExposure: number
 }
 
 export function tornadoStartDate(today = new Date()) {

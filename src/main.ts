@@ -496,7 +496,7 @@ function routeOrders(state: Run) {
     : ''
   const cooldown = satelliteCooldown(state)
   const satellite = state.effects.satelliteTrigger
-    ? `<button class="route-choice ability" data-key="satellite" data-action="satellite" ${cooldown || state.overWater ? 'disabled' : ''}><strong>Spawn satellite tornado</strong><small>${cooldown ? `${cooldown}s to recharge` : state.overWater ? 'Available over land' : 'Ready'}</small></button>`
+    ? `<button class="route-choice ability" data-key="satellite" data-action="satellite" ${cooldown || state.overWater ? 'disabled' : ''}><strong>Spawn satellite tornado</strong><small>${cooldown ? `${tornadoDuration(cooldown)} to recharge` : state.overWater ? 'Available over land' : 'Ready'}</small></button>`
     : ''
   if (state.front) return `<div class="route-status front-orders"><div class="course-caption">
     <strong>${state.name} · Drifting ${directionName(state.front.heading)}</strong>
@@ -753,7 +753,7 @@ function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
       return `<section class="upgrade-network ${merge ? 'has-merge' : ''}">
         <h3>${group}</h3>
         <div class="upgrade-network-grid">
-          ${lanes.map(lane => `<div class="upgrade-lane"><h4>${lane}</h4>
+          ${lanes.map(lane => `<div class="upgrade-lane">${state.tornado && lanes.length === 1 ? '' : `<h4>${lane}</h4>`}
             ${nodes.filter(item => item.lane === lane).map(item => upgradeNode(state, item, selected, item.requires ? 'linked' : '')).join('')}
           </div>`).join('')}
           ${merge ? `<div class="upgrade-junction">${upgradeNode(state, merge, selected)}</div>` : ''}
@@ -789,14 +789,15 @@ function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
     const halfWidth = nodeWidth / 2
     const halfHeight = nodeHeight / 2
     const rightGutter = x + columnPitch / 2
-    const leftGutter = x - columnPitch / 2
     let path: string
     if (item.id === 'rain-wrapped') {
       path = `M${x + halfWidth} ${y - 18}H${rightGutter}V${endY + rowPitch / 2}H${endX}V${endY + halfHeight}`
     } else if (id === 'tornado-inner-core' && item.id === 'multi-vortex') {
       path = `M${x} ${y - halfHeight}V${endY + rowPitch / 2}H${endX}V${endY + halfHeight}`
-    } else if (item.id === 'tornado-low-jet') {
-      path = `M${x - halfWidth} ${y + 18}H${leftGutter}V${endY}H${endX - halfWidth}`
+    } else if (item.id === 'tornado-debris' || item.id === 'tornado-low-jet') {
+      const lowerGutter = endY - rowPitch / 2
+      const laneX = rightGutter + (item.id === 'tornado-debris' ? 0 : -4)
+      path = `M${x + halfWidth} ${y + (item.id === 'tornado-debris' ? 18 : 26)}H${laneX}V${lowerGutter}H${endX}V${endY - halfHeight}`
     } else if (id === 'tornado-ground-jet' && item.id === 'tornado-debris-barrage') {
       path = `M${x + halfWidth} ${y}H${endX}V${endY + halfHeight}`
     } else if (x === endX) {
@@ -837,7 +838,7 @@ function tornadoOverview(state: Run) {
     <div><dt>Path length</dt><dd>${formatDistance(state.tornado!.lengthKm)}</dd></div>
     <div><dt>Travel limit</dt><dd>${formatDistance(limits.km)}</dd></div><div><dt>Lifetime limit</dt><dd>${tornadoDuration(limits.ticks)}</dd></div><div><dt>Time on ground</dt><dd>${tornadoDuration(state.tornado!.groundTicks)}</dd></div>
     <div><dt>Local conditions</dt><dd>${weather.name}</dd></div><div><dt>Detection</dt><dd>${state.detectedAt === null ? 'Unnoticed' : 'Detected'}</dd></div>
-    <div><dt>Visibility</dt><dd>${state.effects.rainWrap ? 'Rain-wrapped' : 'Visible funnel'}</dd></div><div><dt>Track guidance</dt><dd>${state.effects.courseControl ? 'Available' : 'Locked'}</dd></div></dl>
+    <div><dt>Visibility</dt><dd>${state.effects.rainWrap ? 'Rain-wrapped' : 'Visible funnel'}</dd></div><div><dt>Track guidance</dt><dd>${state.effects.courseControl >= 1 ? 'Any heading' : state.effects.courseControl ? `±${Math.round(state.effects.courseControl * 180)}° from natural heading` : 'Locked'}</dd></div></dl>
   </section>`
 }
 

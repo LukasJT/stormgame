@@ -15,7 +15,7 @@ export const baseEffects = {
   trackStability: 0, courseControl: 0, tornadoIntensity: 0, tornadoWidth: 0, tornadoLife: 0,
   tornadoEfficiency: 0, tornadoSteering: 0, precisionDrop: 0, floodPower: 0, floodLife: 0, endurance: 0,
   targetedBurst: 0, abilityReach: 0, heatDegrees: 0, tornadoSpeed: 0, rainWrap: 0, hail: 0, hailRadius: 0,
-  coldTolerance: 0, heatTolerance: 0, shelterBreach: 0,
+  coldTolerance: 0, heatTolerance: 0, shelterBreach: 0, debris: 0, warningFriction: 0,
   fireSpot: 0, fireLine: 0, fireAir: 0, fireDelay: 0,
   mesocyclone: 0, outflow: 0, newCells: 0, lightning: 0, lightningOutage: 0,
   tornadoRange: 0, tornadoLifetime: 0, satelliteChance: 0, satelliteTrigger: 0,
@@ -45,25 +45,25 @@ function upgradeTree(branch: Branch, group: string, lanes: Record<string, Upgrad
 }
 
 const tornadoUpgrades: Upgrade[] = [
-  ...upgradeTree('Movement', 'Travel distance', {
+  ...upgradeTree('Movement', 'Forward speed', {
     Track: [
-      ['tornado-track-feed', 'Track Inflow', 'Extend the maximum travel distance by 50 km.', { tornadoRange: 50 }],
-      ['tornado-track-corridor', 'Inflow Corridor', 'Extend maximum travel distance by another 70 km.', { tornadoRange: 70 }],
-      ['tornado-track-long', 'Long-Track Circulation', 'Raise the travel limit to 400 km and sustain the speed to reach it.', { tornadoRange: 100 }],
+      ['tornado-track-feed', 'Track Inflow', 'Add 18% of base forward speed and 50 km of travel range.', { tornadoSpeed: .18, tornadoRange: 50 }, 5],
+      ['tornado-track-corridor', 'Inflow Corridor', 'Add another 25% of base forward speed and 70 km of travel range.', { tornadoSpeed: .25, tornadoRange: 70 }, 7],
+      ['tornado-track-long', 'Long-Track Circulation', 'Add another 38% of base forward speed and 100 km of travel range.', { tornadoSpeed: .38, tornadoRange: 100 }, 9],
     ],
   }),
   ...upgradeTree('Movement', 'Lifetime', {
     Inflow: [
-      ['tornado-life-feed', 'Sustained Updraft', 'Add 20 simulated minutes to the lifetime limit and conserve inflow.', { tornadoLifetime: 80, endurance: .40 }],
-      ['tornado-life-balance', 'Steady Inflow', 'Add another 30 simulated minutes and preserve more inflow.', { tornadoLifetime: 120, endurance: .65 }],
-      ['tornado-life-anchor', 'Anchored Mesocyclone', 'Raise the lifetime limit to four simulated hours and preserve inflow on long tracks.', { tornadoLifetime: 160, endurance: .97 }],
+      ['tornado-life-feed', 'Sustained Updraft', 'Add 25 simulated minutes and make the inflow reserve last longer.', { tornadoLifetime: 100, endurance: .55 }, 5],
+      ['tornado-life-balance', 'Steady Inflow', 'Add another 30 simulated minutes and slow inflow depletion further.', { tornadoLifetime: 120, endurance: .67 }, 8],
+      ['tornado-life-anchor', 'Anchored Mesocyclone', 'Add another 35 simulated minutes, reaching a four-hour lifetime limit, and conserve more inflow.', { tornadoLifetime: 140, endurance: .80 }, 11],
     ],
   }),
   ...upgradeTree('Movement', 'Track control', {
     Steering: [
-      ['tornado-thermal', 'Vorticity Alignment', 'Reduce track wobble and increase forward speed by 15% of base speed.', { trackStability: .28, tornadoSpeed: .15 }],
-      ['tornado-organize', 'Streamwise Inflow', 'Steady the track further and slow weakening.', { trackStability: .40, hazardBuffer: .12 }],
-      ['tornado-course', 'Mesocyclone Track Control', 'Select a point on the map to set a preferred heading.', { courseControl: 1 }],
+      ['tornado-thermal', 'Vorticity Alignment', 'Reduce track wobble and steer up to 35° to either side of the natural track.', { trackStability: .25, courseControl: 35 / 180 }, 5],
+      ['tornado-organize', 'Streamwise Inflow', 'Steady the track further and steer up to 90° to either side of the natural track.', { trackStability: .25, courseControl: 55 / 180 }, 7],
+      ['tornado-course', 'Mesocyclone Track Control', 'Set a heading in any direction. The tornado turns faster toward your chosen heading.', { trackStability: .25, courseControl: .5 }, 9],
     ],
   }),
   ...upgradeTree('Damage', 'Wind speed', {
@@ -94,40 +94,33 @@ const tornadoUpgrades: Upgrade[] = [
   }, undefined, 'rear-flank'),
   ...upgradeTree('Damage', 'Debris and surface winds', {
     Debris: [
-      ['tornado-debris', 'Debris Entrainment', 'Lift debris into the circulation to increase property damage.', { gust: .20 }],
-      ['tornado-debris-load', 'High Debris Loading', 'Increase damage from large windborne fragments.', { gust: .30 }],
+      ['tornado-debris', 'Debris Entrainment', 'Windborne debris adds up to 45% to property damage along the tornado track. Starts at EF1 and reaches full effect at EF3.', { debris: .45 }],
+      ['tornado-debris-load', 'High Debris Loading', 'Larger windborne fragments add up to another 55% to track property damage, based on wind speed.', { debris: .55 }],
     ],
     'Near-ground winds': [
-      ['tornado-low-jet', 'Near-Ground Jet', 'Increase wind damage to buildings.', { gust: .12 }],
-      ['tornado-ground-jet', 'Ground-Level Surge', 'Concentrate damaging winds close to the ground.', { gust: .20 }],
+      ['tornado-low-jet', 'Near-Ground Jet', 'Add 24% to baseline wind damage to property.', { gust: .24 }],
+      ['tornado-ground-jet', 'Ground-Level Surge', 'Add another 32% to baseline wind damage to property.', { gust: .32 }],
     ],
-  }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Dense debris increases damage and weakens shelter protection in severe winds.', { gust: .45, shelterBreach: .20 }], 'tornado-vortex-breakdown'),
-  ...upgradeTree('Abilities', 'Temperature resistance', {
-    'Heat resistance': [
-      ['tornado-mixed-layer', 'Heat Resistance I', 'Reduce hot-air weakening by 25%.', { heatTolerance: .25 }],
-      ['tornado-heat-flux', 'Heat Resistance II', 'Block another 25% of base hot-air weakening.', { heatTolerance: .25 }],
+  }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Add up to another 75% to baseline track property damage. EF2 and stronger winds also reduce shelter protection by 20%.', { debris: .75, shelterBreach: .20 }], 'rear-flank'),
+  ...upgradeTree('Abilities', 'Environmental resistance', {
+    Inflow: [
+      ['tornado-cold-pool', 'Buffered Inflow', 'Reduce weakening in both cold and hot, dry air. Also slow weakening over marginal terrain.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .08 }, 5],
+      ['tornado-baroclinic', 'Inflow Stabilization', 'Further resist temperature extremes and slow weakening as surrounding air becomes less favorable.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .10 }, 8],
+      ['tornado-inflow-coupling', 'Temperature Resilience', 'Further reduce weakening in hostile air and extend the inflow reserve.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .12, endurance: .20 }, 10],
     ],
-    'Cold resistance': [
-      ['tornado-cold-pool', 'Cold Resistance I', 'Reduce cold-air weakening by 25%.', { coldTolerance: .25 }],
-      ['tornado-baroclinic', 'Cold Resistance II', 'Block another 25% of base cold-air weakening.', { coldTolerance: .25 }],
+  }),
+  ...upgradeTree('Abilities', 'Warning disruption', {
+    Response: [
+      ['tornado-response', 'Radar Signature Masking', 'Delay local warnings and reduce the share of residents who reach shelter, even before the tornado strikes.', { warningDelay: 16, gridlock: 18, warningFriction: .08 }, 4],
+      ['tornado-grid', 'Repeater Failure', 'Delay warnings further and reduce shelter uptake. EF1 and stronger winds can cut local broadcasts.', { warningDelay: 10, gridlock: 12, warningFriction: .07, outageTime: 64, broadcast: .25 }, 6],
+      ['tornado-warning-overload', 'Response Overload', 'Further reduce shelter uptake, keep broadcasts offline longer, and weaken protection where winds cut power.', { warningDelay: 10, gridlock: 18, warningFriction: .10, outageTime: 36, broadcast: .20, power: .14 }, 8],
     ],
-  }, ['tornado-inflow-coupling', 'Temperature Resilience', 'Further resist hot and cold air and preserve the inflow reserve.', { coldTolerance: .22, heatTolerance: .22, endurance: .20 }]),
-  ...upgradeTree('Abilities', 'Warning and response resistance', {
-    'Warning delays': [
-      ['tornado-response', 'Radar Interference I', 'Delay the first local alerts.', { warningDelay: 10 }],
-      ['tornado-warning-gaps', 'Radar Interference II', 'Give local spotters and emergency managers less time to respond.', { warningDelay: 12 }],
-    ],
-    'Radio disruption': [
-      ['tornado-grid', 'Radio Disruption I', 'Damaging winds can interrupt broadcasts and slow sheltering.', { outageTime: 45, broadcast: .25 }],
-      ['tornado-repeater', 'Radio Disruption II', 'Keep radio repeaters offline longer and slow sheltering further.', { outageTime: 55, broadcast: .20 }],
-    ],
-  }, ['tornado-warning-overload', 'Response Overload', 'Delay local warnings and slow the move to shelter.', { warningDelay: 12, gridlock: 18 }]),
+  }),
   ...upgradeTree('Abilities', 'Satellite tornadoes', {
     Satellites: [
-      ['tornado-satellite-seed', 'Satellite Rotation', 'Occasionally shed a weaker tornado in a random direction.', { satelliteChance: .24 }],
-      ['tornado-satellite-lobes', 'Unstable Rotation Lobes', 'Increase the chance of shedding a satellite tornado.', { satelliteChance: .20 }],
-      ['tornado-satellite-shear', 'Outer Vortex Shear', 'Further increase the chance of shedding a satellite tornado.', { satelliteChance: .20 }],
-      ['tornado-satellite-split', 'Vortex Split', 'Unlock a manual satellite tornado every 60 real seconds of active play.', { satelliteTrigger: 1 }],
+      ['tornado-satellite-seed', 'Satellite Rotation', 'Spawn a weaker tornado on land in a random direction. Recharges in 25 simulated minutes.', { satelliteTrigger: 1, satelliteChance: .10 }, 6],
+      ['tornado-satellite-lobes', 'Unstable Rotation Lobes', 'Reduce recharge to 20 simulated minutes. Satellites last longer and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .24, tornadoLife: 6 }, 8],
+      ['tornado-satellite-split', 'Vortex Split', 'Reduce recharge to 15 simulated minutes. Satellites persist longer, cover more ground, and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .30, tornadoLife: 8, tornadoWidth: .30 }, 10],
     ],
   }),
 ]

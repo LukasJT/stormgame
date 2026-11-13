@@ -74,10 +74,12 @@ export function makeConvectiveTrack(point: MapPoint, seed: number, tornado = fal
   return { point, path: [point], heading: naturalHeading, naturalHeading, preference: null, funnels: [], phase }
 }
 
-export function advanceFront(front: ConvectiveTrack, speed: number, time: number, stability: number) {
+export function advanceFront(front: ConvectiveTrack, speed: number, time: number, stability: number, steering?: number) {
   // Predominant east to southeast drift. The slower turn keeps the track continuous.
   const flow = front.naturalHeading + (1 - stability) * (Math.sin(time / 104 + front.phase) * .24 + Math.sin(time / 243 + front.phase) * .13)
-  front.heading = turn(front.heading, front.preference ?? flow, .017)
+  const preferred = front.preference === null ? flow
+    : steering === undefined ? front.preference : turn(front.naturalHeading, front.preference, steering * Math.PI)
+  front.heading = turn(front.heading, preferred, .017 + (front.preference === null ? 0 : (steering ?? 0) * .012))
   front.point = movePoint(front.point, front.heading, speed)
   if (time % 5 === 0) front.path.push(front.point)
 }

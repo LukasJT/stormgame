@@ -4,25 +4,28 @@ import { buyUpgrade, defaultSeed, removeUpgrade, startRun, upgradeCost, upgradeR
 import { trees } from '../src/upgrades'
 
 it.each([
-  ['Easy', 4, 8, 9, 14, 4, 3],
-  ['Normal', 4, 9, 10, 15, 3, 2],
-  ['Hard', 5, 10, 11, 17, 2, 1],
-  ['Expert', 5, 11, 12, 19, 0, 0],
-] as const)('prices Damage gains and keeps refunds based on the amount paid on %s', (difficulty, price, vortexPrice, rearPrice, corePrice, firstRefund, secondRefund) => {
+  ['Easy', 5, 8, 4, 3],
+  ['Normal', 6, 9, 3, 2],
+  ['Hard', 6, 10, 2, 1],
+  ['Expert', 7, 11, 0, 0],
+] as const)('prices Damage gains and keeps refunds based on the amount paid on %s', (difficulty, price, vortexPrice, firstRefund, secondRefund) => {
   const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, difficulty, defaultSeed)
   run.momentum = 500
   const travel = trees.Tornado.find(item => item.id === 'tornado-track-feed')!
   expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'vortex')).toBe(true)
+  expect(run.upgradePayments.get('vortex')).toBe(vortexPrice)
   expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'rear-flank')).toBe(true)
   expect(upgradeCost(run, travel)).toBe(price)
   expect(buyUpgrade(run, 'tornado-vortex-breakdown')).toBe(true)
+  const corePrice = run.upgradePayments.get('tornado-vortex-breakdown')!
+  const balance = run.momentum
   expect(removeUpgrade(run, 'vortex')).toBe(false)
   expect(upgradeRefund(run, 'rear-flank')).toBe(firstRefund)
   expect(removeUpgrade(run, 'tornado-vortex-breakdown')).toBe(true)
   const thirdRefund = Math.floor(corePrice * ({ Easy: .5, Normal: .35, Hard: .25, Expert: 0 })[difficulty])
-  expect(run.momentum).toBe(500 - vortexPrice - rearPrice - corePrice + thirdRefund)
+  expect(run.momentum).toBe(balance + thirdRefund)
   expect(run.effects.wind).toBe(55)
   expect(upgradeRefund(run, 'rear-flank')).toBe(secondRefund)
   expect(removeUpgrade(run, 'rear-flank')).toBe(true)
@@ -30,11 +33,16 @@ it.each([
   expect(upgradeCost(run, travel)).toBe(price)
 })
 
-it('requires both hot and cold branches for their shared upgrade', () => {
+it('lets players specialize in one ability without buying another branch', () => {
   const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
   run.momentum = 100
-  for (const id of ['tornado-cold-pool', 'tornado-baroclinic']) expect(buyUpgrade(run, id)).toBe(true)
-  expect(buyUpgrade(run, 'tornado-inflow-coupling')).toBe(false)
-  for (const id of ['tornado-mixed-layer', 'tornado-heat-flux', 'tornado-inflow-coupling']) expect(buyUpgrade(run, id)).toBe(true)
-  expect(removeUpgrade(run, 'tornado-heat-flux')).toBe(false)
+  for (const path of [
+    ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-inflow-coupling'],
+    ['tornado-response', 'tornado-grid', 'tornado-warning-overload'],
+    ['tornado-satellite-seed', 'tornado-satellite-lobes', 'tornado-satellite-split'],
+  ]) {
+    expect(buyUpgrade(run, path[2])).toBe(false)
+    for (const id of path) expect(buyUpgrade(run, id)).toBe(true)
+    expect(removeUpgrade(run, path[0])).toBe(false)
+  }
 })

@@ -1,11 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { campaign, damageTargets, difficulties, earnedStars } from '../src/campaign'
 import { momentumSchedule } from '../src/momentum'
-import { abilityCost, buyUpgrade, collectWeatherPickup, conditions, defaultSeed, frontSpeed, setCourse, startRun, stormStats, tick, totals, useAbility } from '../src/sim'
-import { movePoint } from '../src/convection'
+import { abilityCost, buyUpgrade, collectWeatherPickup, conditions, defaultSeed, frontSpeed, impactAreas, setCourse, startRun, stormStats, tick, totals, useAbility } from '../src/sim'
+import { advanceFront, movePoint } from '../src/convection'
 import { loadLocalities, makeDrop } from '../src/free-drop'
 import { tornadoClock, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from '../src/tornado-report'
 import { theaters } from '../src/world'
+import { evolutionRating } from '../src/evolution-stats'
+import { trees } from '../src/upgrades'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -108,7 +110,15 @@ it('gates tornado junctions behind both branches and makes intensity purchased',
   run.momentum = 130
   expect(buyUpgrade(run, 'tornado-course')).toBe(false)
   expect(buyUpgrade(run, 'multi-vortex')).toBe(false)
-  for (const id of ['tornado-thermal', 'tornado-organize', 'tornado-course']) expect(buyUpgrade(run, id)).toBe(true)
+  for (const [id, range] of [['tornado-thermal', 35], ['tornado-organize', 90], ['tornado-course', 180]] as const) {
+    expect(buyUpgrade(run, id)).toBe(true)
+    const natural = run.front!.naturalHeading
+    const requested = natural + 150 * Math.PI / 180
+    expect(setCourse(run, movePoint(run.front!.point, requested, 30))).toBe(true)
+    const track = { ...run.front!, path: [] }
+    for (let i = 0; i < 200; i++) advanceFront(track, 0, i, run.effects.trackStability, run.effects.courseControl)
+    expect((track.heading - natural) * 180 / Math.PI).toBeCloseTo(Math.min(range, 150))
+  }
   expect(setCourse(run, point)).toBe(true)
   for (const id of ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core']) expect(buyUpgrade(run, id)).toBe(true)
   expect(buyUpgrade(run, 'multi-vortex')).toBe(false)
@@ -124,7 +134,9 @@ it('gates tornado junctions behind both branches and makes intensity purchased',
   expect(buyUpgrade(longRun, 'tornado-life-anchor')).toBe(false)
   for (const id of ['tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor']) expect(buyUpgrade(longRun, id)).toBe(true)
   expect(longRun.effects.endurance).toBeCloseTo(2.02)
-  expect(frontSpeed(run)).toBeCloseTo(frontSpeed(longRun) * 1.15)
+  const speed = frontSpeed(longRun)
+  expect(buyUpgrade(longRun, 'tornado-track-feed')).toBe(true)
+  expect(frontSpeed(longRun)).toBeCloseTo(speed * 1.18)
 })
 
 it('combines tornado hail, runoff, and rain concealment along one upgrade path', () => {
@@ -149,18 +161,71 @@ it('combines tornado hail, runoff, and rain concealment along one upgrade path',
   expect(totals(precipitation).damage).toBeGreaterThan(totals(base).damage)
 })
 
-it('reduces cold and hot inflow weakening through the matching tolerance upgrades', () => {
-  for (const [lat, lon, environment, upgrade] of [
-    [53.54, -113.49, 'Cold inflow', 'tornado-cold-pool'],
-    [29.42, -98.49, 'Hot, dry inflow', 'tornado-mixed-layer'],
+it('adds debris damage at each tier without raising the wind speed or EF rating', () => {
+  const path = ['tornado-debris', 'tornado-debris-load', 'tornado-debris-barrage']
+  const runs = [0, 1, 2, 3].map(tier => {
+    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Normal', defaultSeed)
+    run.momentum = 150
+    for (const id of ['vortex', 'rear-flank', 'tornado-low-jet', 'tornado-ground-jet']) expect(buyUpgrade(run, id)).toBe(true)
+    for (const id of path.slice(0, tier)) {
+      const node = trees.Tornado.find(upgrade => upgrade.id === id)!
+      const rating = evolutionRating('Tornado', 'damage', run.effects, node)
+      expect(rating.projected).toBeGreaterThan(rating.current)
+      expect(buyUpgrade(run, id)).toBe(true)
+    }
+    for (let i = 0; i < 90; i++) tick(run)
+    return run
+  })
+  for (let tier = 1; tier < runs.length; tier++) {
+    expect(stormStats(runs[tier]).windMph).toBe(stormStats(runs[0]).windMph)
+    expect(runs[tier].tornado?.peakEf).toBe(runs[0].tornado?.peakEf)
+    expect(totals(runs[tier]).damage).toBeGreaterThan(totals(runs[tier - 1]).damage * 1.10)
+  }
+})
+
+it('makes every warning tier reduce sheltering before the storm can cause an outage', () => {
+  const path = ['tornado-response', 'tornado-grid', 'tornado-warning-overload']
+  const runs = [0, 1, 2, 3].map(tier => {
+    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Hard', defaultSeed)
+    run.momentum = 30
+    for (const id of path.slice(0, tier)) expect(buyUpgrade(run, id)).toBe(true)
+    const sampled = new Map<ReturnType<typeof impactAreas>[number]['site'], { warnedAt: number; sheltered: number }>()
+    for (let i = 0; i < 120; i++) {
+      tick(run)
+      for (const { site } of impactAreas(run)) {
+        if (site.warnedAt === null) continue
+        const prior = sampled.get(site)
+        sampled.set(site, { warnedAt: prior?.warnedAt ?? site.warnedAt, sheltered: Math.max(prior?.sheltered ?? 0, site.sheltered) })
+      }
+    }
+    expect(impactAreas(run).every(area => !area.site.outageUntil)).toBe(true)
+    return {
+      warnedAt: Math.min(...[...sampled.values()].map(site => site.warnedAt)),
+      sheltered: Math.max(0, ...[...sampled.values()].map(site => site.sheltered)),
+    }
+  })
+  for (let tier = 1; tier < runs.length; tier++) {
+    expect(runs[tier].warnedAt).toBeGreaterThan(runs[tier - 1].warnedAt)
+    expect(runs[tier].sheltered).toBeLessThan(runs[tier - 1].sheltered)
+  }
+})
+
+it('reduces weakening in both cold and hot air at every resistance tier', () => {
+  for (const [lat, lon, environment] of [
+    [53.54, -113.49, 'Cold inflow'],
+    [29.42, -98.49, 'Hot, dry inflow'],
   ] as const) {
     const run = startRun(makeDrop('Tornado', lat, lon), 0, 'Normal', defaultSeed)
-    const before = conditions(run, run.at)
-    expect(before.name).toBe(environment)
-    expect(buyUpgrade(run, upgrade)).toBe(true)
-    const after = conditions(run, run.at)
-    expect(after.trend).toBeGreaterThan(before.trend)
-    expect(after.trend).toBeLessThan(0)
+    run.momentum = 50
+    let trend = conditions(run, run.at).trend
+    expect(conditions(run, run.at).name).toBe(environment)
+    for (const id of ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-inflow-coupling']) {
+      expect(buyUpgrade(run, id)).toBe(true)
+      const after = conditions(run, run.at).trend
+      expect(after).toBeGreaterThan(trend)
+      expect(after).toBeLessThan(0)
+      trend = after
+    }
   }
 })
 
@@ -170,7 +235,7 @@ it('tracks surveyed distance and towns while geography and upgrades shape the ca
   const persistent = startRun(plains.theater, 0, 'Normal', defaultSeed)
   const arctic = startRun(makeDrop('Tornado', 64.317, -96.02), 0, 'Normal', defaultSeed)
   persistent.momentum = 150
-  for (const id of ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-mixed-layer', 'tornado-heat-flux', 'tornado-inflow-coupling',
+  for (const id of ['tornado-cold-pool', 'tornado-baroclinic', 'tornado-inflow-coupling',
     'tornado-life-feed', 'tornado-life-balance', 'tornado-life-anchor',
     'tornado-track-feed', 'tornado-track-corridor', 'tornado-track-long']) {
     expect(buyUpgrade(persistent, id)).toBe(true)

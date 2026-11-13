@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, setBlizzardCourse, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
+import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, satelliteCooldown, setBlizzardCourse, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
 import { makeZones, theaters, type Storm } from '../src/world'
 import { lakeAt, loadLocalities, makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { hazardNames, hazards } from '../src/hazards'
@@ -179,13 +179,16 @@ describe('global weather scenarios', () => {
     expect(stormStats(run).category).toContain('EF5')
     expect(triggerSatellite(run)).toBe(false)
     run.momentum = 60
-    for (const id of ['tornado-satellite-seed', 'tornado-satellite-lobes', 'tornado-satellite-shear', 'tornado-satellite-split']) {
-      expect(buyUpgrade(run, id)).toBe(true)
-    }
+    expect(buyUpgrade(run, 'tornado-satellite-seed')).toBe(true)
     expect(triggerSatellite(run)).toBe(true)
     const satellite = run.front!.funnels[0]
     expect(satellite.peakEF).toBeLessThan(5)
     expect(satellite.heading).not.toBe(run.front!.heading)
+    expect(satelliteCooldown(run)).toBe(100)
+    expect(buyUpgrade(run, 'tornado-satellite-lobes')).toBe(true)
+    expect(satelliteCooldown(run)).toBe(80)
+    expect(buyUpgrade(run, 'tornado-satellite-split')).toBe(true)
+    expect(satelliteCooldown(run)).toBe(60)
     advance(run, run.time + 59)
     run.realTime = 120_000
     expect(triggerSatellite(run)).toBe(false)

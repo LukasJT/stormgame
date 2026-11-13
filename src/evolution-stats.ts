@@ -1,8 +1,9 @@
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
-import { fatalityRate, lossPerHome, sweptShare, tornadoHailShare, tornadoRunoffShare, tornadoWindProfile } from './impact'
+import { fatalityRate, lossPerHome, sweptShare, tornadoDebrisBonus, tornadoHailShare, tornadoRunoffShare, tornadoWindProfile } from './impact'
 import { tornadoStrips } from './swath'
 import type { Storm } from './world'
 import { isCampaignEvent } from './campaign'
+import { satelliteRechargeTicks } from './tornado-report'
 
 export const evolutionStats = ['damage', 'lifespan', 'resistance'] as const
 type Stat = typeof evolutionStats[number]
@@ -61,16 +62,19 @@ function tornadoDamagePotential(effects: Effects) {
   const referenceArea = 40
   const referenceStepKm = .32
   const windLoss = strips.reduce((total, strip) =>
-    total + sweptShare(referenceStepKm, strip.width, referenceArea) * lossPerHome(strip.wind, true), 0) * (1 + effects.gust)
+    total + sweptShare(referenceStepKm, strip.width, referenceArea) * lossPerHome(strip.wind, true) *
+    (1 + effects.gust + tornadoDebrisBonus(strip.wind, effects.debris)), 0)
   const hailLoss = tornadoHailShare(effects.hail) * (1 + effects.hailRadius / 5) * lossPerHome(75) / 4
   const rainLoss = tornadoRunoffShare(effects.floodPower) * (36 + effects.floodLife) / 32 * lossPerHome(70) * 1.55
   const warningDisruption = Math.min(.85, effects.rainWrap * .53) * .3 + effects.warningDelay / 180
-    + effects.broadcast * Math.min(1, effects.outageTime / 80) * .25 + effects.gridlock / 250
+    + effects.broadcast * Math.min(1, effects.outageTime / 80) * .25 + effects.gridlock / 250 + effects.warningFriction
   const sheltered = .5 * Math.max(0, 1 - warningDisruption)
   const breach = Math.min(.65, (windMph >= 111 ? effects.shelterBreach : 0) + (windMph >= 86 ? effects.power : 0))
   const casualties = strips.reduce((total, strip) => total + sweptShare(referenceStepKm, strip.width, referenceArea) *
     fatalityRate(strip.wind, sheltered * (1 - breach), 1, .5), 0)
-  const satelliteLoss = (effects.satelliteChance * .8 + effects.satelliteTrigger * .5) * lossPerHome(95) *
+  const manualFrequency = effects.satelliteTrigger ? 60 / satelliteRechargeTicks(effects.satelliteTrigger) : 0
+  const satelliteLoss = (effects.satelliteChance * .8 + manualFrequency * .5) *
+    (1 + effects.tornadoLife / 24) * (1 + effects.tornadoWidth) * lossPerHome(95) *
     sweptShare(referenceStepKm, .12, referenceArea)
   return windLoss + hailLoss + rainLoss + casualties * 160_000 + satelliteLoss
 }
@@ -110,12 +114,9 @@ export function evolutionRating(storm: Storm, stat: Stat, effects: Effects, prev
 }
 
 export function tornadoUpgradePrice(effects: Effects, upgrade: Upgrade) {
-  const gain = (stat: Stat) => {
-    const rating = evolutionRating('Tornado', stat, effects, upgrade)
-    return Math.max(0, rating.projected - rating.current)
-  }
-  const unlock = upgrade.effects.courseControl || upgrade.effects.satelliteTrigger ? 4 : 0
-  return 2 + Math.round(gain('damage') * .55 + gain('lifespan') * .53 + gain('resistance') * .46) + unlock
+  if (upgrade.branch !== 'Damage') return upgrade.cost
+  const rating = evolutionRating('Tornado', 'damage', effects, upgrade)
+  return 2 + Math.round(Math.max(0, rating.projected - rating.current) * .55)
 }
 
 export function damagePrice(storm: Storm, upgrade: Upgrade) {
