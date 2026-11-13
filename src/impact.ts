@@ -15,6 +15,16 @@ export const efWind = [76, 104, 127, 157, 188, 235]
 export const efMinimum = [65, 86, 111, 136, 166, 201]
 export const windBand = (wind: number) => Math.max(0, efMinimum.filter(min => wind >= min).length - 1)
 
+export function tornadoWindProfile(windBonus: number, widthBonus: number, coupling = 1, coherence = 1) {
+  const windMph = Math.round((65 + windBonus * coupling) * coherence)
+  const ef = windBand(windMph)
+  const widthKm = Math.min(4.2, .04 + coupling * (ef ** 2 * .036 + widthBonus)) * coherence
+  return { windMph, ef, widthKm: Math.round(widthKm * 100) / 100 }
+}
+
+export const tornadoHailShare = (hail: number) => .011 * hail
+export const tornadoRunoffShare = (floodPower: number) => .003 * floodPower
+
 function probabilityAtWind(wind: number, values: number[]) {
   if (wind <= 50) return values[0] * Math.max(0, wind / 50)
   if (wind >= 250) return values[4]

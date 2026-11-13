@@ -21,7 +21,7 @@ try {
   await page.getByRole('button', { name: 'Evolve', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Damage', exact: true }).click()
   await page.getByRole('button', { name: 'Vortex Contraction', exact: true }).click()
-  await page.getByRole('button', { name: 'Buy for 6 Momentum' }).click()
+  await page.getByRole('button', { name: 'Buy for 10 Momentum' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
   await page.getByRole('button', { name: 'Speed 1×' }).click()
   await page.getByRole('button', { name: 'Speed 2×' }).click()

@@ -131,7 +131,12 @@ it('combines tornado hail, runoff, and rain concealment along one upgrade path',
   const makeRun = () => startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
   const base = makeRun()
   const precipitation = makeRun()
-  precipitation.momentum = 50
+  base.momentum = precipitation.momentum = 100
+  expect(buyUpgrade(precipitation, 'rain-wrapped')).toBe(false)
+  for (const run of [base, precipitation]) {
+    expect(buyUpgrade(run, 'vortex')).toBe(true)
+    expect(buyUpgrade(run, 'rear-flank')).toBe(true)
+  }
   expect(buyUpgrade(precipitation, 'tornado-rain-core')).toBe(false)
   for (const id of ['rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']) {
     expect(buyUpgrade(precipitation, id)).toBe(true)
@@ -139,10 +144,7 @@ it('combines tornado hail, runoff, and rain concealment along one upgrade path',
   expect(precipitation.effects.hail).toBeCloseTo(1.45)
   expect(precipitation.effects.rainWrap).toBeCloseTo(1.9)
   for (let i = 0; i < 360; i++) for (const run of [base, precipitation]) tick(run)
-  for (const run of [base, precipitation]) {
-    expect(stormStats(run).windMph).toBe(65)
-    expect(totals(run).deaths).toBe(0)
-  }
+  expect(stormStats(precipitation).windMph).toBe(stormStats(base).windMph)
   expect(precipitation.front!.floods.size).toBeGreaterThan(0)
   expect(totals(precipitation).damage).toBeGreaterThan(totals(base).damage)
 })

@@ -743,6 +743,7 @@ function upgradeNode(state: Run, item: Upgrade, selected: string, connector = ''
 }
 
 function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
+  if (state.tornado && evolutionTab === 'Damage') return tornadoDamageBoard(state, choices, selected)
   const groups = [...new Set(choices.map(item => item.group!))]
   return `<div class="upgrade-tree" role="group" data-branch="${evolutionTab}" aria-label="${state.cyclone && evolutionTab === 'Impact' ? 'Damage' : evolutionTab} upgrades">
     ${groups.map(group => {
@@ -759,6 +760,46 @@ function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
         </div>
       </section>`
     }).join('')}
+  </div>`
+}
+
+function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
+  const rows = [
+    ['vortex', 'wide-funnel', 'satellite', 'wedge'],
+    ['rear-flank', 'rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff'],
+    ['tornado-vortex-breakdown', 'tornado-debris', 'tornado-debris-load', 'tornado-debris-barrage'],
+    [null, 'tornado-low-jet', 'tornado-ground-jet'],
+    ['tornado-inner-core'],
+    ['multi-vortex'],
+  ]
+  const positions = new Map(rows.flatMap((row, y) => row.flatMap((id, x) => id ? [[id, { x, y }] as const] : [])))
+  const links = choices.flatMap(item => (item.requiresAll ?? (item.requires ? [item.requires] : [])).map(id => {
+    const from = positions.get(id)!
+    const to = positions.get(item.id)!
+    const x = from.x * 110 + 52
+    const y = from.y * 92 + 39
+    const endX = to.x * 110 + 52
+    const endY = to.y * 92 + 39
+    let path = `M${x} ${y}H${endX}`
+    if (from.x === to.x) path = `M${x} ${y}V${endY}`
+    else if (id === 'wedge') path = `M${x} ${y}H551V${endY}H${endX}`
+    else if (item.id === 'tornado-low-jet') path = `M${x} ${y}H107V${endY}H${endX}`
+    else if (id === 'tornado-ground-jet') path = `M${x} ${y}H327V${endY}H${endX}`
+    return `<path d="${path}" class="${state.upgrades.includes(id) ? 'earned' : ''}"/>`
+  })).join('')
+  const order = ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex']
+  const ordered = [...order.map(id => choices.find(item => item.id === id)!), ...choices.filter(item => !order.includes(item.id))]
+  return `<div class="upgrade-tree" role="group" data-branch="Damage" aria-label="Damage upgrades">
+    <div class="tornado-tree-labels"><h3>Wind speed</h3></div>
+    <div class="tornado-damage-tree">
+      <svg class="tornado-tree-links" viewBox="0 0 560 538" aria-hidden="true">${links}</svg>
+      ${['Path width', 'Rain and hail', 'Debris'].map((name, index) =>
+        `<span class="tornado-branch-name" style="grid-area:${index + 1}/2">${name}</span>`).join('')}
+      ${ordered.map(item => {
+        const { x, y } = positions.get(item.id)!
+        return `<div class="tornado-tree-slot ${x === 0 ? 'wind-spine' : ''}" style="grid-area:${y + 1}/${x + 1}">${upgradeNode(state, item, selected)}</div>`
+      }).join('')}
+    </div>
   </div>`
 }
 
@@ -790,7 +831,6 @@ function upgradeDetails(state: Run, id: string) {
   const cost = locked ? 'Locked' : state.momentum < price ? `Need ${price - state.momentum} more Momentum` : state.sandbox ? 'Install upgrade' : `Buy for ${price} Momentum`
   return `<div class="upgrade-detail"><h3>${item.name}</h3><p>${measurementText(item.description)}</p>
     ${prereq ? `<p class="requirement">Requires ${prereq.name}</p>` : ''}
-    ${required ? `<p class="requirement">Requires both ${required.join(' and ')}</p>` : ''}
     ${installed
       ? `<button class="order" data-key="refund" data-action="refund" aria-haspopup="dialog" data-value="${id}" ${canRemoveUpgrade(state, id) ? '' : 'disabled'}>Remove upgrade${state.sandbox ? '' : ` · ${refund} Momentum back`}</button>
         ${!state.end && !canRemoveUpgrade(state, id) ? '<p class="requirement">Remove dependent upgrades first.</p>' : ''}`

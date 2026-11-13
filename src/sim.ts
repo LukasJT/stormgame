@@ -1,14 +1,14 @@
 import { advanceWildfire, fireHistoryAt, fireHistoryLabels, spotFire, startWildfire, type Wildfire } from './wildfire'
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
-import { damagePrice } from './evolution-stats'
+import { damagePrice, tornadoUpgradePrice } from './evolution-stats'
 import { alongTrack } from './track'
 import { hazardFor, hazards, type Ability } from './hazards'
 import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
-import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, windBand } from './impact'
+import { fatalityRate, injuryToFatality, lossPerHome, sweptShare, tornadoHailShare, tornadoRunoffShare, tornadoWindProfile, windBand } from './impact'
 import { lateMomentum, momentumSchedule, startingMomentum, usesTornadoEconomy, type WeatherPickup } from './momentum'
 import { cycloneFlow, cycloneSpeed, cycloneTrack, cycloneWeather, latitudeAt, longitudeAt, radarSpin, startCyclone, type Cyclone } from './cyclone'
 import { markSwath, tornadoStrips, type Swath } from './swath'
@@ -356,10 +356,8 @@ export function stormStats(run: Run) {
   if (run.theater.storm === 'Tornado') {
     const coupling = Math.min(1, Math.max(0, run.time - 8) / 16)
     const coherence = Math.min(1, run.strength / 22)
-    const windMph = Math.round((65 + run.effects.wind * coupling) * coherence)
-    const ef = windBand(windMph)
-    const widthKm = Math.min(4.2, .04 + coupling * (ef ** 2 * .036 + run.effects.width)) * coherence
-    return { windMph, widthKm: Math.round(widthKm * 100) / 100, category: run.end ? 'Dissipated' : run.overWater ? 'Waterspout' : `EF${ef} · On ground` }
+    const { windMph, widthKm, ef } = tornadoWindProfile(run.effects.wind, run.effects.width, coupling, coherence)
+    return { windMph, widthKm, category: run.end ? 'Dissipated' : run.overWater ? 'Waterspout' : `EF${ef} · On ground` }
   }
   const hazard = hazardFor(activeStorm(run))
   if (hazard) return {
@@ -495,7 +493,8 @@ const upgradeEconomy = {
 }
 
 export function upgradeCost(run: Run, upgrade: Upgrade) {
-  const cost = upgrade.cost + damagePrice(run.theater.storm, upgrade)
+  const storm = run.theater.storm
+  const cost = storm === 'Tornado' ? tornadoUpgradePrice(run.effects, upgrade) : upgrade.cost + damagePrice(storm, upgrade)
   return run.sandbox ? 0 : Math.round(cost * upgradeEconomy[run.difficulty].multiplier)
 }
 
@@ -882,7 +881,7 @@ function tickTornado(run: Run, front: Front) {
   const force = Math.min(1, run.strength / 22)
   if (run.effects.hail && run.time % 4 === 0) {
     for (const { zone, site, country } of sampledAreas(front, front.point, run.effects.hailRadius)) {
-      if (applyImpact(run, zone, site, .011 * run.effects.hail * force, 75, 0, false, true) && country) {
+      if (applyImpact(run, zone, site, tornadoHailShare(run.effects.hail) * force, 75, 0, false, true) && country) {
         noteTornadoPlaces(record, front.point, country, run.effects.hailRadius)
       }
     }
@@ -892,7 +891,7 @@ function tickTornado(run: Run, front: Front) {
   }
   for (const [area, until] of front.floods) {
     if (until < run.time) front.floods.delete(area)
-    else if (applyImpact(run, area.zone, area.site, .003 * run.effects.floodPower, 70, .55, false, true) && area === front.current && area.country) {
+    else if (applyImpact(run, area.zone, area.site, tornadoRunoffShare(run.effects.floodPower), 70, .55, false, true) && area === front.current && area.country) {
       noteTornadoPlaces(record, front.point, area.country, 0)
     }
   }

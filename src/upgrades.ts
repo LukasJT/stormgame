@@ -29,12 +29,12 @@ export type Upgrade = {
 
 type UpgradeNode = [id: string, name: string, description: string, effects: Partial<Effects>, cost?: number]
 
-function upgradeTree(branch: Branch, group: string, lanes: Record<string, UpgradeNode[]>, merge?: UpgradeNode): Upgrade[] {
+function upgradeTree(branch: Branch, group: string, lanes: Record<string, UpgradeNode[]>, merge?: UpgradeNode, root?: string): Upgrade[] {
   const tornado = tornadoBranches.some(category => category === branch)
   const prices = tornado ? [4, 7, 11, 15] : [3, 5, 7, 11]
   const upgrades = Object.entries(lanes).flatMap(([lane, nodes]) => nodes.map(([id, name, description, effects, cost], index) => ({
     id, name, description, effects, branch, group, lane,
-    cost: cost ?? prices[index], requires: nodes[index - 1]?.[0],
+    cost: cost ?? prices[index], requires: nodes[index - 1]?.[0] ?? root,
   })))
   if (!merge) return upgrades
   const [id, name, description, effects, cost] = merge
@@ -44,7 +44,7 @@ function upgradeTree(branch: Branch, group: string, lanes: Record<string, Upgrad
   }]
 }
 
-const tornadoUpgrades = [
+const tornadoUpgrades: Upgrade[] = [
   ...upgradeTree('Movement', 'Travel distance', {
     Track: [
       ['tornado-track-feed', 'Track Inflow', 'Extend the maximum travel distance by 50 km.', { tornadoRange: 50 }],
@@ -66,19 +66,24 @@ const tornadoUpgrades = [
       ['tornado-course', 'Mesocyclone Track Control', 'Select a point on the map to set a preferred heading.', { courseControl: 1 }],
     ],
   }),
-  ...upgradeTree('Damage', 'Wind and width', {
+  ...upgradeTree('Damage', 'Wind speed', {
     'Wind speed': [
       ['vortex', 'Vortex Contraction', 'Add 24 mph to peak winds.', { wind: 24 }],
       ['rear-flank', 'Rear-Flank Momentum Surge', 'Add another 31 mph to peak winds.', { wind: 31 }],
       ['tornado-vortex-breakdown', 'Corner-Flow Intensification', 'Add another 38 mph to peak winds.', { wind: 38 }],
       ['tornado-inner-core', 'Inner-Core Acceleration', 'Add another 44 mph to peak winds, enough to reach EF5 at full strength.', { wind: 44 }],
     ],
+  }),
+  ...upgradeTree('Damage', 'Path width', {
     'Path width': [
       ['wide-funnel', 'Broad Inflow Layer', 'Add up to 160 m of damage width.', { width: .16 }],
       ['satellite', 'Expanded Vorticity Field', 'Add up to another 360 m of damage width.', { width: .36 }],
       ['wedge', 'Wedge Circulation', 'Add up to another 700 m of damage width.', { width: .70 }],
     ],
-  }, ['multi-vortex', 'Violent Multivortex Core', 'Add 15 mph of peak wind and up to 500 m of damage width.', { wind: 15, width: .5 }]),
+  }, undefined, 'vortex'),
+  { id: 'multi-vortex', name: 'Violent Multivortex Core', branch: 'Damage', group: 'Wind speed', cost: 12, capstone: true,
+    description: 'Add 15 mph of peak wind and up to 500 m of damage width.',
+    requiresAll: ['tornado-inner-core', 'wedge'], effects: { wind: 15, width: .5 } },
   ...upgradeTree('Damage', 'Rain and hail', {
     Precipitation: [
       ['rain-wrapped', 'Precipitation Curtain', 'Rain conceals the funnel and delays warnings while small hail damages roofs and cars.', { warningDelay: 12, rainWrap: 1, hail: .35, hailRadius: 2 }],
@@ -86,7 +91,7 @@ const tornadoUpgrades = [
       ['tornado-rain-swath', 'Sustained Downpour', 'Expand the hail swath, deepen the rain curtain, and make flooding last longer.', { floodPower: .28, floodLife: 16, rainWrap: .55, hail: .65, hailRadius: 3 }],
       ['tornado-runoff', 'Rain-Wrapped Deluge', 'Intensify flooding and further conceal the funnel in heavy rain.', { floodPower: .34, floodLife: 24, rainWrap: .35 }],
     ],
-  }),
+  }, undefined, 'rear-flank'),
   ...upgradeTree('Damage', 'Debris and surface winds', {
     Debris: [
       ['tornado-debris', 'Debris Entrainment', 'Lift debris into the circulation to increase property damage.', { gust: .20 }],
@@ -96,7 +101,7 @@ const tornadoUpgrades = [
       ['tornado-low-jet', 'Near-Ground Jet', 'Increase wind damage to buildings.', { gust: .12 }],
       ['tornado-ground-jet', 'Ground-Level Surge', 'Concentrate damaging winds close to the ground.', { gust: .20 }],
     ],
-  }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Dense debris increases damage and weakens shelter protection in severe winds.', { gust: .45, shelterBreach: .20 }]),
+  }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Dense debris increases damage and weakens shelter protection in severe winds.', { gust: .45, shelterBreach: .20 }], 'tornado-vortex-breakdown'),
   ...upgradeTree('Abilities', 'Temperature resistance', {
     'Heat resistance': [
       ['tornado-mixed-layer', 'Heat Resistance I', 'Reduce hot-air weakening by 25%.', { heatTolerance: .25 }],
