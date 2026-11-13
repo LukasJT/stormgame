@@ -563,7 +563,7 @@ test('describes the tornado and buys an upgrade through the branching evolution 
   await expect(panel.getByRole('button', { name: 'Locked', exact: true })).toBeDisabled()
   await panel.getByRole('button', { name: 'Damage', exact: true }).click()
   await expect(panel.getByRole('heading', { name: 'Wind speed' })).toBeVisible()
-  await expect(panel.locator('.tornado-branch-name')).toHaveText(['Path width', 'Rain and hail', 'Debris'])
+  await expect(panel.locator('.tornado-branch-name')).toHaveText(['Wind speed', 'Path width', 'Rain and hail', 'Debris'])
   await panel.getByRole('button', { name: 'Broad Inflow Layer' }).click()
   await expect(panel.getByText('Requires Vortex Contraction')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Locked', exact: true })).toBeDisabled()

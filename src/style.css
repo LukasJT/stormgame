@@ -655,18 +655,23 @@ dialog[data-view=evolve] > :not(.network-evolution) { flex-shrink: 0; }
 .has-merge .upgrade-lane::after { right: -9px; }
 .has-merge .upgrade-lane .upgrade-node:nth-child(2) { margin-left: auto; }
 .network-evolution .upgrade-detail { align-content: start; padding: 18px; }
-.tornado-tree-labels { margin-bottom: 18px; }
-.tornado-tree-labels h3 { margin: 0; color: #ffd4c7; font: 700 20px/1 var(--display); }
 .tornado-damage-tree {
-  position: relative; display: grid; grid-template-columns: repeat(5, 104px);
-  grid-template-rows: repeat(6, 78px); column-gap: 6px; row-gap: 14px; width: 560px;
+  position: relative; display: grid; grid-template-columns: repeat(5, var(--node-width));
+  grid-template-rows: repeat(5, var(--node-height)); gap: var(--row-gap) var(--column-gap);
+  width: max-content; margin: 20px auto 0;
 }
+.tornado-wind-track { grid-column: 1 / -1; background: #47252b; box-shadow: 0 0 0 5px #47252b; border-radius: 4px; }
 .tornado-tree-slot { position: relative; min-width: 0; }
-.tornado-branch-name { position: relative; align-self: start; margin-top: -14px; color: #ead0d8; font: 700 13px/1 var(--display); }
+.tornado-branch-name {
+  position: relative; align-self: start; margin: -19px 0 0;
+  color: #ead0d8; font: 700 15px/1 var(--display);
+}
+.tornado-debris-heading { align-self: end; margin: 0 0 -20px; text-align: right; }
+.tornado-wind-heading { color: #ffd4aa; font-size: 17px; }
 .tornado-tree-slot .upgrade-node { width: 100%; height: 100%; padding: 4px; }
 .tornado-tree-slot .upgrade-node strong { font-size: 15px; }
 .tornado-tree-slot .upgrade-node .hex { width: 28px; }
-.tornado-tree-slot.wind-spine .upgrade-node { border-color: #b47b68; }
+.tornado-tree-slot.wind-spine .upgrade-node { border-color: #c18d70; background: #502e34; }
 .tornado-tree-slot .upgrade-node[aria-pressed=true] { border-color: #ffe1c9; }
 .tornado-tree-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .tornado-tree-links path { fill: none; stroke: #aa7685; stroke-width: 2; }

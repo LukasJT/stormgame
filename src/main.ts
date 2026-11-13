@@ -765,39 +765,62 @@ function upgradeBoard(state: Run, choices: Upgrade[], selected: string) {
 
 function tornadoDamageBoard(state: Run, choices: Upgrade[], selected: string) {
   const rows = [
-    ['vortex', 'wide-funnel', 'satellite', 'wedge'],
-    ['rear-flank', 'rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff'],
-    ['tornado-vortex-breakdown', 'tornado-debris', 'tornado-debris-load', 'tornado-debris-barrage'],
-    [null, 'tornado-low-jet', 'tornado-ground-jet'],
-    ['tornado-inner-core'],
-    ['multi-vortex'],
+    [null, 'rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff'],
+    ['wide-funnel', 'satellite', 'wedge'],
+    ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex'],
+    [null, null, 'tornado-debris', 'tornado-debris-load', 'tornado-debris-barrage'],
+    [null, null, 'tornado-low-jet', 'tornado-ground-jet'],
   ]
+  const windRow = 2
+  const nodeWidth = 104
+  const nodeHeight = 94
+  const columnPitch = 116
+  const rowPitch = 118
+  const boardWidth = 4 * columnPitch + nodeWidth
+  const boardHeight = 4 * rowPitch + nodeHeight
   const positions = new Map(rows.flatMap((row, y) => row.flatMap((id, x) => id ? [[id, { x, y }] as const] : [])))
+  const center = ({ x, y }: { x: number; y: number }) => ({
+    x: x * columnPitch + nodeWidth / 2,
+    y: y * rowPitch + nodeHeight / 2,
+  })
   const links = choices.flatMap(item => (item.requiresAll ?? (item.requires ? [item.requires] : [])).map(id => {
-    const from = positions.get(id)!
-    const to = positions.get(item.id)!
-    const x = from.x * 110 + 52
-    const y = from.y * 92 + 39
-    const endX = to.x * 110 + 52
-    const endY = to.y * 92 + 39
-    let path = `M${x} ${y}H${endX}`
-    if (from.x === to.x) path = `M${x} ${y}V${endY}`
-    else if (id === 'wedge') path = `M${x} ${y}H551V${endY}H${endX}`
-    else if (item.id === 'tornado-low-jet') path = `M${x} ${y}H107V${endY}H${endX}`
-    else if (id === 'tornado-ground-jet') path = `M${x} ${y}H327V${endY}H${endX}`
+    const { x, y } = center(positions.get(id)!)
+    const { x: endX, y: endY } = center(positions.get(item.id)!)
+    const halfWidth = nodeWidth / 2
+    const halfHeight = nodeHeight / 2
+    const rightGutter = x + columnPitch / 2
+    const leftGutter = x - columnPitch / 2
+    const lowerGutter = y + rowPitch / 2
+    let path: string
+    if (item.id === 'rain-wrapped') {
+      path = `M${x + halfWidth} ${y - 18}H${rightGutter}V${endY + rowPitch / 2}H${endX}V${endY + halfHeight}`
+    } else if (id === 'wedge') {
+      path = `M${x} ${y + halfHeight}V${lowerGutter}H${endX}V${endY - halfHeight}`
+    } else if (item.id === 'tornado-low-jet') {
+      path = `M${x - halfWidth} ${y + 18}H${leftGutter}V${endY}H${endX - halfWidth}`
+    } else if (id === 'tornado-ground-jet' && item.id === 'tornado-debris-barrage') {
+      path = `M${x + halfWidth} ${y}H${endX}V${endY + halfHeight}`
+    } else if (x === endX) {
+      const direction = Math.sign(endY - y)
+      path = `M${x} ${y + direction * halfHeight}V${endY - direction * halfHeight}`
+    } else {
+      path = `M${x + halfWidth} ${y}H${endX - halfWidth}`
+    }
     return `<path d="${path}" class="${state.upgrades.includes(id) ? 'earned' : ''}"/>`
   })).join('')
   const order = ['vortex', 'rear-flank', 'tornado-vortex-breakdown', 'tornado-inner-core', 'multi-vortex']
   const ordered = [...order.map(id => choices.find(item => item.id === id)!), ...choices.filter(item => !order.includes(item.id))]
   return `<div class="upgrade-tree" role="group" data-branch="Damage" aria-label="Damage upgrades">
-    <div class="tornado-tree-labels"><h3>Wind speed</h3></div>
-    <div class="tornado-damage-tree">
-      <svg class="tornado-tree-links" viewBox="0 0 560 538" aria-hidden="true">${links}</svg>
-      ${['Path width', 'Rain and hail', 'Debris'].map((name, index) =>
-        `<span class="tornado-branch-name" style="grid-area:${index + 1}/2">${name}</span>`).join('')}
+    <div class="tornado-damage-tree" style="--node-width:${nodeWidth}px;--node-height:${nodeHeight}px;--column-gap:${columnPitch - nodeWidth}px;--row-gap:${rowPitch - nodeHeight}px">
+      <div class="tornado-wind-track" style="grid-row:${windRow + 1}" aria-hidden="true"></div>
+      <svg class="tornado-tree-links" viewBox="0 0 ${boardWidth} ${boardHeight}" aria-hidden="true">${links}</svg>
+      <h3 class="tornado-branch-name tornado-wind-heading" style="grid-area:3/1">Wind speed</h3>
+      <h3 class="tornado-branch-name" style="grid-area:2/1">Path width</h3>
+      <h3 class="tornado-branch-name" style="grid-area:1/2">Rain and hail</h3>
+      <h3 class="tornado-branch-name tornado-debris-heading" style="grid-area:3/3">Debris</h3>
       ${ordered.map(item => {
         const { x, y } = positions.get(item.id)!
-        return `<div class="tornado-tree-slot ${x === 0 ? 'wind-spine' : ''}" style="grid-area:${y + 1}/${x + 1}">${upgradeNode(state, item, selected)}</div>`
+        return `<div class="tornado-tree-slot ${y === windRow ? 'wind-spine' : ''}" style="grid-area:${y + 1}/${x + 1}">${upgradeNode(state, item, selected)}</div>`
       }).join('')}
     </div>
   </div>`
