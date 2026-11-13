@@ -231,9 +231,9 @@ const blizzard = [
   }),
   ...upgradeTree('Movement', 'Persistence', {
     Support: [
-      ['snow-support', 'Steady Cold Feed', 'Draw down environmental support more slowly.', { endurance: .16 }, 3],
-      ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track.', { endurance: .18 }, 5],
-      ['polar-lock', 'Polar Lock', 'Sustain the circulation as its support runs low. Especially useful for Clippers crossing the prairies.', { endurance: .24 }, 7],
+      ['snow-support', 'Steady Cold Feed', 'Use environmental support more slowly. Alberta Clippers also hold together longer before weakening with age.', { endurance: .16 }, 3],
+      ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track and delay age-related weakening further for Alberta Clippers.', { endurance: .18 }, 5],
+      ['polar-lock', 'Polar Lock', 'Sustain the circulation on long tracks. An Alberta Clipper can remain active through the Great Lakes and reach the Atlantic.', { endurance: .24 }, 7],
     ],
   }),
   ...upgradeTree('Damage', 'Moisture and snowfall', {
@@ -251,14 +251,14 @@ const blizzard = [
   }, ['snow-plume', 'Deep Snow Plume', 'Combine strong moisture uptake with heavier snowfall.', { snowGain: .20, snowRate: .20 }, 11]),
   ...upgradeTree('Damage', 'Band width', {
     'Snow shield': [
-      ['snow-bands', 'Snow Bands', 'Widen the area receiving snow by 14 km.', { width: 14 }, 3],
-      ['snow-squalls', 'Expanded Snow Shield', 'Add another 16 km to the snow footprint.', { width: 16 }, 5],
+      ['snow-bands', 'Snow Bands', 'Widen the area receiving snow by 14 km, or 39 km for an Alberta Clipper.', { width: 14 }, 3],
+      ['snow-squalls', 'Expanded Snow Shield', 'Add 16 km to the snow footprint, or 45 km for an Alberta Clipper.', { width: 16 }, 5],
     ],
     'Band edges': [
-      ['snow-fringe', 'Fringe Flurries', 'Spread light snow beyond the main band.', { width: 10 }, 3],
-      ['snow-wrap', 'Wraparound Snow', 'Extend snow farther out from the core.', { width: 14 }, 5],
+      ['snow-fringe', 'Fringe Flurries', 'Add 10 km of light snow around the main band, or 28 km for an Alberta Clipper.', { width: 10 }, 3],
+      ['snow-wrap', 'Wraparound Snow', 'Add another 14 km to the snow footprint, or 39 km for an Alberta Clipper.', { width: 14 }, 5],
     ],
-  }, ['snow-wide', 'Broad Snow Shield', 'Widen the snow footprint by another 20 km.', { width: 20 }, 8]),
+  }, ['snow-wide', 'Broad Snow Shield', 'Add 20 km to the snow footprint, or 56 km for an Alberta Clipper.', { width: 20 }, 8]),
   ...upgradeTree('Damage', 'Wind and whiteouts', {
     Wind: [
       ['gust-front', 'Gust Front', 'Raise peak winds by up to 7 mph.', { wind: 7 }, 3],

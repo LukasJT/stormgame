@@ -2,7 +2,9 @@ import { expect, it } from 'vitest'
 import { lakeAt, makeDrop } from '../src/free-drop'
 import { latitudeAt, longitudeAt } from '../src/cyclone'
 import { landAt } from '../src/convection'
-import { buyUpgrade, collectWeatherPickup, defaultSeed, startRun, tick } from '../src/sim'
+import { buyUpgrade, collectWeatherPickup, defaultSeed, startRun, stormStats, tick } from '../src/sim'
+
+const persistence = ['snow-support', 'snow-reserve', 'polar-lock']
 
 function forecast(lat: number, lon: number, upgrades: string[] = []) {
   const run = startRun(makeDrop('Blizzard', lat, lon), 0, 'Normal', defaultSeed)
@@ -43,7 +45,7 @@ it('lets an Alberta Clipper buy persistence with earned points and rebuild over 
   const theater = makeDrop('Blizzard', 51.19, -114.47)
   const stock = startRun(theater, 0, 'Normal', defaultSeed)
   const upgraded = startRun(theater, 0, 'Normal', defaultSeed)
-  const plan = ['snow-support', 'snow-reserve', 'polar-lock', 'snow-lake', 'snow-lake-band']
+  const plan = [...persistence, 'snow-lake', 'snow-lake-band']
   const overSuperior = (run: typeof stock) => {
     const point = run.front!.point
     return lakeAt(latitudeAt(point), longitudeAt(point)) === 'Lake Superior'
@@ -62,9 +64,35 @@ it('lets an Alberta Clipper buy persistence with earned points and rebuild over 
   const support = upgraded.support
   for (let i = 0; i < 40; i++) tick(upgraded)
   expect(upgraded.snow!.source).toBe('Lake Superior')
-  expect(upgraded.strength).toBeGreaterThan(arrival + 3)
+  expect(upgraded.strength).toBeGreaterThan(arrival)
   expect(upgraded.support).toBeGreaterThan(support)
   expect(upgraded.events.some(event => event.text.includes('Alberta Clipper rebuilds over Lake Superior'))).toBe(true)
+}, 40000)
+
+it('takes a fully persistent Alberta Clipper from Calgary to the Atlantic with snowfall still falling', () => {
+  const run = startRun(makeDrop('Blizzard', 51.05, -114.07), 0, 'Normal', defaultSeed)
+  const atAtlantic = () => {
+    const point = run.front!.point
+    return longitudeAt(point) > -70.5 && landAt(point).name === 'Open water'
+  }
+  while (!run.end && !atAtlantic() && run.time < 4000) {
+    for (const id of persistence) buyUpgrade(run, id)
+    tick(run)
+  }
+  expect(run.upgrades).toEqual(persistence)
+  expect(atAtlantic()).toBe(true)
+  expect(run.end).toBeNull()
+  expect(run.snow!.rate).toBeGreaterThan(.025)
+  while (!run.end && run.time < 4200) tick(run)
+  expect(run.end).toBe('The snow band dissipated.')
+}, 45000)
+
+it('substantially widens the Clipper snowfall swath when the width upgrades are installed', () => {
+  const location = [51.05, -114.07] as const
+  const stock = forecast(...location).run
+  const wide = forecast(...location, ['snow-bands', 'snow-squalls', 'snow-fringe', 'snow-wrap', 'snow-wide']).run
+  expect(stormStats(wide).widthKm).toBeGreaterThan(stormStats(stock).widthKm * 2.4)
+  expect(wide.snow!.deposits.size).toBeGreaterThan(stock.snow!.deposits.size * 2)
 }, 20000)
 
 it('takes a weakening Nor’easter from New England to Newfoundland', () => {

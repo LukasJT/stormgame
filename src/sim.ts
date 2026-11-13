@@ -4,7 +4,7 @@ import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
 import { damagePrice, tornadoUpgradePrice } from './evolution-stats'
 import { alongTrack } from './track'
 import { hazardFor, hazards, type Ability } from './hazards'
-import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
+import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, clipperWidthMultiplier, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
 import { advanceFront, advanceFunnel, createFunnel, distanceKm, dropRadius, headingToward, isActive, kmPerX, landAt, makeConvectiveTrack, movePoint, random, worldX, type ConvectiveTrack, type MapPoint } from './convection'
 import { lakeAt, localityAt } from './free-drop'
 import { affectedCities, escapeName, nearbyCity } from './cities'
@@ -367,7 +367,8 @@ export function stormStats(run: Run) {
     category: conditions(run, run.at).name,
   }
   const width = run.blizzardPattern ? blizzardPatterns[run.blizzardPattern].width : 0
-  return { windMph: Math.round(fraction * 85 + bonus), widthKm: Math.round(width * (.75 + fraction * .45) + run.effects.width), category: run.end ? 'Dissipated' : run.whiteout ? 'Whiteout' : 'Snow band' }
+  const widthBonus = run.effects.width * (run.blizzardPattern === 'Alberta Clipper' ? clipperWidthMultiplier : 1)
+  return { windMph: Math.round(fraction * 85 + bonus), widthKm: Math.round(width * (.75 + fraction * .45) + widthBonus), category: run.end ? 'Dissipated' : run.whiteout ? 'Whiteout' : 'Snow band' }
 }
 
 export function forecast(run: Run) {
@@ -740,7 +741,7 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   }
   const clipper = patternName === 'Alberta Clipper'
   const lakeFeed = clipper && water && greatLakes.has(surface.name)
-    ? run.effects.lakeMoisture * cold * Math.min(1, snow.waterMoisture / 20) : 0
+    ? (.14 + run.effects.lakeMoisture) * cold * Math.min(1, snow.waterMoisture / 20) : 0
   const coastal = patternName === "Nor'easter"
   // Coastal inflow buys time on the way north, then tapers as the storm enters the North Atlantic.
   const coastalSupport = coastal && water && !lake
@@ -749,10 +750,12 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
   const weather = conditions(run, run.at)
   const priorStrength = run.strength
   // Gradual depletion of the synoptic air mass eventually outpaces local moisture recovery.
-  const aging = lakeFeed > .08 && run.time < 1520 ? 0 : Math.min(.45, Math.max(0, run.time - 1080) * .00085)
+  // Each Persistence tier delays the Clipper's age-related weakening as well as conserving inflow.
+  const agingOnset = 1080 + (clipper ? run.effects.endurance * 3300 : 0)
+  const aging = lakeFeed > .08 && run.time < agingOnset + 440 ? 0 : Math.min(.45, Math.max(0, run.time - agingOnset) * .00085)
   develop(run, weather.trend + lakeFeed * .85 - atlanticFade - aging,
     lakeFeed * .55 + coastalSupport - aging * .5,
-    clipper ? run.effects.endurance * .28 : coastal ? .5 : 0)
+    clipper ? run.effects.endurance * 1.5 : coastal ? .5 : 0)
   const lakeHeadline = `clipper-recovery-${surface.name}`
   if (lakeFeed > .08 && run.strength > priorStrength && !run.alertHeadlines.has(lakeHeadline)) {
     run.alertHeadlines.add(lakeHeadline)
@@ -778,7 +781,7 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
 
   if (run.time % 4 === 0 && snow.rate > .025) {
     const lakeBand = snow.source !== null && snow.source !== 'ocean'
-    const radius = widthKm * (lakeBand ? .28 : .46)
+    const radius = widthKm * (clipper ? .5 : lakeBand ? .28 : .46)
     const samples = new Map<ImpactArea, number>()
     const along = snow.source ? 18 : 12
     const slices = Math.max(2, Math.ceil(radius / (kmPerX(front.point.y) * .88)))
@@ -789,7 +792,8 @@ function tickBlizzard(run: Run, front: Front, patternName: BlizzardPattern) {
         const point = movePoint(center, front.heading + Math.PI / 2, lateral * radius)
         const affected = frontArea(front.areas, point)
         if (affected.zone.sea) continue
-        const weight = (1 - .62 * Math.abs(lateral)) * (1 - .34 * Math.abs(longitudinal))
+        const edge = clipper ? 1 - .86 * lateral ** 2 : 1 - .62 * Math.abs(lateral)
+        const weight = edge * (1 - .34 * Math.abs(longitudinal))
         samples.set(affected, Math.max(samples.get(affected) ?? 0, weight))
       }
     }

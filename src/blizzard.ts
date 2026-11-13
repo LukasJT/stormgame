@@ -3,7 +3,7 @@ import { headingToward, movePoint, type MapPoint } from './convection'
 import type { Effects } from './upgrades'
 
 export const blizzardPatterns = {
-  'Alberta Clipper': { description: 'A fast prairie storm that can reach the Great Lakes with Persistence upgrades.', favorable: 'Cold prairie air', speed: 1.32, growth: .08, snow: -.06, width: 60, heading: 0.18, curve: 0.04 },
+  'Alberta Clipper': { description: 'A fast prairie storm with a broad snow shield. Persistence upgrades can carry it through the Great Lakes to the Atlantic.', favorable: 'Cold prairie air', speed: 1.32, growth: .08, snow: -.06, width: 135, heading: 0.18, curve: 0.04 },
   "Nor'easter": { description: 'A broad coastal storm that climbs northeast toward Newfoundland.', favorable: 'Cold Atlantic moisture', speed: 1.22, growth: .14, snow: .13, width: 230, heading: -0.84, curve: 0.3 },
   'Lake-Effect Storm': { description: 'A narrow band that builds snowpack quickly.', favorable: 'Moist lake inflow', speed: .91, growth: .12, snow: .19, width: 42, heading: 0.08, curve: 0.03 },
   'Snow Squall': { description: 'A quick, narrow burst with short whiteouts.', favorable: 'Arctic front', speed: 1.2, growth: .11, snow: .12, width: 35, heading: 0.27, curve: 0.05 },
@@ -15,6 +15,7 @@ export const blizzardPatterns = {
 } as const
 
 export type BlizzardPattern = keyof typeof blizzardPatterns
+export const clipperWidthMultiplier = 2.8
 export const blizzardCourses = {
   'max-left': { label: 'Max left', name: 'Max left', degrees: -90 },
   'hard-left': { label: 'Hard left', name: 'Hard left', degrees: -60 },
