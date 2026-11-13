@@ -883,7 +883,9 @@ function tickTornado(run: Run, front: Front) {
   const force = Math.min(1, run.strength / 22)
   if (run.effects.hail && run.time % 4 === 0) {
     for (const { zone, site, country } of sampledAreas(front, front.point, run.effects.hailRadius)) {
-      if (applyImpact(run, zone, site, tornadoHailShare(run.effects.hail) * force, 75, 0, false, true) && country) {
+      const loss = applyImpact(run, zone, site, tornadoHailShare(run.effects.hail) * force, 75, 0, false, true)
+      run.hailDamage += loss
+      if (loss && country) {
         noteTornadoPlaces(record, front.point, country, run.effects.hailRadius)
       }
     }
@@ -892,8 +894,13 @@ function tickTornado(run: Run, front: Front) {
     front.floods.set(front.current, run.time + 36 + run.effects.floodLife)
   }
   for (const [area, until] of front.floods) {
-    if (until < run.time) front.floods.delete(area)
-    else if (applyImpact(run, area.zone, area.site, tornadoRunoffShare(run.effects.floodPower), 70, .55, false, true) && area === front.current && area.country) {
+    if (until < run.time) {
+      front.floods.delete(area)
+      continue
+    }
+    const loss = applyImpact(run, area.zone, area.site, tornadoRunoffShare(run.effects.floodPower), 70, .55, false, true)
+    run.floodDamage += loss
+    if (loss && area === front.current && area.country) {
       noteTornadoPlaces(record, front.point, area.country, 0)
     }
   }

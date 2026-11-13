@@ -22,8 +22,8 @@ export function tornadoWindProfile(windBonus: number, widthBonus: number, coupli
   return { windMph, ef, widthKm: Math.round(widthKm * 100) / 100 }
 }
 
-export const tornadoHailShare = (hail: number) => .011 * hail
-export const tornadoRunoffShare = (floodPower: number) => .003 * floodPower
+export const tornadoHailShare = (hail: number) => .0154 * hail
+export const tornadoRunoffShare = (floodPower: number) => .0048 * floodPower
 
 export function tornadoDebrisBonus(wind: number, debris: number) {
   if (wind < efMinimum[1]) return 0

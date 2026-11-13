@@ -86,10 +86,10 @@ const tornadoUpgrades: Upgrade[] = [
     requiresAll: ['tornado-inner-core', 'wedge'], effects: { wind: 15, width: .5 } },
   ...upgradeTree('Damage', 'Rain and hail', {
     Precipitation: [
-      ['rain-wrapped', 'Precipitation Curtain', 'Rain conceals the funnel and delays warnings while small hail damages roofs and cars.', { warningDelay: 12, rainWrap: 1, hail: .35, hailRadius: 2 }],
-      ['tornado-rain-core', 'High-Precipitation Core', 'Heavy rain leaves damaging runoff while larger hail spreads outward.', { floodPower: .38, hail: .45, hailRadius: 2 }],
-      ['tornado-rain-swath', 'Sustained Downpour', 'Expand the hail swath, deepen the rain curtain, and make flooding last longer.', { floodPower: .28, floodLife: 16, rainWrap: .55, hail: .65, hailRadius: 3 }],
-      ['tornado-runoff', 'Rain-Wrapped Deluge', 'Intensify flooding and further conceal the funnel in heavy rain.', { floodPower: .34, floodLife: 24, rainWrap: .35 }],
+      ['rain-wrapped', 'Precipitation Curtain', 'Rain hides the funnel and delays warnings. Hail damages roofs and cars around the track.', { warningDelay: 12, rainWrap: 1, hail: .35, hailRadius: 2 }],
+      ['tornado-rain-core', 'High-Precipitation Core', 'Larger hail damages a wider area, and heavy rain leaves runoff that keeps damaging property after the funnel passes.', { floodPower: .38, hail: .45, hailRadius: 2 }],
+      ['tornado-rain-swath', 'Sustained Downpour', 'Increase hail damage and its reach. Heavier rain hides more of the funnel and makes flooding more damaging and longer lasting.', { floodPower: .28, floodLife: 16, rainWrap: .55, hail: .65, hailRadius: 3 }],
+      ['tornado-runoff', 'Rain-Wrapped Deluge', 'Floodwater damages property faster and lingers longer. Heavier rain further conceals the funnel.', { floodPower: .34, floodLife: 24, rainWrap: .35 }],
     ],
   }, undefined, 'rear-flank'),
   ...upgradeTree('Damage', 'Debris and surface winds', {

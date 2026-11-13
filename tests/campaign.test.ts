@@ -140,25 +140,33 @@ it('gates tornado junctions behind both branches and makes intensity purchased',
 })
 
 it('combines tornado hail, runoff, and rain concealment along one upgrade path', () => {
-  const makeRun = () => startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Easy', defaultSeed)
-  const base = makeRun()
-  const precipitation = makeRun()
-  base.momentum = precipitation.momentum = 100
-  expect(buyUpgrade(precipitation, 'rain-wrapped')).toBe(false)
-  for (const run of [base, precipitation]) {
+  const path = ['rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']
+  const runs = [0, 1, 2, 3, 4].map(tier => {
+    const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Normal', defaultSeed)
+    run.momentum = 100
+    expect(buyUpgrade(run, 'rain-wrapped')).toBe(false)
     expect(buyUpgrade(run, 'vortex')).toBe(true)
     expect(buyUpgrade(run, 'rear-flank')).toBe(true)
+    expect(buyUpgrade(run, 'tornado-rain-core')).toBe(false)
+    for (const id of path.slice(0, tier)) {
+      const upgrade = trees.Tornado.find(node => node.id === id)!
+      const damage = evolutionRating('Tornado', 'damage', run.effects, upgrade)
+      expect(damage.projected).toBeGreaterThan(damage.current)
+      expect(buyUpgrade(run, id)).toBe(true)
+    }
+    for (let i = 0; i < 180; i++) tick(run)
+    return run
+  })
+  expect(runs[4].effects.rainWrap).toBeCloseTo(1.9)
+  expect(runs[1].hailDamage).toBeGreaterThan(totals(runs[0]).damage * 2)
+  expect(runs[1].floodDamage).toBe(0)
+  expect(runs[2].floodDamage).toBeGreaterThan(0)
+  expect(runs[3].hailDamage).toBeGreaterThan(runs[2].hailDamage)
+  expect(runs[4].floodDamage).toBeGreaterThan(runs[3].floodDamage * 1.5)
+  for (let tier = 1; tier < runs.length; tier++) {
+    expect(stormStats(runs[tier]).windMph).toBe(stormStats(runs[0]).windMph)
+    expect(totals(runs[tier]).damage).toBeGreaterThan(totals(runs[tier - 1]).damage * 1.2)
   }
-  expect(buyUpgrade(precipitation, 'tornado-rain-core')).toBe(false)
-  for (const id of ['rain-wrapped', 'tornado-rain-core', 'tornado-rain-swath', 'tornado-runoff']) {
-    expect(buyUpgrade(precipitation, id)).toBe(true)
-  }
-  expect(precipitation.effects.hail).toBeCloseTo(1.45)
-  expect(precipitation.effects.rainWrap).toBeCloseTo(1.9)
-  for (let i = 0; i < 360; i++) for (const run of [base, precipitation]) tick(run)
-  expect(stormStats(precipitation).windMph).toBe(stormStats(base).windMph)
-  expect(precipitation.front!.floods.size).toBeGreaterThan(0)
-  expect(totals(precipitation).damage).toBeGreaterThan(totals(base).damage)
 })
 
 it('adds debris damage at each tier without raising the wind speed or EF rating', () => {
