@@ -10,6 +10,8 @@ import { buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, impactAreas, n
 import { tornadoTickSeconds } from './tornado-report'
 import { theaters } from './world'
 
+export { damageTargets } from './campaign'
+
 export const rulesVersion = '2026-11-balance-10'
 export const datasetVersion = 'stormwake-population-2026-11'
 export const maxReplayTicks = 5400

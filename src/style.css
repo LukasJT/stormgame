@@ -797,4 +797,6 @@ dialog[data-view=evolve] > :not(.network-evolution) { flex-shrink: 0; }
 .score-table th, .score-table td { padding: .6rem; border-bottom: 1px solid #3b4b5c; }
 .score-table td { overflow-wrap: anywhere; }
 .score-table small { color: #aebed0; }
+.demo-scores { margin-block-start: 1.25rem; }
+.demo-scores h2 { margin-block: 0 .35rem; color: #d7e4f2; font: 700 1.45rem/1.2 var(--display); }
 .score-submit { padding: 1rem; }

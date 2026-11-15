@@ -27,7 +27,7 @@ import { chooseLocale, getLocale, languages, localizedNumber, setLocale, transla
 import { applyCommand, commonMetrics, createForecast, eventMetrics, metricLabels, prepareForecast, summarizeRun,
   type Command, type Metric, type Placement, type Replay, type RunSummary, type Ticket } from './replay'
 import { getChallenge, getDeviceScores, getScores, issueTicket, pendingScore, saveDeviceScore, savedDisplayName, sharedScoresConfigured, submitScore,
-  type Challenge, type ScoreFilters, type ScoreRow } from './scores'
+  type Challenge, type DemoScore, type ScoreFilters, type ScoreRow } from './scores'
 import { tornadoClimateTiers, tornadoSupportLabel } from './tornado-climate'
 import { snowfallDepth, measurementText, temperature, windSpeed, formatDistance } from './units'
 import { tornadoClock, tornadoDate, tornadoDuration, tornadoStartDate, tornadoTickSeconds, tornadoVerdict } from './tornado-report'
@@ -150,6 +150,7 @@ let runChallenge: Challenge | undefined
 let boardLoading = false
 let boardError = ''
 let boardRows: ScoreRow[] = []
+let boardDemos: DemoScore[] = []
 let boardRequest = 0
 let boardScope: 'shared' | 'device' = sharedScoresConfigured ? 'shared' : 'device'
 const filters: ScoreFilters = { event: 'Tornado', difficulty: 'Normal', metric: 'damage', period: 'all' }
@@ -373,15 +374,21 @@ function leaderboardContent() {
       ? button('play-challenge', 'Play daily challenge', undefined, 'order') : ''}
       ${boardScope === 'shared' && pendingScore() ? button('retry-score', 'Retry submission', undefined, 'order') : ''}</div>
     <p role="status">${boardLoading ? 'Loading…' : escapeName(boardError) || (boardRows.length ? '' : 'No ranked runs yet.')}</p>
-    ${boardRows.length ? `<div class="score-table"><table><thead><tr><th>Rank</th><th>Player</th><th>Score</th><th>Origin</th></tr></thead><tbody>
+    ${boardRows.length ? `<div class="score-table"><table aria-label="${boardScope === 'shared' ? 'Verified scores' : 'Device scores'}"><thead><tr><th>Rank</th><th>Player</th><th>Score</th><th>Origin</th></tr></thead><tbody>
       ${boardRows.map((row, index) => `<tr><td>${localizedNumber(index + 1)}</td><td data-player-text>${escapeName(row.name)}${row.player ? ` <small>· ${escapeName(row.player)}</small>` : ''}</td>
         <td>${scoreValue(filters.metric, row.score)}</td><td>${coordinates(row.summary.placement.lat, row.summary.placement.lon)}</td></tr>`).join('')}
     </tbody></table></div>` : ''}
+    ${boardDemos.length ? `<div class="score-table demo-scores"><h2 id="demo-scores-title">Demo scores</h2>
+      <table aria-labelledby="demo-scores-title"><thead><tr><th>Callsign</th><th>Score</th>${filters.metric === 'mastery' ? '' : '<th>Origin</th>'}</tr></thead><tbody>
+        ${boardDemos.map(row => `<tr><td data-player-text>${escapeName(row.name)}</td><td>${scoreValue(filters.metric, row.score)}</td>
+          ${row.lat !== undefined && row.lon !== undefined ? `<td>${coordinates(row.lat, row.lon)}</td>` : ''}</tr>`).join('')}
+      </tbody></table></div>` : ''}
   </section>`
 }
 
 async function refreshScores() {
   const request = ++boardRequest
+  boardDemos = []
   if (boardScope === 'device') {
     boardLoading = false
     boardError = ''
@@ -398,7 +405,10 @@ async function refreshScores() {
   if (request !== boardRequest) return
   boardLoading = false
   boardChallenge = challenge.status === 'fulfilled' ? challenge.value : undefined
-  if (scores.status === 'fulfilled') boardRows = scores.value.rows
+  if (scores.status === 'fulfilled') {
+    boardRows = scores.value.rows
+    boardDemos = scores.value.demos ?? []
+  }
   else boardError = scores.reason instanceof Error && scores.reason.name === 'Error'
     ? scores.reason.message : 'Shared scores are unavailable right now.'
   if (screen === 'leaderboards') render()

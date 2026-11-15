@@ -43,7 +43,8 @@ export const getChallenge = (event: CampaignEvent) => request<Challenge>('/chall
 export const issueTicket = (placement: Placement, challenge?: string) => request<Ticket>('/runs/start', { placement, rulesVersion, challenge }, 6000)
 export type ScoreFilters = { event: CampaignEvent; difficulty: Difficulty; metric: Metric; period: 'all' | 'month'; challenge?: string }
 export type ScoreRow = { id: string; name: string; player: string; score: number; submitted: number; summary: RunSummary }
-export const getScores = (filters: ScoreFilters) => request<{ rows: ScoreRow[]; version: string }>(
+export type DemoScore = { name: string; score: number; lat?: number; lon?: number }
+export const getScores = (filters: ScoreFilters) => request<{ rows: ScoreRow[]; demos?: DemoScore[]; version: string }>(
   '/leaderboards?' + new URLSearchParams(Object.entries({ ...filters, version: rulesVersion }).filter(([, value]) => value !== undefined)))
 
 type DeviceEntry = Omit<ScoreRow, 'score' | 'player'>

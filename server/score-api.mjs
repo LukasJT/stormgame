@@ -1,3 +1,5 @@
+import { demoLeaderboard } from './demo-scores.mjs'
+
 const encode = value => new TextEncoder().encode(value)
 const base64url = bytes => btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 const fromBase64url = value => Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), char => char.charCodeAt(0))
@@ -46,7 +48,7 @@ const publicRow = row => ({
 
 export function createScoreApi({ engine, secret, origins = [], query, verify }) {
   if (!secret || secret.length < 32) throw Error('Set STORMWAKE_SECRET to a persistent random secret of at least 32 characters.')
-  const { commonMetrics, eventMetrics, rulesVersion, validPlacement } = engine
+  const { commonMetrics, eventMetrics, damageTargets, rulesVersion, validPlacement } = engine
   const allowedOrigins = new Set(origins)
   const key = crypto.subtle.importKey('raw', encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
   const hmac = async value => base64url(new Uint8Array(await crypto.subtle.sign('HMAC', await key, encode(value))))
@@ -135,6 +137,7 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
         (challenge && !/^\d{4}-\d{2}-\d{2}$/.test(challenge))) throw failure(400, 'Invalid leaderboard filters.')
       const now = new Date()
       const since = period === 'month' ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) : 0
+      const demos = version === rulesVersion && !challenge ? demoLeaderboard({ event, difficulty, metric }, damageTargets) : []
       if (metric === 'mastery') {
         const rows = await query.all(`
           WITH best AS (
@@ -147,7 +150,7 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
           SELECT recent.*, SUM(best.stars) AS score FROM best JOIN recent USING (player) WHERE recent.n = 1
           GROUP BY best.player ORDER BY score DESC, recent.submitted ASC, recent.id LIMIT 50
         `, version, since, version)
-        return response(200, { rows: rows.map(publicRow), version })
+        return response(200, { rows: rows.map(publicRow), demos, version })
       }
       const rows = await query.all(`
         WITH eligible AS (
@@ -160,7 +163,7 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
         )
         SELECT * FROM ranked WHERE n = 1 ORDER BY score DESC, submitted ASC, id LIMIT 50
       `, '$.metrics.' + metric, version, event, difficulty, since, challenge || '')
-      return response(200, { rows: rows.map(publicRow), version })
+      return response(200, { rows: rows.map(publicRow), demos, version })
     }
     throw failure(404, 'Unknown API route.')
   }
