@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, satelliteCooldown, setBlizzardCourse, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, useAbility } from '../src/sim'
+import { activeStorm, buyUpgrade, chooseBlizzardPattern, collectWeatherPickup, conditions, defaultSeed, hurricaneCategory, impactAreas, leg, nameHurricane, removeUpgrade, routeOptions, satelliteCooldown, setBlizzardCourse, setCourse, startRun, steer, stormStats, tick, tornadoLimits, triggerSatellite, tornadoRadius, totals, travelRate, upgradeCost, useAbility } from '../src/sim'
 import { makeZones, theaters, type Storm } from '../src/world'
 import { lakeAt, loadLocalities, makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { hazardNames, hazards } from '../src/hazards'
 import { advanceFunnel, createFunnel, distanceKm, isActive, makeConvectiveTrack, movePoint } from '../src/convection'
-import { baseEffects } from '../src/upgrades'
+import { baseEffects, trees } from '../src/upgrades'
 import { formatDamage } from '../src/damage'
 import { fatalityRate, lossPerHome, sweptShare } from '../src/impact'
 import { markSwath, tornadoBands, tornadoStrips, type Swath } from '../src/swath'
@@ -448,7 +448,8 @@ describe('global weather scenarios', () => {
 
   it('extends the footprint only after an affordable purchase', () => {
     const run = startRun(gulf, 0, 'Normal', defaultSeed)
-    run.momentum = 5
+    const warm = trees.Hurricane.find(upgrade => upgrade.id === 'warm')!
+    run.momentum = upgradeCost(run, warm)
     expect(buyUpgrade(run, 'warm')).toBe(true)
     expect(buyUpgrade(run, 'bands')).toBe(false)
     advance(run, leg * 2)

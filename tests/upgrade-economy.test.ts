@@ -2,6 +2,24 @@ import { expect, it } from 'vitest'
 import { makeDrop } from '../src/free-drop'
 import { buyUpgrade, defaultSeed, removeUpgrade, startRun, upgradeCost, upgradeRefund } from '../src/sim'
 import { trees } from '../src/upgrades'
+import { upgradeBasePrice } from '../src/evolution-stats'
+import type { Storm } from '../src/world'
+
+it('prices every upgrade from its effects and charges more for major control abilities', () => {
+  for (const [storm, upgrades] of Object.entries(trees) as [Storm, typeof trees[Storm]][]) {
+    for (const upgrade of upgrades) {
+      const price = upgradeBasePrice(storm, upgrade)
+      expect(price, `${storm} · ${upgrade.name}`).toBeGreaterThanOrEqual(3)
+      expect(price, `${storm} · ${upgrade.name}`).toBeLessThanOrEqual(28)
+    }
+  }
+  const price = (storm: Storm, id: string) => upgradeBasePrice(storm, trees[storm].find(upgrade => upgrade.id === id)!)
+  expect(price('Tornado', 'tornado-course')).toBeGreaterThan(price('Tornado', 'tornado-thermal'))
+  expect(price('Thunderstorm', 'funnel-precision')).toBeGreaterThan(price('Thunderstorm', 'funnel-rotation'))
+  expect(price('Wildfire', 'ember-storm')).toBeGreaterThan(price('Wildfire', 'ember-loft'))
+  expect(price('Hurricane', 'eyewall-peak')).toBeGreaterThan(price('Hurricane', 'eye'))
+  expect(price('Tornado', 'tornado-rain-swath')).toBeGreaterThan(price('Tornado', 'rain-wrapped'))
+})
 
 it.each([
   ['Easy', 5, 7, 4, 3],

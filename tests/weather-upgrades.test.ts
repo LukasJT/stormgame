@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { makeDrop, makeHurricaneDrop } from '../src/free-drop'
 import { momentumSchedule, startingMomentum } from '../src/momentum'
 import { thunderstormTypes } from '../src/hazards'
-import { abilityCost, activeStorm, buyUpgrade, collectWeatherPickup, defaultSeed, startRun, stormStats, tick, useAbility } from '../src/sim'
+import { abilityCost, activeStorm, buyUpgrade, collectWeatherPickup, defaultSeed, startRun, stormStats, tick, upgradeCost, useAbility } from '../src/sim'
 import { trees } from '../src/upgrades'
 import { theaters, type Storm } from '../src/world'
 
@@ -22,7 +22,7 @@ it.each(scenarios)('%s can complete a specialty using earned Medium Momentum', (
   const tree = trees[storm]
   const focus = tree.find(upgrade => upgrade.id === capstone)!
   const specialty = tree.filter(upgrade => upgrade.group === focus.group)
-  expect(specialty.filter(upgrade => !upgrade.requires && !upgrade.requiresAll && upgrade.cost <= run.momentum).length).toBeGreaterThanOrEqual(2)
+  expect(specialty.filter(upgrade => !upgrade.requires && !upgrade.requiresAll && upgradeCost(run, upgrade) <= run.momentum).length).toBeGreaterThanOrEqual(2)
   expect(buyUpgrade(run, capstone)).toBe(false)
   while (!run.end && !run.upgrades.includes(capstone) && run.time < 1_200) {
     if (run.pickup) collectWeatherPickup(run, run.pickup.time)

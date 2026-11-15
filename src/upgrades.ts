@@ -23,23 +23,21 @@ export const baseEffects = {
 export type Effects = typeof baseEffects
 
 export type Upgrade = {
-  id: string; name: string; branch: Branch; cost: number; description: string
+  id: string; name: string; branch: Branch; description: string
   requires?: string; requiresAll?: string[]; group?: string; lane?: string; capstone?: true; effects: Partial<Effects>
 }
 
-type UpgradeNode = [id: string, name: string, description: string, effects: Partial<Effects>, cost?: number]
+type UpgradeNode = [id: string, name: string, description: string, effects: Partial<Effects>]
 
 function upgradeTree(branch: Branch, group: string, lanes: Record<string, UpgradeNode[]>, merge?: UpgradeNode, root?: string): Upgrade[] {
-  const tornado = tornadoBranches.some(category => category === branch)
-  const prices = tornado ? [4, 7, 11, 15] : [3, 5, 7, 11]
-  const upgrades = Object.entries(lanes).flatMap(([lane, nodes]) => nodes.map(([id, name, description, effects, cost], index) => ({
+  const upgrades = Object.entries(lanes).flatMap(([lane, nodes]) => nodes.map(([id, name, description, effects], index) => ({
     id, name, description, effects, branch, group, lane,
-    cost: cost ?? prices[index], requires: nodes[index - 1]?.[0] ?? root,
+    requires: nodes[index - 1]?.[0] ?? root,
   })))
   if (!merge) return upgrades
-  const [id, name, description, effects, cost] = merge
+  const [id, name, description, effects] = merge
   return [...upgrades, {
-    id, name, description, effects, branch, group, cost: cost ?? (tornado ? 12 : 9), capstone: true,
+    id, name, description, effects, branch, group, capstone: true,
     requiresAll: Object.values(lanes).map(nodes => nodes.at(-1)![0]),
   }]
 }
@@ -47,21 +45,21 @@ function upgradeTree(branch: Branch, group: string, lanes: Record<string, Upgrad
 const tornadoUpgrades: Upgrade[] = [
   ...upgradeTree('Movement', 'Track endurance', {
     'Forward speed': [
-      ['tornado-track-feed', 'Track Inflow', 'Add 24% of base forward speed and 40 km of travel range. Cover more ground before inflow runs out.', { tornadoSpeed: .24, tornadoRange: 40 }, 5],
-      ['tornado-track-corridor', 'Inflow Corridor', 'Add another 28% of base forward speed and 65 km of travel range.', { tornadoSpeed: .28, tornadoRange: 65 }, 7],
-      ['tornado-track-long', 'Long-Track Circulation', 'Add another 34% of base forward speed and raise the travel limit to 400 km.', { tornadoSpeed: .34, tornadoRange: 85 }, 9],
+      ['tornado-track-feed', 'Track Inflow', 'Add 24% of base forward speed and 40 km of travel range. Cover more ground before inflow runs out.', { tornadoSpeed: .24, tornadoRange: 40 }],
+      ['tornado-track-corridor', 'Inflow Corridor', 'Add another 28% of base forward speed and 65 km of travel range.', { tornadoSpeed: .28, tornadoRange: 65 }],
+      ['tornado-track-long', 'Long-Track Circulation', 'Add another 34% of base forward speed and raise the travel limit to 400 km.', { tornadoSpeed: .34, tornadoRange: 85 }],
     ],
     Lifetime: [
-      ['tornado-life-feed', 'Sustained Updraft', 'Add 25 simulated minutes and make the inflow reserve last longer.', { tornadoLifetime: 100, endurance: .55 }, 5],
-      ['tornado-life-balance', 'Steady Inflow', 'Add another 30 simulated minutes and slow inflow depletion further.', { tornadoLifetime: 120, endurance: .67 }, 8],
-      ['tornado-life-anchor', 'Anchored Mesocyclone', 'Add another 35 simulated minutes, reaching a four-hour lifetime limit, and conserve more inflow.', { tornadoLifetime: 140, endurance: .80 }, 11],
+      ['tornado-life-feed', 'Sustained Updraft', 'Add 25 simulated minutes and make the inflow reserve last longer.', { tornadoLifetime: 100, endurance: .55 }],
+      ['tornado-life-balance', 'Steady Inflow', 'Add another 30 simulated minutes and slow inflow depletion further.', { tornadoLifetime: 120, endurance: .67 }],
+      ['tornado-life-anchor', 'Anchored Mesocyclone', 'Add another 35 simulated minutes, reaching a four-hour lifetime limit, and conserve more inflow.', { tornadoLifetime: 140, endurance: .80 }],
     ],
-  }, ['tornado-sustained-track', 'Sustained Long-Track Vortex', 'Add another 21% of base forward speed and 50 km of travel range. Preserve more inflow on the extended track.', { tornadoSpeed: .21, tornadoRange: 50, endurance: .35 }, 10]),
+  }, ['tornado-sustained-track', 'Sustained Long-Track Vortex', 'Add another 21% of base forward speed and 50 km of travel range. Preserve more inflow on the extended track.', { tornadoSpeed: .21, tornadoRange: 50, endurance: .35 }]),
   ...upgradeTree('Movement', 'Track control', {
     Steering: [
-      ['tornado-thermal', 'Vorticity Alignment', 'Reduce track wobble and steer up to 35° to either side of the natural track.', { trackStability: .25, courseControl: 35 / 180 }, 5],
-      ['tornado-organize', 'Streamwise Inflow', 'Steady the track further and steer up to 90° to either side of the natural track.', { trackStability: .25, courseControl: 55 / 180 }, 7],
-      ['tornado-course', 'Mesocyclone Track Control', 'Set a heading in any direction. The tornado turns faster toward your chosen heading.', { trackStability: .25, courseControl: .5 }, 9],
+      ['tornado-thermal', 'Vorticity Alignment', 'Reduce track wobble and steer up to 35° to either side of the natural track.', { trackStability: .25, courseControl: 35 / 180 }],
+      ['tornado-organize', 'Streamwise Inflow', 'Steady the track further and steer up to 90° to either side of the natural track.', { trackStability: .25, courseControl: 55 / 180 }],
+      ['tornado-course', 'Mesocyclone Track Control', 'Set a heading in any direction. The tornado turns faster toward your chosen heading.', { trackStability: .25, courseControl: .5 }],
     ],
   }),
   ...upgradeTree('Damage', 'Wind speed', {
@@ -79,7 +77,7 @@ const tornadoUpgrades: Upgrade[] = [
       ['wedge', 'Wedge Circulation', 'Add up to another 700 m of damage width.', { width: .70 }],
     ],
   }, undefined, 'vortex'),
-  { id: 'multi-vortex', name: 'Violent Multivortex Core', branch: 'Damage', group: 'Path width', cost: 12, capstone: true,
+  { id: 'multi-vortex', name: 'Violent Multivortex Core', branch: 'Damage', group: 'Path width', capstone: true,
     description: 'Add 15 mph of peak wind and up to 500 m of damage width.',
     requiresAll: ['tornado-inner-core', 'wedge'], effects: { wind: 15, width: .5 } },
   ...upgradeTree('Damage', 'Rain and hail', {
@@ -102,23 +100,23 @@ const tornadoUpgrades: Upgrade[] = [
   }, ['tornado-debris-barrage', 'Ballistic Debris Field', 'Add up to another 75% to baseline track property damage. EF2 and stronger winds also reduce shelter protection by 20%.', { debris: .75, shelterBreach: .20 }], 'rear-flank'),
   ...upgradeTree('Abilities', 'Environmental resistance', {
     Inflow: [
-      ['tornado-cold-pool', 'Buffered Inflow', 'Reduce weakening in both cold and hot, dry air. Also slow weakening over marginal terrain.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .08 }, 5],
-      ['tornado-baroclinic', 'Inflow Stabilization', 'Further resist temperature extremes and slow weakening as surrounding air becomes less favorable.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .10 }, 8],
-      ['tornado-inflow-coupling', 'Temperature Resilience', 'Further reduce weakening in hostile air and extend the inflow reserve.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .12, endurance: .20 }, 10],
+      ['tornado-cold-pool', 'Buffered Inflow', 'Reduce weakening in both cold and hot, dry air. Also slow weakening over marginal terrain.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .08 }],
+      ['tornado-baroclinic', 'Inflow Stabilization', 'Further resist temperature extremes and slow weakening as surrounding air becomes less favorable.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .10 }],
+      ['tornado-inflow-coupling', 'Temperature Resilience', 'Further reduce weakening in hostile air and extend the inflow reserve.', { coldTolerance: .24, heatTolerance: .24, hazardBuffer: .12, endurance: .20 }],
     ],
   }),
   ...upgradeTree('Abilities', 'Warning disruption', {
     Response: [
-      ['tornado-response', 'Radar Signature Masking', 'Delay alerts and reduce shelter uptake. With less advance warning, residents have less time to protect themselves and secure property.', { warningDelay: 22, gridlock: 22, warningFriction: .18 }, 4],
-      ['tornado-grid', 'Repeater Failure', 'Delay alerts further. EF1 and stronger winds cut local broadcasts, slowing sheltering and adding property losses during outages.', { warningDelay: 12, gridlock: 14, warningFriction: .12, outageTime: 64, broadcast: .28, supply: .12 }, 6],
-      ['tornado-warning-overload', 'Response Overload', 'Prolong outages and increase their property losses. Fewer residents reach shelter, and those who do have less protection when power fails.', { warningDelay: 12, gridlock: 20, warningFriction: .12, outageTime: 36, broadcast: .22, power: .18, supply: .18 }, 8],
+      ['tornado-response', 'Radar Signature Masking', 'Delay alerts and reduce shelter uptake. With less advance warning, residents have less time to protect themselves and secure property.', { warningDelay: 22, gridlock: 22, warningFriction: .18 }],
+      ['tornado-grid', 'Repeater Failure', 'Delay alerts further. EF1 and stronger winds cut local broadcasts, slowing sheltering and adding property losses during outages.', { warningDelay: 12, gridlock: 14, warningFriction: .12, outageTime: 64, broadcast: .28, supply: .12 }],
+      ['tornado-warning-overload', 'Response Overload', 'Prolong outages and increase their property losses. Fewer residents reach shelter, and those who do have less protection when power fails.', { warningDelay: 12, gridlock: 20, warningFriction: .12, outageTime: 36, broadcast: .22, power: .18, supply: .18 }],
     ],
   }),
   ...upgradeTree('Abilities', 'Satellite tornadoes', {
     Satellites: [
-      ['tornado-satellite-seed', 'Satellite Rotation', 'Spawn a weaker tornado on land in a random direction. Recharges in 25 simulated minutes.', { satelliteTrigger: 1, satelliteChance: .10 }, 6],
-      ['tornado-satellite-lobes', 'Unstable Rotation Lobes', 'Reduce recharge to 20 simulated minutes. Satellites last longer and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .24, tornadoLife: 6 }, 8],
-      ['tornado-satellite-split', 'Vortex Split', 'Reduce recharge to 15 simulated minutes. Satellites persist longer, cover more ground, and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .30, tornadoLife: 8, tornadoWidth: .30 }, 10],
+      ['tornado-satellite-seed', 'Satellite Rotation', 'Spawn a weaker tornado on land in a random direction. Recharges in 25 simulated minutes.', { satelliteTrigger: 1, satelliteChance: .10 }],
+      ['tornado-satellite-lobes', 'Unstable Rotation Lobes', 'Reduce recharge to 20 simulated minutes. Satellites last longer and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .24, tornadoLife: 6 }],
+      ['tornado-satellite-split', 'Vortex Split', 'Reduce recharge to 15 simulated minutes. Satellites persist longer, cover more ground, and form on their own more often.', { satelliteTrigger: 1, satelliteChance: .30, tornadoLife: 8, tornadoWidth: .30 }],
     ],
   }),
 ]
@@ -156,7 +154,7 @@ const hurricane = [
   }, ['inland-engine', 'Inland Engine', 'Reduce base inland weakening by another 7%.', { inlandBuffer: .07 }]),
   ...upgradeTree('Impact', 'Sustained winds', {
     Eyewall: [
-      ['eye', 'Tight Eye', 'Add up to 12 mph to sustained winds.', { wind: 12 }, 4],
+      ['eye', 'Tight Eye', 'Add up to 12 mph to sustained winds.', { wind: 12 }],
       ['rapid', 'Eyewall Contraction', 'Add up to another 18 mph while the core holds together.', { wind: 18 }],
       ['eyewall-jet', 'Eyewall Jet', 'Add up to another 25 mph to sustained winds.', { wind: 25 }],
       ['eyewall-peak', 'Intense Eyewall', 'Add up to another 34 mph. The extra wind fades as the core weakens.', { wind: 34 }],
@@ -164,7 +162,7 @@ const hurricane = [
   }),
   ...upgradeTree('Impact', 'Storm size and reach', {
     Circulation: [
-      ['bands', 'Outer Bands', 'Widen the storm by 45 km and strengthen its outer impact.', { width: 45, fringe: 1 }, 4],
+      ['bands', 'Outer Bands', 'Widen the storm by 45 km and strengthen its outer impact.', { width: 45, fringe: 1 }],
       ['broad-circulation', 'Broad Circulation', 'Widen the storm by another 50 km.', { width: 50 }],
       ['outer-wind-field', 'Outer Wind Field', 'Extend the damaging footprint and add another 55 km of width.', { width: 55, fringe: 1 }],
       ['expansive-circulation', 'Expansive Circulation', 'Add another 60 km of width and strengthen impact at the edges.', { width: 60, fringe: 1 }],
@@ -180,7 +178,7 @@ const hurricane = [
   }),
   ...upgradeTree('Impact', 'Coastal surge', {
     Surge: [
-      ['surge', 'Storm Surge', 'Push water ashore during sea-to-land crossings.', { surge: .08 }, 4],
+      ['surge', 'Storm Surge', 'Push water ashore during sea-to-land crossings.', { surge: .08 }],
       ['surge-fan', 'Surge Fan', 'Strengthen the surge and expose more coastal districts.', { surge: .035, surgeFringe: 1 }],
       ['coastal-fetch', 'Long Coastal Fetch', 'Drive water across a wider stretch of exposed coast.', { surge: .035, surgeFringe: 1 }],
       ['coastal-inundation', 'Coastal Inundation', 'Increase the force of landfall surge.', { surge: .055 }],
@@ -217,91 +215,91 @@ const hurricane = [
 const blizzard = [
   ...upgradeTree('Movement', 'Storm track', {
     Steering: [
-      ['snow-steer', 'Aligned Flow', 'Reduce drift away from the prevailing wind.', { trackStability: .32 }, 3],
-      ['snow-track', 'Stable Storm Track', 'Steady the path as the storm travels.', { trackStability: .31 }, 5],
-      ['snow-alignment', 'Deep-Layer Alignment', 'Keep the band on a more predictable track.', { trackStability: .37 }, 7],
+      ['snow-steer', 'Aligned Flow', 'Reduce drift away from the prevailing wind.', { trackStability: .32 }],
+      ['snow-track', 'Stable Storm Track', 'Steady the path as the storm travels.', { trackStability: .31 }],
+      ['snow-alignment', 'Deep-Layer Alignment', 'Keep the band on a more predictable track.', { trackStability: .37 }],
     ],
   }),
   ...upgradeTree('Movement', 'Forward speed', {
     Translation: [
-      ['snow-slow', 'Slow Translation', 'Move 12% more slowly so snow has longer to accumulate.', { spread: -.12 }, 3],
-      ['snow-block', 'Blocking Pattern', 'Slow the storm by another 10% of base speed.', { spread: -.10 }, 5],
-      ['snow-stall', 'Anchored Band', 'Slow the storm by another 8% of base speed.', { spread: -.08 }, 7],
+      ['snow-slow', 'Slow Translation', 'Move 12% more slowly so snow has longer to accumulate.', { spread: -.12 }],
+      ['snow-block', 'Blocking Pattern', 'Slow the storm by another 10% of base speed.', { spread: -.10 }],
+      ['snow-stall', 'Anchored Band', 'Slow the storm by another 8% of base speed.', { spread: -.08 }],
     ],
   }),
   ...upgradeTree('Movement', 'Persistence', {
     Support: [
-      ['snow-support', 'Steady Cold Feed', 'Use environmental support more slowly. Alberta Clippers also hold together longer before weakening with age.', { endurance: .16 }, 3],
-      ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track and delay age-related weakening further for Alberta Clippers.', { endurance: .18 }, 5],
-      ['polar-lock', 'Polar Lock', 'Sustain the circulation on long tracks. An Alberta Clipper can remain active through the Great Lakes and reach the Atlantic.', { endurance: .24 }, 7],
+      ['snow-support', 'Steady Cold Feed', 'Use environmental support more slowly. Alberta Clippers also hold together longer before weakening with age.', { endurance: .16 }],
+      ['snow-reserve', 'Cold-Air Reserve', 'Preserve support farther down the track and delay age-related weakening further for Alberta Clippers.', { endurance: .18 }],
+      ['polar-lock', 'Polar Lock', 'Sustain the circulation on long tracks. An Alberta Clipper can remain active through the Great Lakes and reach the Atlantic.', { endurance: .24 }],
     ],
   }),
   ...upgradeTree('Damage', 'Moisture and snowfall', {
     'Moisture uptake': [
-      ['powder', 'Moisture Uptake', 'Absorb more moisture as cold air feeds the storm.', { snowGain: .24 }, 3],
-      ['powder-drift', 'Moisture Convergence', 'Feed more moisture into the snow band.', { snowGain: .22 }, 5],
-      ['snow-feeder', 'Persistent Moisture Feed', 'Keep drawing moisture into the storm as it moves.', { snowGain: .22 }, 7],
+      ['powder', 'Moisture Uptake', 'Absorb more moisture as cold air feeds the storm.', { snowGain: .24 }],
+      ['powder-drift', 'Moisture Convergence', 'Feed more moisture into the snow band.', { snowGain: .22 }],
+      ['snow-feeder', 'Persistent Moisture Feed', 'Keep drawing moisture into the storm as it moves.', { snowGain: .22 }],
     ],
     'Snow production': [
-      ['snow-crystals', 'Snow Crystal Growth', 'Increase the snowfall rate in cold air.', { snowRate: .18 }, 3],
-      ['snow-aggregates', 'Heavy Flakes', 'Increase the accumulation rate as flakes clump together.', { snowRate: .18 }, 5],
-      ['snow-lift', 'Sustained Lift', 'Support heavier precipitation in the band.', { snowRate: .21 }, 7],
-      ['snow-dump', 'Intense Snowfall', 'Further increase the snowfall rate when moisture is available.', { snowRate: .26 }, 10],
+      ['snow-crystals', 'Snow Crystal Growth', 'Increase the snowfall rate in cold air.', { snowRate: .18 }],
+      ['snow-aggregates', 'Heavy Flakes', 'Increase the accumulation rate as flakes clump together.', { snowRate: .18 }],
+      ['snow-lift', 'Sustained Lift', 'Support heavier precipitation in the band.', { snowRate: .21 }],
+      ['snow-dump', 'Intense Snowfall', 'Further increase the snowfall rate when moisture is available.', { snowRate: .26 }],
     ],
-  }, ['snow-plume', 'Deep Snow Plume', 'Combine strong moisture uptake with heavier snowfall.', { snowGain: .20, snowRate: .20 }, 11]),
+  }, ['snow-plume', 'Deep Snow Plume', 'Combine strong moisture uptake with heavier snowfall.', { snowGain: .20, snowRate: .20 }]),
   ...upgradeTree('Damage', 'Band width', {
     'Snow shield': [
-      ['snow-bands', 'Snow Bands', 'Widen the area receiving snow by 14 km, or 39 km for an Alberta Clipper.', { width: 14 }, 3],
-      ['snow-squalls', 'Expanded Snow Shield', 'Add 16 km to the snow footprint, or 45 km for an Alberta Clipper.', { width: 16 }, 5],
+      ['snow-bands', 'Snow Bands', 'Widen the area receiving snow by 14 km, or 39 km for an Alberta Clipper.', { width: 14 }],
+      ['snow-squalls', 'Expanded Snow Shield', 'Add 16 km to the snow footprint, or 45 km for an Alberta Clipper.', { width: 16 }],
     ],
     'Band edges': [
-      ['snow-fringe', 'Fringe Flurries', 'Add 10 km of light snow around the main band, or 28 km for an Alberta Clipper.', { width: 10 }, 3],
-      ['snow-wrap', 'Wraparound Snow', 'Add another 14 km to the snow footprint, or 39 km for an Alberta Clipper.', { width: 14 }, 5],
+      ['snow-fringe', 'Fringe Flurries', 'Add 10 km of light snow around the main band, or 28 km for an Alberta Clipper.', { width: 10 }],
+      ['snow-wrap', 'Wraparound Snow', 'Add another 14 km to the snow footprint, or 39 km for an Alberta Clipper.', { width: 14 }],
     ],
-  }, ['snow-wide', 'Broad Snow Shield', 'Add 20 km to the snow footprint, or 56 km for an Alberta Clipper.', { width: 20 }, 8]),
+  }, ['snow-wide', 'Broad Snow Shield', 'Add 20 km to the snow footprint, or 56 km for an Alberta Clipper.', { width: 20 }]),
   ...upgradeTree('Damage', 'Wind and whiteouts', {
     Wind: [
-      ['gust-front', 'Gust Front', 'Raise peak winds by up to 7 mph.', { wind: 7 }, 3],
-      ['snow-gusts', 'Strong Surface Gusts', 'Add up to another 9 mph to peak winds.', { wind: 9 }, 5],
+      ['gust-front', 'Gust Front', 'Raise peak winds by up to 7 mph.', { wind: 7 }],
+      ['snow-gusts', 'Strong Surface Gusts', 'Add up to another 9 mph to peak winds.', { wind: 9 }],
     ],
     'Blowing snow': [
-      ['snow-loft', 'Lofted Snow', 'Let wind lift more settled snow and reduce visibility.', { drift: .20 }, 3],
-      ['whiteout', 'Blowing Snow', 'Increase blowing snow when wind crosses an existing snowpack.', { drift: .24 }, 5],
+      ['snow-loft', 'Lofted Snow', 'Let wind lift more settled snow and reduce visibility.', { drift: .20 }],
+      ['whiteout', 'Blowing Snow', 'Increase blowing snow when wind crosses an existing snowpack.', { drift: .24 }],
     ],
-  }, ['whiteout-lock', 'Ground Blizzard', 'Stronger winds and more blowing snow make whiteouts more likely.', { wind: 7, drift: .25 }, 9]),
+  }, ['whiteout-lock', 'Ground Blizzard', 'Stronger winds and more blowing snow make whiteouts more likely.', { wind: 7, drift: .25 }]),
   ...upgradeTree('Damage', 'Drifting snow', {
     Drifts: [
-      ['snow-drifts', 'Snowdrifts', 'Increase drifting snow and damage from deep accumulations.', { drift: .14 }, 3],
-      ['snow-loading', 'Snow Loading', 'Raise property losses as snow accumulates.', { gust: .16 }, 5],
-      ['snow-burden', 'Heavy Snow Load', 'Increase damage from snow and wind.', { gust: .21 }, 7],
+      ['snow-drifts', 'Snowdrifts', 'Increase drifting snow and damage from deep accumulations.', { drift: .14 }],
+      ['snow-loading', 'Snow Loading', 'Raise property losses as snow accumulates.', { gust: .16 }],
+      ['snow-burden', 'Heavy Snow Load', 'Increase damage from snow and wind.', { gust: .21 }],
     ],
   }),
   ...upgradeTree('Abilities', 'Cold-air resilience', {
     'Cold core': [
-      ['arctic-inflow', 'Arctic Inflow', 'Build strength faster in favorable cold air.', { hazardGain: .035 }, 3],
-      ['arctic-feed', 'Arctic Feed', 'Reduce weakening during warmer intervals.', { hazardBuffer: .17 }, 5],
+      ['arctic-inflow', 'Arctic Inflow', 'Build strength faster in favorable cold air.', { hazardGain: .035 }],
+      ['arctic-feed', 'Arctic Feed', 'Reduce weakening during warmer intervals.', { hazardBuffer: .17 }],
     ],
     'Cold margin': [
-      ['snow-cold', 'Cold-Air Retention', 'Preserve snowfall at the warm edge of the band.', { coldTolerance: .10 }, 3],
-      ['snow-warm-front', 'Resist Thaw', 'Protect the cold core against short warm-air intrusions.', { coldTolerance: .12 }, 5],
+      ['snow-cold', 'Cold-Air Retention', 'Preserve snowfall at the warm edge of the band.', { coldTolerance: .10 }],
+      ['snow-warm-front', 'Resist Thaw', 'Protect the cold core against short warm-air intrusions.', { coldTolerance: .12 }],
     ],
-  }, ['snow-cold-lock', 'Cold-Core Resilience', 'Resist warming and preserve the cold air needed for snow.', { coldTolerance: .11, hazardBuffer: .17 }, 8]),
+  }, ['snow-cold-lock', 'Cold-Core Resilience', 'Resist warming and preserve the cold air needed for snow.', { coldTolerance: .11, hazardBuffer: .17 }]),
   ...upgradeTree('Abilities', 'Lake and ocean moisture', {
     'Lake fetch': [
-      ['snow-lake', 'Lake Inflow', 'Absorb more lake moisture. An Alberta Clipper can use it to rebuild over the Great Lakes.', { lakeMoisture: .25 }, 3],
-      ['snow-lake-band', 'Long Lake Fetch', 'Increase lake moisture uptake and strengthen a Clipper’s recovery over the Great Lakes.', { lakeMoisture: .32 }, 5],
+      ['snow-lake', 'Lake Inflow', 'Absorb more lake moisture. An Alberta Clipper can use it to rebuild over the Great Lakes.', { lakeMoisture: .25 }],
+      ['snow-lake-band', 'Long Lake Fetch', 'Increase lake moisture uptake and strengthen a Clipper’s recovery over the Great Lakes.', { lakeMoisture: .32 }],
     ],
     'Ocean feed': [
-      ['snow-ocean', 'Maritime Inflow', 'Absorb more moisture while crossing cold coastal waters.', { oceanMoisture: .23 }, 3],
-      ['snow-coastal', 'Coastal Moisture Feed', 'Increase ocean moisture uptake further.', { oceanMoisture: .32 }, 5],
+      ['snow-ocean', 'Maritime Inflow', 'Absorb more moisture while crossing cold coastal waters.', { oceanMoisture: .23 }],
+      ['snow-coastal', 'Coastal Moisture Feed', 'Increase ocean moisture uptake further.', { oceanMoisture: .32 }],
     ],
-  }, ['snow-water-reserve', 'Water-Fed Snow Band', 'Hold moisture from lakes and oceans longer after moving inland.', { snowRetention: .65 }, 8]),
+  }, ['snow-water-reserve', 'Water-Fed Snow Band', 'Hold moisture from lakes and oceans longer after moving inland.', { snowRetention: .65 }]),
   ...upgradeTree('Abilities', 'Ice and blocked roads', {
     Infrastructure: [
-      ['ice-grid', 'Ice-Loaded Lines', 'Damage triggers power outages that slow sheltering.', { outageTime: 44, broadcast: .18 }, 3],
-      ['blocked-roads', 'Blocked Roads', 'Drifts increase travel time to shelter.', { gridlock: 20 }, 5],
-      ['isolated-towns', 'Isolated Towns', 'Lengthen outages and keep roads blocked longer.', { outageTime: 26, gridlock: 12 }, 7],
-      ['snow-response', 'Regional Disruption', 'Slow emergency response in the hardest-hit areas.', { overload: .17 }, 10],
+      ['ice-grid', 'Ice-Loaded Lines', 'Damage triggers power outages that slow sheltering.', { outageTime: 44, broadcast: .18 }],
+      ['blocked-roads', 'Blocked Roads', 'Drifts increase travel time to shelter.', { gridlock: 20 }],
+      ['isolated-towns', 'Isolated Towns', 'Lengthen outages and keep roads blocked longer.', { outageTime: 26, gridlock: 12 }],
+      ['snow-response', 'Regional Disruption', 'Slow emergency response in the hardest-hit areas.', { overload: .17 }],
     ],
   }),
 ]
@@ -309,86 +307,86 @@ const blizzard = [
 const wildfire = [
   ...upgradeTree('Movement', 'Wind-driven spread', {
     Wind: [
-      ['spread', 'Surface Gusts', 'Help flames reach adjacent fuel.', { spread: .16 }, 3],
-      ['fire-wind', 'Sustained Wind', 'Increase heat transfer toward unburned ground.', { spread: .18 }, 5],
+      ['spread', 'Surface Gusts', 'Help flames reach adjacent fuel.', { spread: .16 }],
+      ['fire-wind', 'Sustained Wind', 'Increase heat transfer toward unburned ground.', { spread: .18 }],
     ],
-    Front: [['fire-edge', 'Fast-Moving Edge', 'Increase the rate of spread along the perimeter.', { spread: .12 }, 4]],
-  }, ['fire-run', 'Wind-Driven Run', 'Allow another patch to ignite during a spread step.', { spread: .12, fringe: 1 }, 10]),
+    Front: [['fire-edge', 'Fast-Moving Edge', 'Increase the rate of spread along the perimeter.', { spread: .12 }]],
+  }, ['fire-run', 'Wind-Driven Run', 'Allow another patch to ignite during a spread step.', { spread: .12, fringe: 1 }]),
   ...upgradeTree('Movement', 'Fuel continuity', {
     Surface: [
-      ['dry-fuels', 'Dry Fine Fuels', 'Dry grass and litter help fire build heat.', { hazardGain: .008 }, 3],
-      ['fire-continuity', 'Continuous Litter', 'Move more easily through connected surface fuel.', { spread: .15 }, 5],
+      ['dry-fuels', 'Dry Fine Fuels', 'Dry grass and litter help fire build heat.', { hazardGain: .008 }],
+      ['fire-continuity', 'Continuous Litter', 'Move more easily through connected surface fuel.', { spread: .15 }],
     ],
-    Reserve: [['fire-logs', 'Coarse Fuel', 'Sustain burning with a larger fuel reserve.', { endurance: .16 }, 4]],
-  }, ['deep-roots', 'Deep Fuel Reserve', 'Slow fuel exhaustion and sustain the fire edge.', { endurance: .20, spread: .10 }, 9]),
+    Reserve: [['fire-logs', 'Coarse Fuel', 'Sustain burning with a larger fuel reserve.', { endurance: .16 }]],
+  }, ['deep-roots', 'Deep Fuel Reserve', 'Slow fuel exhaustion and sustain the fire edge.', { endurance: .20, spread: .10 }]),
   ...upgradeTree('Movement', 'Moisture resistance', {
     Duff: [
-      ['rain-proof', 'Duff Insulation', 'Reduce cooling during damp weather.', { hazardBuffer: .16 }, 3],
-      ['fire-deep-duff', 'Deep Duff', 'Retain heat and fuel in damp conditions.', { hazardBuffer: .13, endurance: .10 }, 5],
+      ['rain-proof', 'Duff Insulation', 'Reduce cooling during damp weather.', { hazardBuffer: .16 }],
+      ['fire-deep-duff', 'Deep Duff', 'Retain heat and fuel in damp conditions.', { hazardBuffer: .13, endurance: .10 }],
     ],
-    Drying: [['fire-drying', 'Preheated Fuel', 'Build heat faster as nearby fuel dries.', { hazardGain: .009 }, 4]],
-  }, ['fire-dry-window', 'Persistent Drying', 'Retain more heat when damp air returns.', { hazardBuffer: .18, hazardGain: .006 }, 9]),
+    Drying: [['fire-drying', 'Preheated Fuel', 'Build heat faster as nearby fuel dries.', { hazardGain: .009 }]],
+  }, ['fire-dry-window', 'Persistent Drying', 'Retain more heat when damp air returns.', { hazardBuffer: .18, hazardGain: .006 }]),
   ...upgradeTree('Damage', 'Crown fire', {
     Canopy: [
-      ['crown', 'Torching Canopy', 'Build hotter flames as individual crowns ignite.', { hazardGain: .009 }, 3],
-      ['fire-ladder', 'Ladder Fuels', 'Carry fire into the canopy and increase damage.', { hazardDamage: .13, hazardGain: .006 }, 5],
+      ['crown', 'Torching Canopy', 'Build hotter flames as individual crowns ignite.', { hazardGain: .009 }],
+      ['fire-ladder', 'Ladder Fuels', 'Carry fire into the canopy and increase damage.', { hazardDamage: .13, hazardGain: .006 }],
     ],
     Heat: [
-      ['fire-radiant', 'Radiant Heat', 'Increase damage around burning fuel.', { hazardDamage: .16 }, 3],
-      ['fire-crown-front', 'Crown Fire Front', 'Sustain a hotter, more damaging crown fire.', { hazardDamage: .15, hazardGain: .009 }, 6],
+      ['fire-radiant', 'Radiant Heat', 'Increase damage around burning fuel.', { hazardDamage: .16 }],
+      ['fire-crown-front', 'Crown Fire Front', 'Sustain a hotter, more damaging crown fire.', { hazardDamage: .15, hazardGain: .009 }],
     ],
-  }, ['fire-crown-run', 'Active Crown Fire', 'Increase heat and damage across the fire front.', { hazardDamage: .22, hazardGain: .012 }, 11]),
+  }, ['fire-crown-run', 'Active Crown Fire', 'Increase heat and damage across the fire front.', { hazardDamage: .22, hazardGain: .012 }]),
   ...upgradeTree('Damage', 'Ember spotting', {
     Embers: [
-      ['embers', 'Lofted Firebrands', 'Recharge the Send Embers ability faster.', { chargeGain: .18 }, 3],
-      ['ember-loft', 'Long-Range Embers', 'Reach farther downwind and let intense fire start occasional spot fires.', { fireSpot: 1 }, 6],
+      ['embers', 'Lofted Firebrands', 'Recharge the Send Embers ability faster.', { chargeGain: .18 }],
+      ['ember-loft', 'Long-Range Embers', 'Reach farther downwind and let intense fire start occasional spot fires.', { fireSpot: 1 }],
     ],
     Ignition: [
-      ['fire-receptive', 'Receptive Fuel', 'Give new spot fires more starting heat.', { burstPower: .18 }, 3],
-      ['fire-ember-shower', 'Ember Shower', 'Further strengthen newly ignited spot fires.', { burstPower: .18, chargeGain: .10 }, 6],
+      ['fire-receptive', 'Receptive Fuel', 'Give new spot fires more starting heat.', { burstPower: .18 }],
+      ['fire-ember-shower', 'Ember Shower', 'Further strengthen newly ignited spot fires.', { burstPower: .18, chargeGain: .10 }],
     ],
-  }, ['ember-storm', 'Ember Storm', 'Extend spotting reach, start hotter spot fires, and target a highlighted downwind cell.', { fireSpot: 1, burstPower: .22 }, 11]),
+  }, ['ember-storm', 'Ember Storm', 'Extend spotting reach, start hotter spot fires, and target a highlighted downwind cell.', { fireSpot: 1, burstPower: .22 }]),
   ...upgradeTree('Damage', 'Persistent heat', {
     Fuel: [
-      ['smolder', 'Smoldering Fuels', 'Use fuel more slowly.', { endurance: .12 }, 3],
-      ['fire-coals', 'Deep Coals', 'Maintain heat and burn for longer.', { endurance: .14, hazardGain: .005 }, 5],
+      ['smolder', 'Smoldering Fuels', 'Use fuel more slowly.', { endurance: .12 }],
+      ['fire-coals', 'Deep Coals', 'Maintain heat and burn for longer.', { endurance: .14, hazardGain: .005 }],
     ],
-    Heat: [['fire-buildup', 'Heat Buildup', 'Increase damage from active fire.', { hazardDamage: .13 }, 4]],
-  }, ['fire-holdover', 'Holdover Heat', 'Extend burning and intensify damage.', { endurance: .16, hazardDamage: .16 }, 9]),
+    Heat: [['fire-buildup', 'Heat Buildup', 'Increase damage from active fire.', { hazardDamage: .13 }]],
+  }, ['fire-holdover', 'Holdover Heat', 'Extend burning and intensify damage.', { endurance: .16, hazardDamage: .16 }]),
   ...upgradeTree('Damage', 'Built exposure', {
     Structures: [
-      ['fire-structures', 'Structure Exposure', 'Increase property damage in populated areas.', { hazardDamage: .14 }, 3],
-      ['fire-interface', 'Interface Fire', 'Increase damage at the edge of settlements.', { hazardDamage: .16 }, 5],
+      ['fire-structures', 'Structure Exposure', 'Increase property damage in populated areas.', { hazardDamage: .14 }],
+      ['fire-interface', 'Interface Fire', 'Increase damage at the edge of settlements.', { hazardDamage: .16 }],
     ],
-    Smoke: [['fire-smoke-damage', 'Dense Smoke', 'Add to damage in affected districts.', { hazardDamage: .10 }, 4]],
-  }, ['fire-urban-edge', 'Urban Interface', 'Increase property damage where fire reaches settlements.', { hazardDamage: .20 }, 9]),
+    Smoke: [['fire-smoke-damage', 'Dense Smoke', 'Add to damage in affected districts.', { hazardDamage: .10 }]],
+  }, ['fire-urban-edge', 'Urban Interface', 'Increase property damage where fire reaches settlements.', { hazardDamage: .20 }]),
   ...upgradeTree('Abilities', 'Ground crew resistance', {
     Perimeter: [
-      ['fire-flanks', 'Active Flanks', 'Slow containment as crews divide across the perimeter.', { fireLine: .09 }, 3],
-      ['fire-line-hold', 'Persistent Flanks', 'Further slow crew containment.', { fireLine: .09 }, 6],
+      ['fire-flanks', 'Active Flanks', 'Slow containment as crews divide across the perimeter.', { fireLine: .09 }],
+      ['fire-line-hold', 'Persistent Flanks', 'Further slow crew containment.', { fireLine: .09 }],
     ],
     Front: [
-      ['fire-line-heat', 'Intense Flame Front', 'High heat limits direct attack.', { fireLine: .08 }, 3],
-      ['fire-long-edge', 'Long Perimeter', 'Increase the amount of line crews must hold.', { fireLine: .08 }, 6],
+      ['fire-line-heat', 'Intense Flame Front', 'High heat limits direct attack.', { fireLine: .08 }],
+      ['fire-long-edge', 'Long Perimeter', 'Increase the amount of line crews must hold.', { fireLine: .08 }],
     ],
-  }, ['fire-line-pressure', 'Perimeter Pressure', 'Slow progress on crew containment lines.', { fireLine: .11 }, 12]),
+  }, ['fire-line-pressure', 'Perimeter Pressure', 'Slow progress on crew containment lines.', { fireLine: .11 }]),
   ...upgradeTree('Abilities', 'Aerial suppression resistance', {
     Smoke: [
-      ['fire-smoke-column', 'Smoke Column', 'Reduce the effect of aerial drops.', { fireAir: .12 }, 3],
-      ['fire-low-visibility', 'Low Visibility', 'Further reduce aerial suppression.', { fireAir: .12 }, 6],
+      ['fire-smoke-column', 'Smoke Column', 'Reduce the effect of aerial drops.', { fireAir: .12 }],
+      ['fire-low-visibility', 'Low Visibility', 'Further reduce aerial suppression.', { fireAir: .12 }],
     ],
     Weather: [
-      ['fire-gusty-air', 'Gusty Air', 'Make aerial suppression less effective in the model.', { fireAir: .10 }, 3],
-      ['fire-turbulence', 'Turbulent Air', 'Reduce containment gained during a drop.', { fireAir: .10 }, 6],
+      ['fire-gusty-air', 'Gusty Air', 'Make aerial suppression less effective in the model.', { fireAir: .10 }],
+      ['fire-turbulence', 'Turbulent Air', 'Reduce containment gained during a drop.', { fireAir: .10 }],
     ],
-  }, ['fire-flight-window', 'Limited Flight Window', 'Further reduce the effect of aerial suppression.', { fireAir: .12 }, 11]),
+  }, ['fire-flight-window', 'Limited Flight Window', 'Further reduce the effect of aerial suppression.', { fireAir: .12 }]),
   ...upgradeTree('Abilities', 'Warnings and evacuation', {
     Warnings: [
-      ['evacuation', 'Late Detection', 'Give crews and evacuation warnings a later start.', { fireDelay: 8, warningDelay: 6 }, 3],
-      ['response', 'Overwhelmed Response', 'Delay additional response in damaged districts.', { fireDelay: 6, overload: .12 }, 6],
+      ['evacuation', 'Late Detection', 'Give crews and evacuation warnings a later start.', { fireDelay: 8, warningDelay: 6 }],
+      ['response', 'Overwhelmed Response', 'Delay additional response in damaged districts.', { fireDelay: 6, overload: .12 }],
     ],
-    Roads: [['smoke-roads', 'Smoke Over Roads', 'Slow evacuation in low visibility.', { gridlock: 14 }, 4]],
-  }, ['fire-evac-pressure', 'Evacuation Pressure', 'Extend response and evacuation delays.', { fireDelay: 7, warningDelay: 6, gridlock: 10 }, 10]),
+    Roads: [['smoke-roads', 'Smoke Over Roads', 'Slow evacuation in low visibility.', { gridlock: 14 }]],
+  }, ['fire-evac-pressure', 'Evacuation Pressure', 'Extend response and evacuation delays.', { fireDelay: 7, warningDelay: 6, gridlock: 10 }]),
 ]
 
 const dustStorm = [
@@ -561,7 +559,7 @@ const thunderstorm = [
     Steering: [
       ['track-align', 'Flow Alignment', 'Reduce course wobble and move 12% faster.', { trackStability: .26, spread: .12 }],
     ],
-  }, ['track-control', 'Course Control', 'Set a preferred heading. The storm turns gradually.', { courseControl: 1 }, 9]),
+  }, ['track-control', 'Course Control', 'Set a preferred heading. The storm turns gradually.', { courseControl: 1 }]),
   ...upgradeTree('Movement', 'Inflow and longevity', {
     Inflow: [
       ['life-inflow', 'Sustained Inflow', 'Slow weakening in stable air.', { hazardBuffer: .14 }],
@@ -570,7 +568,7 @@ const thunderstorm = [
     Updraft: [
       ['life-recharge', 'Persistent Updraft', 'Replenish rotation faster after a tornado drop.', { chargeGain: .13 }],
     ],
-  }, ['life-window', 'Long-Lived System', 'Slow inflow depletion and resist weakening.', { endurance: .23, hazardBuffer: .12 }, 9]),
+  }, ['life-window', 'Long-Lived System', 'Slow inflow depletion and resist weakening.', { endurance: .23, hazardBuffer: .12 }]),
   ...upgradeTree('Movement', 'Forward motion', {
     Flow: [
       ['storm-flow', 'Deep-Layer Flow', 'Move 8% faster.', { spread: .08 }],
@@ -587,7 +585,7 @@ const thunderstorm = [
       ['storm-gusts', 'Damaging Gusts', 'Add up to 9 mph to surface winds.', { wind: 9 }],
       ['storm-downburst', 'Downburst Core', 'Increase local wind damage and add up to 10 mph.', { wind: 10, hazardDamage: .18 }],
     ],
-  }, ['storm-bow', 'Bowing Line', 'Build a stronger outflow and concentrate the fastest winds along the leading edge.', { outflow: 1, wind: 9, hazardDamage: .15 }, 12]),
+  }, ['storm-bow', 'Bowing Line', 'Build a stronger outflow and concentrate the fastest winds along the leading edge.', { outflow: 1, wind: 9, hazardDamage: .15 }]),
   ...upgradeTree('Damage', 'Hail and ice', {
     Hail: [
       ['impact-hail', 'Hail Embryos', 'Grow hail in the updraft and begin damaging property under the core.', { hail: .18, hailRadius: 5 }],
@@ -597,7 +595,7 @@ const thunderstorm = [
       ['storm-hail-shaft', 'Wide Hail Shaft', 'Spread hail damage over more ground.', { hail: .10, hailRadius: 4 }],
       ['storm-hail-swath', 'Hail Swath', 'Widen the hail footprint and increase property damage.', { hail: .15, hailRadius: 4 }],
     ],
-  }, ['storm-hail-core', 'Giant Hail Core', 'Sustain a concentrated swath of damaging hail.', { hail: .27, hailRadius: 5 }, 11]),
+  }, ['storm-hail-core', 'Giant Hail Core', 'Sustain a concentrated swath of damaging hail.', { hail: .27, hailRadius: 5 }]),
   ...upgradeTree('Damage', 'Rainfall and drainage', {
     Rain: [
       ['flood-rain', 'Heavy Rain', 'Leave runoff behind the storm.', { floodPower: .26 }],
@@ -606,7 +604,7 @@ const thunderstorm = [
     Drainage: [
       ['flood-drain', 'Overloaded Drainage', 'Keep floodwater in low-lying districts longer.', { floodPower: .14, floodLife: 19 }],
     ],
-  }, ['flood-cascade', 'Flash Flood Cascade', 'Increase flood damage, especially where cells keep passing over the same area.', { floodPower: .27, floodLife: 12 }, 9]),
+  }, ['flood-cascade', 'Flash Flood Cascade', 'Increase flood damage, especially where cells keep passing over the same area.', { floodPower: .27, floodLife: 12 }]),
   ...upgradeTree('Abilities', 'Rotation and touchdown', {
     Rotation: [
       ['funnel-rotation', 'Stronger Rotation', 'Organize a rotating updraft into a supercell and improve tornado intensity.', { mesocyclone: 1, chargeGain: .12, tornadoIntensity: .055 }],
@@ -615,7 +613,7 @@ const thunderstorm = [
     Guidance: [
       ['funnel-guidance', 'Guided Funnels', 'Steer individual tornadoes and spend less rotation on each drop.', { tornadoSteering: 1, tornadoEfficiency: 4 }],
     ],
-  }, ['funnel-precision', 'Precision Touchdown', 'Choose a land point inside the drop area and further favor supercell organization.', { mesocyclone: 1, precisionDrop: 1 }, 11]),
+  }, ['funnel-precision', 'Precision Touchdown', 'Choose a land point inside the drop area and further favor supercell organization.', { mesocyclone: 1, precisionDrop: 1 }]),
   ...upgradeTree('Abilities', 'Cell regeneration', {
     Cells: [
       ['storm-new-cell', 'Secondary Updrafts', 'Organize a multicell cluster with new development beside the core.', { newCells: 1 }],
@@ -625,7 +623,7 @@ const thunderstorm = [
       ['storm-train', 'Cell Training', 'Focus runoff behind the storm where cells cross the same ground.', { floodPower: .12, floodLife: 10 }],
       ['storm-merge', 'Merging Cells', 'Increase the cluster footprint and boost runoff.', { floodPower: .16, width: 10 }],
     ],
-  }, ['storm-complex', 'Long-Lived Cluster', 'Favor multicell organization and sustain a broader cluster.', { newCells: 1, endurance: .18, width: 12 }, 11]),
+  }, ['storm-complex', 'Long-Lived Cluster', 'Favor multicell organization and sustain a broader cluster.', { newCells: 1, endurance: .18, width: 12 }]),
   ...upgradeTree('Abilities', 'Electrical activity', {
     Charge: [
       ['storm-charge', 'Charge Separation', 'Produce occasional ground strikes as the storm strengthens.', { lightning: .22 }],
@@ -635,7 +633,7 @@ const thunderstorm = [
       ['storm-grid-strike', 'Grid Strikes', 'Increase the chance of a ground strike and prolong local outages.', { lightning: .13, lightningOutage: 14 }],
       ['storm-transformers', 'Transformer Damage', 'Extend outages caused by ground strikes.', { lightningOutage: 20, power: .08 }],
     ],
-  }, ['storm-barrage', 'Electrical Barrage', 'Increase ground-strike frequency and extend their outages.', { lightning: .22, lightningOutage: 16 }, 11]),
+  }, ['storm-barrage', 'Electrical Barrage', 'Increase ground-strike frequency and extend their outages.', { lightning: .22, lightningOutage: 16 }]),
   ...upgradeTree('Abilities', 'Warning and response', {
     Outages: [
       ['impact-grid', 'Grid Failure', 'Severe wind damage can interrupt local power.', { outageTime: 24, power: .08 }],
@@ -645,7 +643,7 @@ const thunderstorm = [
       ['impact-broadcast', 'Interrupted Alerts', 'Delay warnings by 8 forecast seconds.', { warningDelay: 8 }],
       ['storm-road-blocks', 'Blocked Roads', 'Slow sheltering after warnings are issued.', { gridlock: .15 }],
     ],
-  }, ['storm-response', 'Overloaded Response', 'Delay warnings further and slow sheltering in damaged areas.', { warningDelay: 8, gridlock: .14, overload: .09 }, 11]),
+  }, ['storm-response', 'Overloaded Response', 'Delay warnings further and slow sheltering in damaged areas.', { warningDelay: 8, gridlock: .14, overload: .09 }]),
 ]
 
 export const trees: Record<Storm, Upgrade[]> = {

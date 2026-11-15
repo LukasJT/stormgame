@@ -56,6 +56,7 @@ it('spreads early and sustains a large unupgraded fire before naturally ending',
 it('delays response and reduces line progress when containment upgrades are bought', () => {
   const base = startRun(california, 0, 'Hard', defaultSeed)
   const upgraded = startRun(california, 0, 'Hard', defaultSeed)
+  upgraded.momentum = 30
   for (const id of ['evacuation', 'fire-flanks']) expect(buyUpgrade(upgraded, id)).toBe(true)
   for (let tickCount = 0; tickCount < 164; tickCount++) {
     tick(base)

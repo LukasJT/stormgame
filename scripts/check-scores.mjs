@@ -38,6 +38,7 @@ try {
   const request = result.request()
   const auth = await request.headerValue('authorization')
   const input = request.postDataJSON()
+  const api = result.url().split('/runs/')[0]
   assert.ok(input.replay.commands.some(command => command.action === 'buy' && command.value === 'vortex'))
   const duplicate = await fetch(result.url(), {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth }, body: JSON.stringify(input),
@@ -49,7 +50,7 @@ try {
     body: JSON.stringify(input),
   })
   assert.equal(forged.status, 403)
-  const badStart = await fetch(base + '/api/runs/start', {
+  const badStart = await fetch(api + '/runs/start', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify({ placement: input.replay.placement, rulesVersion: original.summary.rulesVersion }),
   })

@@ -78,6 +78,7 @@ const icons = {
   lock: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v2"/>',
   guide: '<path d="M3 5h5c2 0 4 1 4 3v12c0-2-2-3-4-3H3zm18 0h-5c-2 0-4 1-4 3v12c0-2 2-3 4-3h5z"/>',
   records: '<path d="M8 3h8v5a4 4 0 0 1-8 0zm0 2H4v2a4 4 0 0 0 5 4m7-6h4v2a4 4 0 0 1-5 4m-3 1v6m-4 2h8"/>',
+  leaderboards: '<path d="M3 20h18M4 20v-7h5v7m0 0V5h6v15m0 0v-10h5v10"/>',
   settings: '<path d="M4 6h8m4 0h4M4 12h3m4 0h9M4 18h11m4 0h1M12 4v4m-5 2v4m8 2v4"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
   heat: '<path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Zm3 2V7"/>',
@@ -316,7 +317,7 @@ function menuContent() {
     <nav class="title-actions" aria-label="Main menu">
       ${button('menu-play', `${icon('play')} Play`, undefined, 'menu-primary')}
       ${button('menu-sandbox', `${icon('infinity')} Sandbox`, undefined, 'menu-secondary')}
-      ${button('leaderboards', 'Leaderboards', undefined, 'menu-secondary')}
+      ${button('leaderboards', `${icon('leaderboards')} Leaderboards`, undefined, 'menu-secondary')}
       ${(Object.keys(menuSections) as (keyof typeof menuSections)[]).map(section =>
         button('menu-section', `${icon(section)} ${menuSections[section]}`, section, 'menu-secondary')).join('')}
     </nav>
@@ -659,7 +660,7 @@ function renderPanel() {
       <dl class="region-stats"><div><dt>Event</dt><dd>${placement.event}</dd></div><div><dt>Difficulty</dt><dd>${difficultyLabel(placement.difficulty)}</dd></div>
         <div><dt>Damage</dt><dd>${formatDamage(metrics.damage ?? 0)}</dd></div><div><dt>Deaths</dt><dd>${num.format(metrics.deaths ?? 0)}</dd></div></dl>
       <label for="score-name">Display name</label><input id="score-name" name="displayName" data-key="score-name" required maxlength="48" value="${escapeName(savedDisplayName())}">
-      ${!ticket ? '<p>Scores saved on this device</p>' : ''}
+      ${!ticket ? '<p>This forecast can be saved on this device.</p>' : '<p>Your display name and score appear on the global leaderboard.</p>'}
       <button class="order hot" type="submit" ${scoreSubmitting || scoreAccepted ? 'disabled' : ''}>${title}</button>
       <p role="status">${escapeName(scoreMessage)}</p></form>`
   } else if (panel === 'evolve') {
@@ -1266,7 +1267,7 @@ document.addEventListener('click', event => {
         filters.metric = 'damage'
         filters.challenge = undefined
         filters.period = 'all'
-        boardScope = ticket && scoreAccepted ? 'shared' : 'device'
+        boardScope = sharedScoresConfigured && (!scoreAccepted || ticket) ? 'shared' : 'device'
       }
       showScreen('leaderboards')
       return void refreshScores()

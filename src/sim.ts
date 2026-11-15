@@ -1,7 +1,7 @@
 import { advanceWildfire, fireHistoryAt, fireHistoryLabels, spotFire, startWildfire, type Wildfire } from './wildfire'
 import { localExposureAt, makeZone, makeZones, zoneIds as ids, type Theater, type ZoneId, type Zone } from './world'
 import { baseEffects, trees, type Effects, type Upgrade } from './upgrades'
-import { damagePrice, tornadoUpgradePrice } from './evolution-stats'
+import { clipperUpgradePremium, upgradeBasePrice } from './evolution-stats'
 import { alongTrack } from './track'
 import { hazardFor, hazards, type Ability } from './hazards'
 import { blizzardCourseAvailable, blizzardHeading, blizzardOptions, blizzardPatterns, blizzardSteeringOffset, blizzardTrack, clipperWidthMultiplier, type BlizzardCourse, type BlizzardPattern, type BlizzardSteering } from './blizzard'
@@ -495,8 +495,8 @@ const upgradeEconomy = {
 }
 
 export function upgradeCost(run: Run, upgrade: Upgrade) {
-  const storm = run.theater.storm
-  const cost = storm === 'Tornado' ? tornadoUpgradePrice(run.effects, upgrade) : upgrade.cost + damagePrice(storm, upgrade)
+  const base = upgradeBasePrice(run.theater.storm, upgrade)
+  const cost = base + (run.blizzardPattern === 'Alberta Clipper' ? clipperUpgradePremium(upgrade) : 0)
   return Math.round(cost * upgradeEconomy[run.difficulty].multiplier)
 }
 
@@ -624,7 +624,7 @@ function impactWind(run: Run) {
   if (run.theater.storm === 'Thunderstorm') return wind
   if (run.front) return wind + run.effects.hazardDamage * 35
   // Convert non-wind hazards to severity bands for the shared exposure model.
-  return Math.max(wind, 55 + run.strength * 1.02)
+  return Math.max(wind, 55 + run.strength * 1.02 + run.effects.heatDegrees * 3)
 }
 
 function impact(run: Run, id: ZoneId, intensity: number, rain = 0, wind = impactWind(run)) {

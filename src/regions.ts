@@ -30,7 +30,8 @@ export function getRegions(code: string): Promise<Region[]> {
   if (!(code in regionIndex)) return Promise.resolve([])
   const cached = pending.get(code)
   if (cached) return cached
-  const request = fetch(`${import.meta.env.BASE_URL}regions/${code}.json`).then(async response => {
+  const base = import.meta.env.VITE_REGION_ASSET_BASE || import.meta.env.BASE_URL
+  const request = fetch(`${base}regions/${code}.json`).then(async response => {
     if (!response.ok) throw Error('Regional map data could not be loaded.')
     const regions: Region[] = await response.json()
     localBoundaries.set(code, regions.flatMap(({ id, name, pop, polygons }) => {

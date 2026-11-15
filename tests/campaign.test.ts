@@ -195,7 +195,7 @@ it('makes every warning tier reduce sheltering before the storm can cause an out
   const path = ['tornado-response', 'tornado-grid', 'tornado-warning-overload']
   const runs = [0, 1, 2, 3].map(tier => {
     const run = startRun(makeDrop('Tornado', 37.69, -97.34), 0, 'Hard', defaultSeed)
-    run.momentum = 30
+    run.momentum = 100
     for (const id of path.slice(0, tier)) expect(buyUpgrade(run, id)).toBe(true)
     const sampled = new Map<ReturnType<typeof impactAreas>[number]['site'], { warnedAt: number; sheltered: number }>()
     for (let i = 0; i < 120; i++) {
@@ -281,7 +281,7 @@ it('lets a specialized storm aim its active ability after buying Targeted Outbre
   const nearby = movePoint(point, 0, 7)
   const charge = run.charge
   expect(useAbility(run, nearby)).toBeFalsy()
-  run.momentum = 29
+  run.momentum = 80
   for (const id of ['impact-hail', 'impact-gust', 'impact-grid', 'impact-signature', 'impact-extreme']) expect(buyUpgrade(run, id)).toBe(true)
   expect(useAbility(run, movePoint(point, 0, 150))).toBeFalsy()
   expect(run.charge).toBe(charge)
