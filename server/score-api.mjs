@@ -1,4 +1,4 @@
-import { demoLeaderboard } from './demo-scores.mjs'
+import { seededAt, seededLeaderboard } from './seeded-scores.mjs'
 
 const encode = value => new TextEncoder().encode(value)
 const base64url = bytes => btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
@@ -44,6 +44,13 @@ const publicRow = row => ({
   id: row.id, name: row.display_name, player: row.player.slice(0, 6), score: row.score, submitted: row.submitted,
   summary: JSON.parse(row.summary),
 })
+const leaderboardLimit = 60
+
+function ranking(rows, seeded) {
+  return [...rows.map(publicRow), ...seeded]
+    .sort((a, b) => b.score - a.score || a.submitted - b.submitted || a.id.localeCompare(b.id))
+    .slice(0, leaderboardLimit)
+}
 
 
 export function createScoreApi({ engine, secret, origins = [], query, verify }) {
@@ -137,7 +144,8 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
         (challenge && !/^\d{4}-\d{2}-\d{2}$/.test(challenge))) throw failure(400, 'Invalid leaderboard filters.')
       const now = new Date()
       const since = period === 'month' ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) : 0
-      const demos = version === rulesVersion && !challenge ? demoLeaderboard({ event, difficulty, metric }, damageTargets) : []
+      const seeded = version === rulesVersion && !challenge && since <= seededAt
+        ? seededLeaderboard({ event, difficulty, metric }, damageTargets) : []
       if (metric === 'mastery') {
         const rows = await query.all(`
           WITH best AS (
@@ -148,9 +156,9 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
             FROM scores WHERE version = ?
           )
           SELECT recent.*, SUM(best.stars) AS score FROM best JOIN recent USING (player) WHERE recent.n = 1
-          GROUP BY best.player ORDER BY score DESC, recent.submitted ASC, recent.id LIMIT 50
+          GROUP BY best.player ORDER BY score DESC, recent.submitted ASC, recent.id LIMIT ${leaderboardLimit}
         `, version, since, version)
-        return response(200, { rows: rows.map(publicRow), demos, version })
+        return response(200, { rows: ranking(rows, seeded), version })
       }
       const rows = await query.all(`
         WITH eligible AS (
@@ -161,9 +169,9 @@ export function createScoreApi({ engine, secret, origins = [], query, verify }) 
           SELECT *, ROW_NUMBER() OVER (PARTITION BY player ORDER BY score DESC, submitted ASC, id) AS n
           FROM eligible WHERE score IS NOT NULL
         )
-        SELECT * FROM ranked WHERE n = 1 ORDER BY score DESC, submitted ASC, id LIMIT 50
+        SELECT * FROM ranked WHERE n = 1 ORDER BY score DESC, submitted ASC, id LIMIT ${leaderboardLimit}
       `, '$.metrics.' + metric, version, event, difficulty, since, challenge || '')
-      return response(200, { rows: rows.map(publicRow), demos, version })
+      return response(200, { rows: ranking(rows, seeded), version })
     }
     throw failure(404, 'Unknown API route.')
   }
