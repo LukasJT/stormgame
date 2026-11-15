@@ -28,7 +28,7 @@ try {
   await page.clock.runFor(65_000)
   await page.getByRole('dialog').getByRole('button', { name: 'Next', exact: true }).click()
   await page.getByRole('button', { name: 'Submit score', exact: true }).click()
-  const name = 'Éclair <' + randomBytes(3).toString('hex') + '>'
+  const name = 'Stormwake QA <' + randomBytes(3).toString('hex') + '>'
   await page.getByLabel('Display name').fill(name)
   const submission = page.waitForResponse(response => response.url().endsWith('/submit'))
   await page.getByRole('dialog').getByRole('button', { name: 'Submit score', exact: true }).click()
@@ -54,9 +54,10 @@ try {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify({ placement: input.replay.placement, rulesVersion: original.summary.rulesVersion }),
   })
+  assert.equal(badStart.status, 201)
   const badTicket = await badStart.json()
   const badReplay = { ...input.replay, seed: badTicket.seed, startedAt: badTicket.issuedAt, commands: [{ tick: 0, action: 'buy', value: 'multi-vortex' }] }
-  const illegal = await fetch(base + '/api/runs/' + badTicket.id + '/submit', {
+  const illegal = await fetch(api + '/runs/' + badTicket.id + '/submit', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify({ token: badTicket.token, displayName: name, replay: badReplay }),
   })
