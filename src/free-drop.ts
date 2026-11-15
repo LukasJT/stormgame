@@ -15,11 +15,25 @@ function bounded(rings: number[][][]) {
 }
 
 function contains(lon: number, lat: number, { west, east, south, north, rings }: ReturnType<typeof bounded>) {
-  return lon >= west && lon <= east && lat >= south && lat <= north &&
-    inside(lon, lat, rings[0]) && !rings.slice(1).some(ring => inside(lon, lat, ring))
+  if (lon < west || lon > east || lat < south || lat > north || !inside(lon, lat, rings[0])) return false
+  for (let i = 1; i < rings.length; i++) if (inside(lon, lat, rings[i])) return false
+  return true
 }
 
 const polygons = boundaries.flatMap(({ name, code, polygons }) => polygons.map(rings => ({ name, code, ...bounded(rings) })))
+const polygonsByCell = new Map<number, (typeof polygons)[number][]>()
+const cell = (lon: number, lat: number) => Math.floor((lon + 180) / 5) + Math.floor((lat + 90) / 5) * 73
+for (const polygon of polygons) {
+  const { west, east, south, north } = polygon
+  for (let lat = Math.floor(south / 5) * 5; lat <= north; lat += 5) {
+    for (let lon = Math.floor(west / 5) * 5; lon <= east; lon += 5) {
+      const key = cell(lon, lat)
+      const entries = polygonsByCell.get(key)
+      if (entries) entries.push(polygon)
+      else polygonsByCell.set(key, [polygon])
+    }
+  }
+}
 const nycLand = nyc.land.map(bounded)
 const nycExtent = nyc.extent.map(bounded)
 const njLand = nyc.njLand.map(bounded)
@@ -73,7 +87,7 @@ export function locate(lat: number, longitude: number) {
   }
   const lake = lakeAt(lat, longitude)
   if (lake) return { name: lake, code: undefined }
-  const country = polygons.find(polygon => contains(lon, lat, polygon))
+  const country = polygonsByCell.get(cell(lon, lat))?.find(polygon => contains(lon, lat, polygon))
   if (country) return { name: country.name, code: country.code || 'land' }
   if (lat === -90) return { name: 'Antarctica', code: 'AQ' }
   return { name: 'Open water', code: undefined }

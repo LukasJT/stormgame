@@ -26,6 +26,20 @@ const centroids = {
   US: countyCentroids as CensusRow[],
 }
 
+function latitudeBands(rows: CensusRow[]) {
+  const bands: { row: CensusRow; reach: number }[][] = Array.from({ length: 181 }, () => [])
+  for (const row of rows) {
+    const [, latitude, , population, area, density] = row
+    if (!population || !area || !density) continue
+    const reach = Math.max(25, Math.sqrt(area * 2.59 / Math.PI) * 2)
+    const south = Math.max(0, Math.floor(latitude + 90 - reach / 111.2))
+    const north = Math.min(180, Math.floor(latitude + 90 + reach / 111.2))
+    for (let band = south; band <= north; band++) bands[band].push({ row, reach })
+  }
+  return bands
+}
+
+const candidates = { CA: latitudeBands(centroids.CA), US: latitudeBands(centroids.US) }
 const nearestCache = new Map<string, CensusRow | undefined>()
 
 export function nearbyCensus(code: 'CA' | 'US', latitude: number, longitude: number) {
@@ -37,13 +51,16 @@ export function nearbyCensus(code: 'CA' | 'US', latitude: number, longitude: num
   const scale = 111.2 * Math.cos(lat * Math.PI / 180)
   let nearest: CensusRow | undefined
   let distance = Infinity
-  for (const row of centroids[code]) {
-    const [, rowLat, rowLon, population, area, density] = row
-    if (!population || !area || !density) continue
+  for (const { row, reach } of candidates[code][Math.floor(lat + 90)]) {
+    const [, rowLat, rowLon] = row
+    const y = (lat - rowLat) * 111.2
+    if (Math.abs(y) > reach || Math.abs(y) >= distance) continue
     const delta = Math.abs(lon - rowLon)
-    const km = Math.hypot((lat - rowLat) * 111.2, Math.min(delta, 360 - delta) * scale)
+    const x = Math.min(delta, 360 - delta) * scale
+    if (Math.abs(x) > reach || Math.abs(x) >= distance) continue
+    const km = Math.hypot(y, x)
     // Leave remote gaps to the regional or national estimate.
-    if (km >= distance || km > Math.max(25, Math.sqrt(area * 2.59 / Math.PI) * 2)) continue
+    if (km >= distance || km > reach) continue
     nearest = row
     distance = km
   }
